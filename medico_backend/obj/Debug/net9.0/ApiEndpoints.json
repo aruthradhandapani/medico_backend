@@ -1,0 +1,570 @@
+[
+  {
+    "ContainingType": "Medico_Backend.Controllers.AppointmentBookingController",
+    "Method": "Book",
+    "RelativePath": "api/AppointmentBooking/book",
+    "HttpMethod": "POST",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "data",
+        "Type": "Medico_Backend.Model.AppointmentBookingModel",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "Medico_Backend.Controllers.AppointmentBookingController",
+    "Method": "GetByCustomer",
+    "RelativePath": "api/AppointmentBooking/by-customer",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "custid",
+        "Type": "System.Decimal",
+        "IsRequired": false
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "Medico_Backend.Controllers.AppointmentBookingController",
+    "Method": "Cancel",
+    "RelativePath": "api/AppointmentBooking/cancel",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "booking_id",
+        "Type": "System.Guid",
+        "IsRequired": false
+      },
+      {
+        "Name": "cancel_reason",
+        "Type": "System.String",
+        "IsRequired": false
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "Medico_Backend.Controllers.AppointmentBookingController",
+    "Method": "GetCustomerInfo",
+    "RelativePath": "api/AppointmentBooking/customer-info",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "custid",
+        "Type": "System.Decimal",
+        "IsRequired": false
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "Medico_Backend.Controllers.AppointmentBookingController",
+    "Method": "GetAvailableSlots",
+    "RelativePath": "api/AppointmentBooking/get-available-slots",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "dcode",
+        "Type": "System.Int32",
+        "IsRequired": false
+      },
+      {
+        "Name": "appointment_date",
+        "Type": "System.DateOnly",
+        "IsRequired": false
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "Medico_Backend.Controllers.AppointmentBookingController",
+    "Method": "Reschedule",
+    "RelativePath": "api/AppointmentBooking/reschedule",
+    "HttpMethod": "POST",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "old_booking_id",
+        "Type": "System.Guid",
+        "IsRequired": false
+      },
+      {
+        "Name": "new_data",
+        "Type": "Medico_Backend.Model.AppointmentBookingModel",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "Medico_Backend.Controllers.AppointmentBookingController",
+    "Method": "GetTodayAppointments",
+    "RelativePath": "api/AppointmentBooking/today",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "dcode",
+        "Type": "System.Int32",
+        "IsRequired": false
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "Medico_Backend.Controllers.AppointmentBookingController",
+    "Method": "UpdateStatus",
+    "RelativePath": "api/AppointmentBooking/update-status",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "booking_id",
+        "Type": "System.Guid",
+        "IsRequired": false
+      },
+      {
+        "Name": "booking_status",
+        "Type": "System.String",
+        "IsRequired": false
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "Medico_Backend.Controllers.CustomerMasterController",
+    "Method": "Delete",
+    "RelativePath": "api/CustomerMaster/delete",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "custid",
+        "Type": "System.Decimal",
+        "IsRequired": false
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "Medico_Backend.Controllers.CustomerMasterController",
+    "Method": "Get",
+    "RelativePath": "api/CustomerMaster/get",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "Medico_Backend.Controllers.CustomerMasterController",
+    "Method": "GetByCustId",
+    "RelativePath": "api/CustomerMaster/get-by-custid",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "custid",
+        "Type": "System.Decimal",
+        "IsRequired": false
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "Medico_Backend.Controllers.CustomerMasterController",
+    "Method": "GetByMobile",
+    "RelativePath": "api/CustomerMaster/get-by-mobile",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "mobile",
+        "Type": "System.String",
+        "IsRequired": false
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "Medico_Backend.Controllers.CustomerMasterController",
+    "Method": "GetInsurancePatients",
+    "RelativePath": "api/CustomerMaster/get-insurance-patients",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "Medico_Backend.Controllers.CustomerMasterController",
+    "Method": "GetIPPatients",
+    "RelativePath": "api/CustomerMaster/get-ip-patients",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "Medico_Backend.Controllers.CustomerMasterController",
+    "Method": "GetNextCustId",
+    "RelativePath": "api/CustomerMaster/get-next-custid",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "Medico_Backend.Controllers.CustomerMasterController",
+    "Method": "GetOPPatients",
+    "RelativePath": "api/CustomerMaster/get-op-patients",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "Medico_Backend.Controllers.CustomerMasterController",
+    "Method": "Insert",
+    "RelativePath": "api/CustomerMaster/insert",
+    "HttpMethod": "POST",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "data",
+        "Type": "Medico_Backend.Model.CustomerMasterModel",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "Medico_Backend.Controllers.CustomerMasterController",
+    "Method": "SearchByName",
+    "RelativePath": "api/CustomerMaster/search-by-name",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "name",
+        "Type": "System.String",
+        "IsRequired": false
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "Medico_Backend.Controllers.CustomerMasterController",
+    "Method": "Update",
+    "RelativePath": "api/CustomerMaster/update",
+    "HttpMethod": "POST",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "data",
+        "Type": "Medico_Backend.Model.CustomerMasterModel",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "Medico_Backend.Controllers.DoctorAppointmentSlotController",
+    "Method": "BookPatient",
+    "RelativePath": "api/DoctorAppointmentSlot/details/book-patient",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "slot_detail_id",
+        "Type": "System.Guid",
+        "IsRequired": false
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "Medico_Backend.Controllers.DoctorAppointmentSlotController",
+    "Method": "DeleteDetails",
+    "RelativePath": "api/DoctorAppointmentSlot/details/delete",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "slot_detail_id",
+        "Type": "System.Guid",
+        "IsRequired": false
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "Medico_Backend.Controllers.DoctorAppointmentSlotController",
+    "Method": "GetDetailsByDate",
+    "RelativePath": "api/DoctorAppointmentSlot/details/get-by-date",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "dcode",
+        "Type": "System.Int32",
+        "IsRequired": false
+      },
+      {
+        "Name": "appointment_date",
+        "Type": "System.DateOnly",
+        "IsRequired": false
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "Medico_Backend.Controllers.DoctorAppointmentSlotController",
+    "Method": "InsertDetails",
+    "RelativePath": "api/DoctorAppointmentSlot/details/insert",
+    "HttpMethod": "POST",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "data",
+        "Type": "Medico_Backend.Model.DoctorAppointmentSlotDetailsModel",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "Medico_Backend.Controllers.DoctorAppointmentSlotController",
+    "Method": "UpdateDetails",
+    "RelativePath": "api/DoctorAppointmentSlot/details/update",
+    "HttpMethod": "POST",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "data",
+        "Type": "Medico_Backend.Model.DoctorAppointmentSlotDetailsModel",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "Medico_Backend.Controllers.DoctorAppointmentSlotController",
+    "Method": "DeleteMaster",
+    "RelativePath": "api/DoctorAppointmentSlot/master/delete",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "slot_master_id",
+        "Type": "System.Guid",
+        "IsRequired": false
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "Medico_Backend.Controllers.DoctorAppointmentSlotController",
+    "Method": "GetMasterByDoctor",
+    "RelativePath": "api/DoctorAppointmentSlot/master/get-by-doctor",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "dcode",
+        "Type": "System.Int32",
+        "IsRequired": false
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "Medico_Backend.Controllers.DoctorAppointmentSlotController",
+    "Method": "InsertMaster",
+    "RelativePath": "api/DoctorAppointmentSlot/master/insert",
+    "HttpMethod": "POST",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "data",
+        "Type": "Medico_Backend.Model.DoctorAppointmentSlotMasterModel",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "Medico_Backend.Controllers.DoctorAppointmentSlotController",
+    "Method": "UpdateMaster",
+    "RelativePath": "api/DoctorAppointmentSlot/master/update",
+    "HttpMethod": "POST",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "data",
+        "Type": "Medico_Backend.Model.DoctorAppointmentSlotMasterModel",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "Medico_Backend.Controllers.DoctorMasterController",
+    "Method": "Delete",
+    "RelativePath": "api/DoctorMaster/delete",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "dcode",
+        "Type": "System.Int32",
+        "IsRequired": false
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "Medico_Backend.Controllers.DoctorMasterController",
+    "Method": "Get",
+    "RelativePath": "api/DoctorMaster/get",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "Medico_Backend.Controllers.DoctorMasterController",
+    "Method": "GetByDcode",
+    "RelativePath": "api/DoctorMaster/get-by-dcode",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "dcode",
+        "Type": "System.Int32",
+        "IsRequired": false
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "Medico_Backend.Controllers.DoctorMasterController",
+    "Method": "GetConsultants",
+    "RelativePath": "api/DoctorMaster/get-consultants",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "Medico_Backend.Controllers.DoctorMasterController",
+    "Method": "GetNextDcode",
+    "RelativePath": "api/DoctorMaster/get-next-dcode",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "Medico_Backend.Controllers.DoctorMasterController",
+    "Method": "GetReferrals",
+    "RelativePath": "api/DoctorMaster/get-referrals",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "Medico_Backend.Controllers.DoctorMasterController",
+    "Method": "Insert",
+    "RelativePath": "api/DoctorMaster/insert",
+    "HttpMethod": "POST",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "data",
+        "Type": "Medico_Backend.Model.DoctorMasterModel",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "Medico_Backend.Controllers.DoctorMasterController",
+    "Method": "Update",
+    "RelativePath": "api/DoctorMaster/update",
+    "HttpMethod": "POST",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "data",
+        "Type": "Medico_Backend.Model.DoctorMasterModel",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "medico_backend.Controllers.WeatherForecastController",
+    "Method": "Get",
+    "RelativePath": "WeatherForecast",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [],
+    "ReturnTypes": [
+      {
+        "Type": "System.Collections.Generic.IEnumerable\u00601[[medico_backend.WeatherForecast, medico_backend, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]]",
+        "MediaTypes": [
+          "text/plain",
+          "application/json",
+          "text/json"
+        ],
+        "StatusCode": 200
+      }
+    ],
+    "EndpointName": "GetWeatherForecast"
+  }
+]
