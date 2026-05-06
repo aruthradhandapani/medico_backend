@@ -29,21 +29,21 @@ namespace medico_backend.Controllers
         [HttpPost("upload")]
         public async Task<IActionResult> Upload(
             [FromForm] IFormFile file,
-            [FromForm] string bucketName,
+            [FromForm] string? bucketName,
             [FromForm] string clientFolder,
             [FromForm] string fileName)
         {
             if (file == null || file.Length == 0)
                 return BadRequest("No file uploaded.");
 
-            if (string.IsNullOrWhiteSpace(bucketName))
-                return BadRequest("bucketName is required.");
-
             if (string.IsNullOrWhiteSpace(clientFolder))
                 return BadRequest("clientFolder is required.");
 
             if (string.IsNullOrWhiteSpace(fileName))
                 return BadRequest("fileName is required.");
+
+            if(bucketName== null || bucketName.Length == 0)
+                bucketName = "cms"; // default bucket
 
             // Upload to MinIO
             var key = await _s3.UploadAsync(file, bucketName, clientFolder, fileName);
