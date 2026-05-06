@@ -45,4 +45,15 @@ namespace Medico_Backend.Model
         public DateTime created_at { get; set; } = DateTime.UtcNow;
         public DateTime updated_at { get; set; } = DateTime.UtcNow;
     }
+    // Add this new class below existing models
+    public class BulkInsertSlotDetailsRequest
+    {
+        public Guid slot_master_id { get; set; }
+        public int dcode { get; set; }
+        public List<DateOnly> appointment_dates { get; set; } = new();
+        public TimeOnly slot_start_time { get; set; }
+        public TimeOnly slot_end_time { get; set; }
+        public int max_patients { get; set; } = 10;
+        public bool is_active { get; set; } = true;
+    }
 }

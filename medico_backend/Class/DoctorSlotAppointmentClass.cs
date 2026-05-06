@@ -1,7 +1,5 @@
 ﻿using Dapper;
-using Dapper.Contrib.Extensions;
 using Npgsql;
-using NpgsqlTypes;
 using System.Data;
 using Medico_Backend.Model;
 
@@ -16,46 +14,75 @@ namespace Medico_Backend.Class
             _db_conn = configuration.GetConnectionString("conn")!;
         }
 
+        // ═══════════════════════════════════════════
+        // MASTER
+        // ═══════════════════════════════════════════
+
         // ─────────────────────────────────────────
-        // MASTER - INSERT
+        // MASTER - GET ALL
         // ─────────────────────────────────────────
-        public async Task<string> InsertMaster(DoctorAppointmentSlotMasterModel data)
+        public async Task<List<DoctorAppointmentSlotMasterModel>> GetAllMaster(string tenant_code)
         {
-            try
-            {
-                using IDbConnection db = new NpgsqlConnection(_db_conn);
-                data.slot_master_id = Guid.NewGuid();
-                data.created_at = DateTime.SpecifyKind(DateTime.UtcNow, DateTimeKind.Utc);
-                data.updated_at = DateTime.SpecifyKind(DateTime.UtcNow, DateTimeKind.Utc);
+            using IDbConnection db = new NpgsqlConnection(_db_conn);
 
-                string sql = @"INSERT INTO doctor_appointment_slot_master
-                        (slot_master_id, dcode, tenant_code, day_of_week,
-                         slot_start_time, slot_end_time, max_patients,
-                         is_active, isdeleted, created_at, updated_at)
-                       VALUES
-                        (@slot_master_id, @dcode, @tenant_code, @day_of_week,
-                         @slot_start_time, @slot_end_time, @max_patients,
-                         @is_active, @isdeleted, @created_at, @updated_at)";
+            string sql = @"SELECT slot_master_id,
+                                  dcode,
+                                  tenant_code,
+                                  day_of_week,
+                                  slot_start_time,
+                                  slot_end_time,
+                                  max_patients,
+                                  max_walkin,
+                                  max_online,
+                                  slot_date,
+                                  is_active,
+                                  isdeleted,
+                                  created_at AT TIME ZONE 'UTC' AS created_at,
+                                  updated_at AT TIME ZONE 'UTC' AS updated_at
+                           FROM   doctor_appointment_slot_master
+                           WHERE  isdeleted   = false
+                           AND    tenant_code = @tenant_code
+                           ORDER  BY dcode, day_of_week, slot_start_time";
 
-                await db.ExecuteAsync(sql, new
-                {
-                    data.slot_master_id,
-                    data.dcode,
-                    data.tenant_code,
-                    data.day_of_week,
-                    slot_start_time = data.slot_start_time.ToTimeSpan(), // ✅ only here
-                    slot_end_time = data.slot_end_time.ToTimeSpan(),   // ✅ only here
-                    data.max_patients,
-                    data.is_active,
-                    data.isdeleted,
-                    data.created_at,
-                    data.updated_at
-                });
-
-                return "Success";
-            }
-            catch (Exception ex) { return ex.Message; }
+            var res = await db.QueryAsync<DoctorAppointmentSlotMasterModel>(
+                sql, new { tenant_code });
+            return res.ToList();
         }
+
+        // ─────────────────────────────────────────
+        // MASTER - GET BY DOCTOR
+        // ─────────────────────────────────────────
+        public async Task<List<DoctorAppointmentSlotMasterModel>> GetMasterByDoctor(
+            int dcode, string tenant_code)
+        {
+            using IDbConnection db = new NpgsqlConnection(_db_conn);
+
+            string sql = @"SELECT slot_master_id,
+                                  dcode,
+                                  tenant_code,
+                                  day_of_week,
+                                  slot_start_time,
+                                  slot_end_time,
+                                  max_patients,
+                                  max_walkin,
+                                  max_online,
+                                  slot_date,
+                                  is_active,
+                                  isdeleted,
+                                  created_at AT TIME ZONE 'UTC' AS created_at,
+                                  updated_at AT TIME ZONE 'UTC' AS updated_at
+                           FROM   doctor_appointment_slot_master
+                           WHERE  isdeleted   = false
+                           AND    dcode       = @dcode
+                           AND    tenant_code = @tenant_code
+                           ORDER  BY day_of_week, slot_start_time";
+
+            var res = await db.QueryAsync<DoctorAppointmentSlotMasterModel>(
+                sql, new { dcode, tenant_code });
+            return res.ToList();
+        }
+
+        
 
         // ─────────────────────────────────────────
         // MASTER - UPDATE
@@ -74,6 +101,9 @@ namespace Medico_Backend.Class
                            slot_start_time = @slot_start_time,
                            slot_end_time   = @slot_end_time,
                            max_patients    = @max_patients,
+                           max_walkin      = @max_walkin,
+                           max_online      = @max_online,
+                           slot_date       = @slot_date,
                            is_active       = @is_active,
                            updated_at      = @updated_at
                        WHERE slot_master_id = @slot_master_id
@@ -84,9 +114,15 @@ namespace Medico_Backend.Class
                     data.dcode,
                     data.tenant_code,
                     data.day_of_week,
-                    slot_start_time = data.slot_start_time.ToTimeSpan(), // ✅
-                    slot_end_time = data.slot_end_time.ToTimeSpan(),   // ✅
+                    slot_start_time = data.slot_start_time.ToTimeSpan(),
+                    slot_end_time = data.slot_end_time.ToTimeSpan(),
                     data.max_patients,
+                    data.max_walkin,
+                    data.max_online,
+                    // ✅ DateOnly? → DateTime? fix
+                    slot_date = data.slot_date.HasValue
+                        ? data.slot_date.Value.ToDateTime(TimeOnly.MinValue)
+                        : (DateTime?)null,
                     data.is_active,
                     data.updated_at,
                     data.slot_master_id
@@ -117,36 +153,79 @@ namespace Medico_Backend.Class
             catch (Exception ex) { return ex.Message; }
         }
 
+        // ═══════════════════════════════════════════
+        // DETAILS
+        // ═══════════════════════════════════════════
+
         // ─────────────────────────────────────────
-        // MASTER - GET BY DOCTOR
-        // ✅ Use raw SQL for SELECT to avoid Dapper.Contrib type-mapping issues
-        //    with TimeOnly and DateTime on read
+        // DETAILS - GET ALL
         // ─────────────────────────────────────────
-        public async Task<List<DoctorAppointmentSlotMasterModel>> GetMasterByDoctor(
-            int dcode, string tenant_code)
+        public async Task<List<DoctorAppointmentSlotDetailsModel>> GetAllDetails(string tenant_code)
         {
             using IDbConnection db = new NpgsqlConnection(_db_conn);
 
-            string sql = @"SELECT slot_master_id,
+            string sql = @"SELECT slot_detail_id,
+                                  slot_master_id,
                                   dcode,
                                   tenant_code,
-                                  day_of_week,
+                                  appointment_date,
                                   slot_start_time,
                                   slot_end_time,
                                   max_patients,
+                                  booked_count,
+                                  (max_patients - booked_count) AS remaining_seats,
+                                  slot_status,
                                   is_active,
                                   isdeleted,
-                                  -- ✅ Cast timestamptz → timestamp AT UTC so C# DateTime maps cleanly
                                   created_at AT TIME ZONE 'UTC' AS created_at,
                                   updated_at AT TIME ZONE 'UTC' AS updated_at
-                           FROM   doctor_appointment_slot_master
+                           FROM   doctor_appointment_slot_details
                            WHERE  isdeleted   = false
-                           AND    dcode       = @dcode
                            AND    tenant_code = @tenant_code
-                           ORDER  BY day_of_week, slot_start_time";
+                           ORDER  BY appointment_date, slot_start_time";
 
-            var res = await db.QueryAsync<DoctorAppointmentSlotMasterModel>(
-                sql, new { dcode, tenant_code });
+            var res = await db.QueryAsync<DoctorAppointmentSlotDetailsModel>(
+                sql, new { tenant_code });
+            return res.ToList();
+        }
+
+        // ─────────────────────────────────────────
+        // DETAILS - GET BY DATE
+        // ─────────────────────────────────────────
+        public async Task<List<DoctorAppointmentSlotDetailsModel>> GetDetailsByDate(
+            int dcode, DateOnly appointment_date, string tenant_code)
+        {
+            using IDbConnection db = new NpgsqlConnection(_db_conn);
+
+            string sql = @"SELECT slot_detail_id,
+                                  slot_master_id,
+                                  dcode,
+                                  tenant_code,
+                                  appointment_date,
+                                  slot_start_time,
+                                  slot_end_time,
+                                  max_patients,
+                                  booked_count,
+                                  (max_patients - booked_count) AS remaining_seats,
+                                  slot_status,
+                                  is_active,
+                                  isdeleted,
+                                  created_at AT TIME ZONE 'UTC' AS created_at,
+                                  updated_at AT TIME ZONE 'UTC' AS updated_at
+                           FROM   doctor_appointment_slot_details
+                           WHERE  isdeleted        = false
+                           AND    dcode            = @dcode
+                           AND    appointment_date = @appointment_date
+                           AND    tenant_code      = @tenant_code
+                           ORDER  BY slot_start_time";
+
+            var res = await db.QueryAsync<DoctorAppointmentSlotDetailsModel>(
+                sql, new
+                {
+                    dcode,
+                    appointment_date = appointment_date.ToDateTime(TimeOnly.MinValue),
+                    tenant_code
+                });
             return res.ToList();
         }
 
@@ -181,9 +260,9 @@ namespace Medico_Backend.Class
                     data.slot_master_id,
                     data.dcode,
                     data.tenant_code,
-                    appointment_date = data.appointment_date.ToDateTime(TimeOnly.MinValue), // ✅ DateOnly → DateTime
-                    slot_start_time = data.slot_start_time.ToTimeSpan(),                  // ✅ TimeOnly → TimeSpan
-                    slot_end_time = data.slot_end_time.ToTimeSpan(),                    // ✅ TimeOnly → TimeSpan
+                    appointment_date = data.appointment_date.ToDateTime(TimeOnly.MinValue),
+                    slot_start_time = data.slot_start_time.ToTimeSpan(),
+                    slot_end_time = data.slot_end_time.ToTimeSpan(),
                     data.max_patients,
                     data.booked_count,
                     data.slot_status,
@@ -228,9 +307,9 @@ namespace Medico_Backend.Class
                     data.slot_master_id,
                     data.dcode,
                     data.tenant_code,
-                    appointment_date = data.appointment_date.ToDateTime(TimeOnly.MinValue), // ✅ DateOnly → DateTime
-                    slot_start_time = data.slot_start_time.ToTimeSpan(),                  // ✅ TimeOnly → TimeSpan
-                    slot_end_time = data.slot_end_time.ToTimeSpan(),                    // ✅ TimeOnly → TimeSpan
+                    appointment_date = data.appointment_date.ToDateTime(TimeOnly.MinValue),
+                    slot_start_time = data.slot_start_time.ToTimeSpan(),
+                    slot_end_time = data.slot_end_time.ToTimeSpan(),
                     data.max_patients,
                     data.booked_count,
                     data.slot_status,
@@ -243,6 +322,7 @@ namespace Medico_Backend.Class
             }
             catch (Exception ex) { return ex.Message; }
         }
+
         // ─────────────────────────────────────────
         // DETAILS - SOFT DELETE
         // ─────────────────────────────────────────
@@ -262,48 +342,6 @@ namespace Medico_Backend.Class
             }
             catch (Exception ex) { return ex.Message; }
         }
-
-        // ─────────────────────────────────────────
-        // DETAILS - GET BY DATE (by dcode)
-        // ─────────────────────────────────────────
-        // BY dcode
-        public async Task<List<DoctorAppointmentSlotDetailsModel>> GetDetailsByDate(
-            int dcode, DateOnly appointment_date, string tenant_code)
-        {
-            using IDbConnection db = new NpgsqlConnection(_db_conn);
-
-            string sql = @"SELECT slot_detail_id,
-                          slot_master_id,
-                          dcode,
-                          tenant_code,
-                          appointment_date,
-                          slot_start_time,
-                          slot_end_time,
-                          max_patients,
-                          booked_count,
-                          slot_status,
-                          is_active,
-                          isdeleted,
-                          created_at AT TIME ZONE 'UTC' AS created_at,
-                          updated_at AT TIME ZONE 'UTC' AS updated_at
-                   FROM   doctor_appointment_slot_details
-                   WHERE  isdeleted        = false
-                   AND    dcode            = @dcode
-                   AND    appointment_date = @appointment_date
-                   AND    tenant_code      = @tenant_code
-                   ORDER  BY slot_start_time";
-
-            var res = await db.QueryAsync<DoctorAppointmentSlotDetailsModel>(
-                sql, new
-                {
-                    dcode,
-                    appointment_date = appointment_date.ToDateTime(TimeOnly.MinValue), // ✅
-                    tenant_code
-                });
-            return res.ToList();
-        }
-
-        
 
         // ─────────────────────────────────────────
         // BOOK PATIENT
@@ -327,6 +365,171 @@ namespace Medico_Backend.Class
                 return rows > 0 ? "Success" : "Slot is FULL or not available";
             }
             catch (Exception ex) { return ex.Message; }
+        }
+
+        // ─────────────────────────────────────────
+        // MASTER - INSERT WITH DUPLICATE CHECK
+        // ─────────────────────────────────────────
+        public async Task<string> InsertMaster(DoctorAppointmentSlotMasterModel data)
+        {
+            try
+            {
+                using IDbConnection db = new NpgsqlConnection(_db_conn);
+
+                // ✅ Duplicate check — same doctor, same day, same time
+                string checkSql = @"SELECT COUNT(1)
+                            FROM doctor_appointment_slot_master
+                            WHERE isdeleted      = false
+                            AND   dcode          = @dcode
+                            AND   tenant_code    = @tenant_code
+                            AND   day_of_week    = @day_of_week
+                            AND   slot_start_time = @slot_start_time
+                            AND   slot_end_time   = @slot_end_time";
+
+                int exists = await db.ExecuteScalarAsync<int>(checkSql, new
+                {
+                    data.dcode,
+                    data.tenant_code,
+                    data.day_of_week,
+                    slot_start_time = data.slot_start_time.ToTimeSpan(),
+                    slot_end_time = data.slot_end_time.ToTimeSpan()
+                });
+
+                if (exists > 0)
+                    return $"Duplicate! Doctor {data.dcode} already has a slot on " +
+                           $"{data.day_of_week} from {data.slot_start_time} to {data.slot_end_time}";
+
+                data.slot_master_id = Guid.NewGuid();
+                data.created_at = DateTime.SpecifyKind(DateTime.UtcNow, DateTimeKind.Utc);
+                data.updated_at = DateTime.SpecifyKind(DateTime.UtcNow, DateTimeKind.Utc);
+
+                string sql = @"INSERT INTO doctor_appointment_slot_master
+                (slot_master_id, dcode, tenant_code, day_of_week,
+                 slot_start_time, slot_end_time, max_patients,
+                 max_walkin, max_online, slot_date,
+                 is_active, isdeleted, created_at, updated_at)
+               VALUES
+                (@slot_master_id, @dcode, @tenant_code, @day_of_week,
+                 @slot_start_time, @slot_end_time, @max_patients,
+                 @max_walkin, @max_online, @slot_date,
+                 @is_active, @isdeleted, @created_at, @updated_at)";
+
+                await db.ExecuteAsync(sql, new
+                {
+                    data.slot_master_id,
+                    data.dcode,
+                    data.tenant_code,
+                    data.day_of_week,
+                    slot_start_time = data.slot_start_time.ToTimeSpan(),
+                    slot_end_time = data.slot_end_time.ToTimeSpan(),
+                    data.max_patients,
+                    data.max_walkin,
+                    data.max_online,
+                    slot_date = data.slot_date.HasValue
+                        ? data.slot_date.Value.ToDateTime(TimeOnly.MinValue)
+                        : (DateTime?)null,
+                    data.is_active,
+                    data.isdeleted,
+                    data.created_at,
+                    data.updated_at
+                });
+
+                return "Success";
+            }
+            catch (Exception ex) { return ex.Message; }
+        }
+
+        // ─────────────────────────────────────────
+        // DETAILS - BULK INSERT BY DATE LIST
+        // ─────────────────────────────────────────
+        public async Task<object> BulkInsertDetails(
+            BulkInsertSlotDetailsRequest request, string tenant_code)
+        {
+            var success_dates = new List<string>();
+            var skipped_dates = new List<string>();
+            var failed_dates = new List<string>();
+
+            using IDbConnection db = new NpgsqlConnection(_db_conn);
+
+            foreach (var date in request.appointment_dates)
+            {
+                try
+                {
+                    // ✅ Duplicate check per date
+                    string checkSql = @"SELECT COUNT(1)
+                                FROM doctor_appointment_slot_details
+                                WHERE isdeleted        = false
+                                AND   dcode            = @dcode
+                                AND   tenant_code      = @tenant_code
+                                AND   slot_master_id   = @slot_master_id
+                                AND   appointment_date = @appointment_date
+                                AND   slot_start_time  = @slot_start_time
+                                AND   slot_end_time    = @slot_end_time";
+
+                    int exists = await db.ExecuteScalarAsync<int>(checkSql, new
+                    {
+                        request.dcode,
+                        tenant_code,
+                        request.slot_master_id,
+                        appointment_date = date.ToDateTime(TimeOnly.MinValue),
+                        slot_start_time = request.slot_start_time.ToTimeSpan(),
+                        slot_end_time = request.slot_end_time.ToTimeSpan()
+                    });
+
+                    if (exists > 0)
+                    {
+                        skipped_dates.Add(date.ToString("yyyy-MM-dd") + " (already exists)");
+                        continue;
+                    }
+
+                    // ✅ Insert new slot detail
+                    string insertSql = @"INSERT INTO doctor_appointment_slot_details
+                    (slot_detail_id, slot_master_id, dcode, tenant_code,
+                     appointment_date, slot_start_time, slot_end_time,
+                     max_patients, booked_count, slot_status,
+                     is_active, isdeleted, created_at, updated_at)
+                   VALUES
+                    (@slot_detail_id, @slot_master_id, @dcode, @tenant_code,
+                     @appointment_date, @slot_start_time, @slot_end_time,
+                     @max_patients, @booked_count, @slot_status,
+                     @is_active, @isdeleted, @created_at, @updated_at)";
+
+                    await db.ExecuteAsync(insertSql, new
+                    {
+                        slot_detail_id = Guid.NewGuid(),
+                        request.slot_master_id,
+                        request.dcode,
+                        tenant_code,
+                        appointment_date = date.ToDateTime(TimeOnly.MinValue),
+                        slot_start_time = request.slot_start_time.ToTimeSpan(),
+                        slot_end_time = request.slot_end_time.ToTimeSpan(),
+                        request.max_patients,
+                        booked_count = 0,
+                        slot_status = "OPEN",
+                        request.is_active,
+                        isdeleted = false,
+                        created_at = DateTime.SpecifyKind(DateTime.UtcNow, DateTimeKind.Utc),
+                        updated_at = DateTime.SpecifyKind(DateTime.UtcNow, DateTimeKind.Utc)
+                    });
+
+                    success_dates.Add(date.ToString("yyyy-MM-dd"));
+                }
+                catch (Exception ex)
+                {
+                    failed_dates.Add(date.ToString("yyyy-MM-dd") + $" (error: {ex.Message})");
+                }
+            }
+
+            return new
+            {
+                total_requested = request.appointment_dates.Count,
+                total_inserted = success_dates.Count,
+                total_skipped = skipped_dates.Count,
+                total_failed = failed_dates.Count,
+                inserted_dates = success_dates,
+                skipped_dates = skipped_dates,
+                failed_dates = failed_dates
+            };
         }
     }
 }
