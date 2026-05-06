@@ -1,0 +1,190 @@
+{
+  "Version": 1,
+  "WorkspaceRootPath": "D:\\Trellisys\\medico_backend\\",
+  "Documents": [
+    {
+      "AbsoluteMoniker": "D:0:0:{DBCFC32E-9869-226A-AC5B-A8117E5E2E73}|medico_backend\\medico_backend.csproj|d:\\trellisys\\medico_backend\\medico_backend\\controllers\\prescriptioncontroller.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{DBCFC32E-9869-226A-AC5B-A8117E5E2E73}|medico_backend\\medico_backend.csproj|solutionrelative:medico_backend\\controllers\\prescriptioncontroller.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{DBCFC32E-9869-226A-AC5B-A8117E5E2E73}|medico_backend\\medico_backend.csproj|d:\\trellisys\\medico_backend\\medico_backend\\program.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{DBCFC32E-9869-226A-AC5B-A8117E5E2E73}|medico_backend\\medico_backend.csproj|solutionrelative:medico_backend\\program.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{DBCFC32E-9869-226A-AC5B-A8117E5E2E73}|medico_backend\\medico_backend.csproj|d:\\trellisys\\medico_backend\\medico_backend\\services\\s3imageservice.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{DBCFC32E-9869-226A-AC5B-A8117E5E2E73}|medico_backend\\medico_backend.csproj|solutionrelative:medico_backend\\services\\s3imageservice.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{DBCFC32E-9869-226A-AC5B-A8117E5E2E73}|medico_backend\\medico_backend.csproj|d:\\trellisys\\medico_backend\\medico_backend\\services\\s3prescriptionservice.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{DBCFC32E-9869-226A-AC5B-A8117E5E2E73}|medico_backend\\medico_backend.csproj|solutionrelative:medico_backend\\services\\s3prescriptionservice.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{DBCFC32E-9869-226A-AC5B-A8117E5E2E73}|medico_backend\\medico_backend.csproj|d:\\trellisys\\medico_backend\\medico_backend\\controllers\\filescontroller.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{DBCFC32E-9869-226A-AC5B-A8117E5E2E73}|medico_backend\\medico_backend.csproj|solutionrelative:medico_backend\\controllers\\filescontroller.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{DBCFC32E-9869-226A-AC5B-A8117E5E2E73}|medico_backend\\medico_backend.csproj|d:\\trellisys\\medico_backend\\medico_backend\\model\\prescriptionmodel.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{DBCFC32E-9869-226A-AC5B-A8117E5E2E73}|medico_backend\\medico_backend.csproj|solutionrelative:medico_backend\\model\\prescriptionmodel.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{DBCFC32E-9869-226A-AC5B-A8117E5E2E73}|medico_backend\\medico_backend.csproj|d:\\trellisys\\medico_backend\\medico_backend\\services\\tokenservice.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{DBCFC32E-9869-226A-AC5B-A8117E5E2E73}|medico_backend\\medico_backend.csproj|solutionrelative:medico_backend\\services\\tokenservice.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{DBCFC32E-9869-226A-AC5B-A8117E5E2E73}|medico_backend\\medico_backend.csproj|d:\\trellisys\\medico_backend\\medico_backend\\class\\prescriptionclass.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{DBCFC32E-9869-226A-AC5B-A8117E5E2E73}|medico_backend\\medico_backend.csproj|solutionrelative:medico_backend\\class\\prescriptionclass.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{DBCFC32E-9869-226A-AC5B-A8117E5E2E73}|medico_backend\\medico_backend.csproj|d:\\trellisys\\medico_backend\\medico_backend\\appsettings.json||{90A6B3A7-C1A3-4009-A288-E2FF89E96FA0}",
+      "RelativeMoniker": "D:0:0:{DBCFC32E-9869-226A-AC5B-A8117E5E2E73}|medico_backend\\medico_backend.csproj|solutionrelative:medico_backend\\appsettings.json||{90A6B3A7-C1A3-4009-A288-E2FF89E96FA0}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{DBCFC32E-9869-226A-AC5B-A8117E5E2E73}|medico_backend\\medico_backend.csproj|d:\\trellisys\\medico_backend\\medico_backend\\services\\emailservice.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{DBCFC32E-9869-226A-AC5B-A8117E5E2E73}|medico_backend\\medico_backend.csproj|solutionrelative:medico_backend\\services\\emailservice.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    }
+  ],
+  "DocumentGroupContainers": [
+    {
+      "Orientation": 0,
+      "VerticalTabListWidth": 256,
+      "DocumentGroups": [
+        {
+          "DockedWidth": 200,
+          "SelectedChildIndex": 1,
+          "Children": [
+            {
+              "$type": "Document",
+              "DocumentIndex": 3,
+              "Title": "S3PrescriptionService.cs",
+              "DocumentMoniker": "D:\\Trellisys\\medico_backend\\medico_backend\\Services\\S3PrescriptionService.cs",
+              "RelativeDocumentMoniker": "medico_backend\\Services\\S3PrescriptionService.cs",
+              "ToolTip": "D:\\Trellisys\\medico_backend\\medico_backend\\Services\\S3PrescriptionService.cs",
+              "RelativeToolTip": "medico_backend\\Services\\S3PrescriptionService.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAJQAAAABAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-05-06T08:15:30.252Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 0,
+              "Title": "PrescriptionController.cs",
+              "DocumentMoniker": "D:\\Trellisys\\medico_backend\\medico_backend\\Controllers\\PrescriptionController.cs",
+              "RelativeDocumentMoniker": "medico_backend\\Controllers\\PrescriptionController.cs",
+              "ToolTip": "D:\\Trellisys\\medico_backend\\medico_backend\\Controllers\\PrescriptionController.cs",
+              "RelativeToolTip": "medico_backend\\Controllers\\PrescriptionController.cs",
+              "ViewState": "AgIAAF8AAAAAAAAAAAAqwGgAAAAzAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-05-06T07:46:13.467Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 5,
+              "Title": "PrescriptionModel.cs",
+              "DocumentMoniker": "D:\\Trellisys\\medico_backend\\medico_backend\\Model\\PrescriptionModel.cs",
+              "RelativeDocumentMoniker": "medico_backend\\Model\\PrescriptionModel.cs",
+              "ToolTip": "D:\\Trellisys\\medico_backend\\medico_backend\\Model\\PrescriptionModel.cs",
+              "RelativeToolTip": "medico_backend\\Model\\PrescriptionModel.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAAAAAAgAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-05-06T07:43:07.272Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 1,
+              "Title": "Program.cs",
+              "DocumentMoniker": "D:\\Trellisys\\medico_backend\\medico_backend\\Program.cs",
+              "RelativeDocumentMoniker": "medico_backend\\Program.cs",
+              "ToolTip": "D:\\Trellisys\\medico_backend\\medico_backend\\Program.cs",
+              "RelativeToolTip": "medico_backend\\Program.cs",
+              "ViewState": "AgIAAA0AAAAAAAAAAAD4vx0AAAAtAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-05-06T07:05:03.94Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 8,
+              "Title": "appsettings.json",
+              "DocumentMoniker": "D:\\Trellisys\\medico_backend\\medico_backend\\appsettings.json",
+              "RelativeDocumentMoniker": "medico_backend\\appsettings.json",
+              "ToolTip": "D:\\Trellisys\\medico_backend\\medico_backend\\appsettings.json",
+              "RelativeToolTip": "medico_backend\\appsettings.json",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAoAAAChAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001642|",
+              "WhenOpened": "2026-05-06T06:56:41.307Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 6,
+              "Title": "TokenService.cs",
+              "DocumentMoniker": "D:\\Trellisys\\medico_backend\\medico_backend\\Services\\TokenService.cs",
+              "RelativeDocumentMoniker": "medico_backend\\Services\\TokenService.cs",
+              "ToolTip": "D:\\Trellisys\\medico_backend\\medico_backend\\Services\\TokenService.cs",
+              "RelativeToolTip": "medico_backend\\Services\\TokenService.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-05-06T07:08:06.645Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 2,
+              "Title": "S3ImageService.cs",
+              "DocumentMoniker": "D:\\Trellisys\\medico_backend\\medico_backend\\Services\\S3ImageService.cs",
+              "RelativeDocumentMoniker": "medico_backend\\Services\\S3ImageService.cs",
+              "ToolTip": "D:\\Trellisys\\medico_backend\\medico_backend\\Services\\S3ImageService.cs",
+              "RelativeToolTip": "medico_backend\\Services\\S3ImageService.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAMAAAAYAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-05-06T06:58:57.147Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 4,
+              "Title": "FilesController.cs",
+              "DocumentMoniker": "D:\\Trellisys\\medico_backend\\medico_backend\\Controllers\\FilesController.cs",
+              "RelativeDocumentMoniker": "medico_backend\\Controllers\\FilesController.cs",
+              "ToolTip": "D:\\Trellisys\\medico_backend\\medico_backend\\Controllers\\FilesController.cs",
+              "RelativeToolTip": "medico_backend\\Controllers\\FilesController.cs",
+              "ViewState": "AgIAACwAAAAAAAAAAAAswDYAAAAyAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-05-06T07:22:46.603Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 7,
+              "Title": "PrescriptionClass.cs",
+              "DocumentMoniker": "D:\\Trellisys\\medico_backend\\medico_backend\\Class\\PrescriptionClass.cs",
+              "RelativeDocumentMoniker": "medico_backend\\Class\\PrescriptionClass.cs",
+              "ToolTip": "D:\\Trellisys\\medico_backend\\medico_backend\\Class\\PrescriptionClass.cs",
+              "RelativeToolTip": "medico_backend\\Class\\PrescriptionClass.cs",
+              "ViewState": "AgIAACkAAAAAAAAAAAAswAsAAABUAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-05-06T07:51:54.603Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 9,
+              "Title": "EmailService.cs",
+              "DocumentMoniker": "D:\\Trellisys\\medico_backend\\medico_backend\\Services\\EmailService.cs",
+              "RelativeDocumentMoniker": "medico_backend\\Services\\EmailService.cs",
+              "ToolTip": "D:\\Trellisys\\medico_backend\\medico_backend\\Services\\EmailService.cs",
+              "RelativeToolTip": "medico_backend\\Services\\EmailService.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAcAAAAdAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-05-06T06:58:00.449Z",
+              "EditorCaption": ""
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
