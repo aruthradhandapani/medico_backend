@@ -103,7 +103,8 @@ namespace medico_backend.InventoryClass
                             deleted         = @deleted,
                             usercode        = @usercode,
                             tenantcode      = @tenantcode
-                        WHERE itemcode = @itemcode;";
+                        WHERE itemcode = @itemcode
+                          AND tenantcode = @tenantcode;"; 
 
                     int rows = await db.ExecuteAsync(query, item);
                     return rows > 0 ? "Success" : "Failed";
@@ -115,7 +116,8 @@ namespace medico_backend.InventoryClass
             }
         }
 
-        public async Task<string> DeleteItem(long itemcode)
+        // ← tenantcode added to signature + WHERE clause
+        public async Task<string> DeleteItem(long itemcode, string tenantcode)
         {
             try
             {
@@ -126,9 +128,10 @@ namespace medico_backend.InventoryClass
                     string query = @"
                         UPDATE public.item_master
                         SET deleted = true, isactive = false
-                        WHERE itemcode = @itemcode;";
+                        WHERE itemcode = @itemcode
+                          AND tenantcode = @tenantcode;"; 
 
-                    int rows = await db.ExecuteAsync(query, new { itemcode });
+                    int rows = await db.ExecuteAsync(query, new { itemcode, tenantcode });
                     return rows > 0 ? "Success" : "Failed";
                 }
             }
@@ -149,14 +152,16 @@ namespace medico_backend.InventoryClass
                 new { tenantcode });
         }
 
-        public async Task<item_master?> GetItemByCode(long itemcode)
+        // ← tenantcode added to signature + WHERE clause
+        public async Task<item_master?> GetItemByCode(long itemcode, string tenantcode)
         {
             using IDbConnection db = new NpgsqlConnection(con);
             return await db.QueryFirstOrDefaultAsync<item_master>(@"
                 SELECT * FROM public.item_master
                 WHERE itemcode = @itemcode
+                  AND tenantcode = @tenantcode
                   AND deleted = false;",
-                new { itemcode });
+                new { itemcode, tenantcode });
         }
 
         // ─── VENDOR MASTER ───────────────────────────────────────────────────────────
@@ -245,6 +250,7 @@ namespace medico_backend.InventoryClass
                                 tenantcode            = @tenantcode,
                                 branchcode            = @branchcode
                             WHERE vendorcode = @vendorcode
+                              AND tenantcode = @tenantcode        -- ← tenant guard
                             RETURNING vendorcode;";
                     }
 
@@ -303,7 +309,8 @@ namespace medico_backend.InventoryClass
                             usercode              = @usercode,
                             tenantcode            = @tenantcode,
                             branchcode            = @branchcode
-                        WHERE vendorcode = @vendorcode;";
+                        WHERE vendorcode = @vendorcode
+                          AND tenantcode = @tenantcode;"; 
 
                     int rows = await db.ExecuteAsync(query, vendor);
                     return rows > 0 ? "Success" : "Failed";
@@ -315,7 +322,8 @@ namespace medico_backend.InventoryClass
             }
         }
 
-        public async Task<string> DeleteVendor(long vendorcode)
+        // ← tenantcode added to signature + WHERE clause
+        public async Task<string> DeleteVendor(long vendorcode, string tenantcode)
         {
             try
             {
@@ -326,9 +334,10 @@ namespace medico_backend.InventoryClass
                     string query = @"
                         UPDATE public.vendor_master
                         SET deleted = true, isactive = false, modifieddate = CURRENT_TIMESTAMP
-                        WHERE vendorcode = @vendorcode;";
+                        WHERE vendorcode = @vendorcode
+                          AND tenantcode = @tenantcode;"; 
 
-                    int rows = await db.ExecuteAsync(query, new { vendorcode });
+                    int rows = await db.ExecuteAsync(query, new { vendorcode, tenantcode });
                     return rows > 0 ? "Success" : "Failed";
                 }
             }
@@ -349,14 +358,16 @@ namespace medico_backend.InventoryClass
                 new { tenantcode });
         }
 
-        public async Task<vendor_master?> GetVendorByCode(long vendorcode)
+        // ← tenantcode added to signature + WHERE clause
+        public async Task<vendor_master?> GetVendorByCode(long vendorcode, string tenantcode)
         {
             using IDbConnection db = new NpgsqlConnection(con);
             return await db.QueryFirstOrDefaultAsync<vendor_master>(@"
                 SELECT * FROM public.vendor_master
                 WHERE vendorcode = @vendorcode
+                  AND tenantcode = @tenantcode
                   AND deleted = false;",
-                new { vendorcode });
+                new { vendorcode, tenantcode });
         }
 
         // ─── PURCHASE MASTER ─────────────────────────────────────────────────────────
@@ -463,7 +474,8 @@ namespace medico_backend.InventoryClass
                                 tenantcode      = @tenantcode,
                                 branchcode      = @branchcode,
                                 companycode     = @companycode
-                            WHERE purchasecode = @purchasecode;";
+                            WHERE purchasecode = @purchasecode
+                              AND tenantcode = @tenantcode;"; 
 
                         await db.ExecuteAsync(masterQuery, request.master, transaction);
 
@@ -505,7 +517,8 @@ namespace medico_backend.InventoryClass
             }
         }
 
-        public async Task<string> DeletePurchase(long purchasecode)
+        // ← tenantcode added to signature + WHERE clause
+        public async Task<string> DeletePurchase(long purchasecode, string tenantcode)
         {
             using (IDbConnection db = new NpgsqlConnection(con))
             {
@@ -518,8 +531,9 @@ namespace medico_backend.InventoryClass
                         int masterRows = await db.ExecuteAsync(@"
                             UPDATE public.purchase_master
                             SET deleted = true, isactive = false, modifieddate = CURRENT_TIMESTAMP
-                            WHERE purchasecode = @purchasecode;",
-                            new { purchasecode }, transaction);
+                            WHERE purchasecode = @purchasecode
+                              AND tenantcode = @tenantcode;", 
+                            new { purchasecode, tenantcode }, transaction);
 
                         await db.ExecuteAsync(
                             "DELETE FROM public.purchase_detail WHERE purchasecode = @purchasecode;",
@@ -548,19 +562,23 @@ namespace medico_backend.InventoryClass
                 new { tenantcode });
         }
 
-        public async Task<purchase_request?> GetPurchaseByCode(long purchasecode)
+        // ← tenantcode added to signature + WHERE clause
+        public async Task<purchase_request?> GetPurchaseByCode(long purchasecode, string tenantcode)
         {
             using IDbConnection db = new NpgsqlConnection(con);
 
             var master = await db.QueryFirstOrDefaultAsync<purchase_master>(@"
                 SELECT * FROM public.purchase_master
-                WHERE purchasecode = @purchasecode AND deleted = false;",
-                new { purchasecode });
+                WHERE purchasecode = @purchasecode
+                  AND tenantcode = @tenantcode
+                  AND deleted = false;",
+                new { purchasecode, tenantcode });
 
             if (master == null) return null;
 
             var details = await db.QueryAsync<purchase_detail>(@"
-                SELECT * FROM public.purchase_detail WHERE purchasecode = @purchasecode;",
+                SELECT * FROM public.purchase_detail
+                WHERE purchasecode = @purchasecode;",
                 new { purchasecode });
 
             return new purchase_request { master = master, details = details.ToList() };
@@ -638,7 +656,8 @@ namespace medico_backend.InventoryClass
                             usercode        = @usercode,
                             tenantcode      = @tenantcode,
                             companycode     = @companycode
-                        WHERE stockcode = @stockcode;";
+                        WHERE stockcode = @stockcode
+                          AND tenantcode = @tenantcode;"; 
 
                     int rows = await db.ExecuteAsync(query, stock);
                     return rows > 0 ? "Success" : "Failed";
@@ -650,7 +669,8 @@ namespace medico_backend.InventoryClass
             }
         }
 
-        public async Task<string> DeleteStock(long stockcode)
+        // ← tenantcode added to signature + WHERE clause
+        public async Task<string> DeleteStock(long stockcode, string tenantcode)
         {
             try
             {
@@ -661,9 +681,10 @@ namespace medico_backend.InventoryClass
                     string query = @"
                         UPDATE public.stock_master
                         SET deleted = true, isactive = false, modifieddate = CURRENT_TIMESTAMP
-                        WHERE stockcode = @stockcode;";
+                        WHERE stockcode = @stockcode
+                          AND tenantcode = @tenantcode;"; 
 
-                    int rows = await db.ExecuteAsync(query, new { stockcode });
+                    int rows = await db.ExecuteAsync(query, new { stockcode, tenantcode });
                     return rows > 0 ? "Success" : "Failed";
                 }
             }
@@ -684,13 +705,16 @@ namespace medico_backend.InventoryClass
                 new { tenantcode });
         }
 
-        public async Task<stock_master?> GetStockByCode(long stockcode)
+        // ← tenantcode added to signature + WHERE clause
+        public async Task<stock_master?> GetStockByCode(long stockcode, string tenantcode)
         {
             using IDbConnection db = new NpgsqlConnection(con);
             return await db.QueryFirstOrDefaultAsync<stock_master>(@"
                 SELECT * FROM public.stock_master
-                WHERE stockcode = @stockcode AND deleted = false;",
-                new { stockcode });
+                WHERE stockcode = @stockcode
+                  AND tenantcode = @tenantcode
+                  AND deleted = false;",
+                new { stockcode, tenantcode });
         }
 
         public async Task<IEnumerable<stock_master>> GetStockByItem(long itemcode, string tenantcode)
@@ -781,7 +805,8 @@ namespace medico_backend.InventoryClass
                                 remarks        = @remarks,
                                 approvalstatus = @approvalstatus,
                                 tenantcode     = @tenantcode
-                            WHERE indentcode = @indentcode;",
+                            WHERE indentcode = @indentcode
+                              AND tenantcode = @tenantcode;", 
                             request.master, transaction);
 
                         await db.ExecuteAsync(
@@ -812,7 +837,8 @@ namespace medico_backend.InventoryClass
             }
         }
 
-        public async Task<string> DeleteIndent(long indentcode)
+        // ← tenantcode added to signature + WHERE clause
+        public async Task<string> DeleteIndent(long indentcode, string tenantcode)
         {
             using (IDbConnection db = new NpgsqlConnection(con))
             {
@@ -825,8 +851,9 @@ namespace medico_backend.InventoryClass
                         await db.ExecuteAsync(@"
                             UPDATE public.indent_master
                             SET deleted = true, isactive = false
-                            WHERE indentcode = @indentcode;",
-                            new { indentcode }, transaction);
+                            WHERE indentcode = @indentcode
+                              AND tenantcode = @tenantcode;", 
+                            new { indentcode, tenantcode }, transaction);
 
                         await db.ExecuteAsync(
                             "DELETE FROM public.indent_detail WHERE indentcode = @indentcode;",
@@ -855,14 +882,17 @@ namespace medico_backend.InventoryClass
                 new { tenantcode });
         }
 
-        public async Task<indent_request?> GetIndentByCode(long indentcode)
+        // ← tenantcode added to signature + WHERE clause
+        public async Task<indent_request?> GetIndentByCode(long indentcode, string tenantcode)
         {
             using IDbConnection db = new NpgsqlConnection(con);
 
             var master = await db.QueryFirstOrDefaultAsync<indent_master>(@"
                 SELECT * FROM public.indent_master
-                WHERE indentcode = @indentcode AND deleted = false;",
-                new { indentcode });
+                WHERE indentcode = @indentcode
+                  AND tenantcode = @tenantcode
+                  AND deleted = false;",
+                new { indentcode, tenantcode });
 
             if (master == null) return null;
 
@@ -877,6 +907,7 @@ namespace medico_backend.InventoryClass
 
         public async Task<long> InsertPurchaseEntry(purchase_entry_request request)
         {
+            // unchanged — tenantcode already flows through request.master.tenantcode
             using (IDbConnection db = new NpgsqlConnection(con))
             {
                 db.Open();
@@ -885,7 +916,6 @@ namespace medico_backend.InventoryClass
                 {
                     try
                     {
-                        // 1. INSERT purchase_entry_master (GRN)
                         var purchaseentrycode = await db.ExecuteScalarAsync<long>(@"
                             INSERT INTO purchase_entry_master
                             (
@@ -916,7 +946,6 @@ namespace medico_backend.InventoryClass
                             RETURNING purchaseentrycode;",
                             request.master, transaction);
 
-                        // 2. INSERT purchase_entry_detail
                         foreach (var item in request.details)
                         {
                             item.purchaseentrycode = purchaseentrycode;
@@ -945,7 +974,6 @@ namespace medico_backend.InventoryClass
                                 item, transaction);
                         }
 
-                        // 3. INSERT purchase_master
                         var purchasecode = await db.ExecuteScalarAsync<long>(@"
                             INSERT INTO purchase_master
                             (
@@ -995,7 +1023,6 @@ namespace medico_backend.InventoryClass
                             },
                             transaction);
 
-                        // 4. INSERT purchase_detail
                         foreach (var item in request.details)
                         {
                             await db.ExecuteAsync(@"
@@ -1060,8 +1087,8 @@ namespace medico_backend.InventoryClass
                     try
                     {
                         var entryId = request.master.purchaseentrycode;
+                        var tenantcode = request.master.tenantcode;    // ← capture for guards
 
-                        // 1. Reverse Stock
                         var oldItems = await db.QueryAsync<purchase_entry_detail>(
                             "SELECT * FROM purchase_entry_detail WHERE purchaseentrycode = @id",
                             new { id = entryId }, transaction);
@@ -1070,13 +1097,13 @@ namespace medico_backend.InventoryClass
                         {
                             await db.ExecuteAsync(@"
                                 UPDATE stock_master
-                                SET purchasedqty  = purchasedqty  - @qty,
-                                    closingstock  = closingstock  - @qty
-                                WHERE itemcode = @itemcode;",
-                                new { qty = item.receivedqty, item.itemcode }, transaction);
+                                SET purchasedqty = purchasedqty - @qty,
+                                    closingstock = closingstock - @qty
+                                WHERE itemcode = @itemcode
+                                  AND tenantcode = @tenantcode;", 
+                                new { qty = item.receivedqty, item.itemcode, tenantcode }, transaction);
                         }
 
-                        // 2. Update purchase_entry_master
                         await db.ExecuteAsync(@"
                             UPDATE purchase_entry_master
                             SET
@@ -1095,15 +1122,14 @@ namespace medico_backend.InventoryClass
                                 paymentstatus  = @paymentstatus,
                                 remarks        = @remarks,
                                 modifieddate   = CURRENT_TIMESTAMP
-                            WHERE purchaseentrycode = @purchaseentrycode;",
+                            WHERE purchaseentrycode = @purchaseentrycode
+                              AND tenantcode = @tenantcode;", 
                             request.master, transaction);
 
-                        // 3. Delete old entry details
                         await db.ExecuteAsync(
                             "DELETE FROM purchase_entry_detail WHERE purchaseentrycode = @id",
                             new { id = entryId }, transaction);
 
-                        // 4. Insert new entry details
                         foreach (var item in request.details)
                         {
                             item.purchaseentrycode = entryId;
@@ -1116,7 +1142,6 @@ namespace medico_backend.InventoryClass
                                 item, transaction);
                         }
 
-                        // 5. Update purchase_master
                         await db.ExecuteAsync(@"
                             UPDATE purchase_master
                             SET
@@ -1133,20 +1158,18 @@ namespace medico_backend.InventoryClass
                                 paymentstatus  = @paymentstatus,
                                 remarks        = @remarks,
                                 modifieddate   = CURRENT_TIMESTAMP
-                            WHERE grncode = @purchaseentrycode;",
+                            WHERE grncode = @purchaseentrycode
+                              AND tenantcode = @tenantcode;", 
                             request.master, transaction);
 
-                        // 6. Get purchasecode
                         var purchasecode = await db.ExecuteScalarAsync<long>(
-                            "SELECT purchasecode FROM purchase_master WHERE grncode = @id",
-                            new { id = entryId }, transaction);
+                            "SELECT purchasecode FROM purchase_master WHERE grncode = @id AND tenantcode = @tenantcode",
+                            new { id = entryId, tenantcode }, transaction);
 
-                        // 7. Delete old purchase_detail
                         await db.ExecuteAsync(
                             "DELETE FROM purchase_detail WHERE purchasecode = @pc",
                             new { pc = purchasecode }, transaction);
 
-                        // 8. Insert new purchase_detail
                         foreach (var item in request.details)
                         {
                             await db.ExecuteAsync(@"
@@ -1166,15 +1189,15 @@ namespace medico_backend.InventoryClass
                                 transaction);
                         }
 
-                        // 9. Add new stock
                         foreach (var item in request.details)
                         {
                             await db.ExecuteAsync(@"
                                 UPDATE stock_master
                                 SET purchasedqty = purchasedqty + @qty,
                                     closingstock = closingstock + @qty
-                                WHERE itemcode = @itemcode;",
-                                new { qty = item.receivedqty, item.itemcode }, transaction);
+                                WHERE itemcode = @itemcode
+                                  AND tenantcode = @tenantcode;", 
+                                new { qty = item.receivedqty, item.itemcode, item.tenantcode }, transaction);
                         }
 
                         transaction.Commit();
@@ -1189,7 +1212,8 @@ namespace medico_backend.InventoryClass
             }
         }
 
-        public async Task<string> DeletePurchaseEntry(long purchaseentrycode)
+        // ← tenantcode added to signature + WHERE clauses
+        public async Task<string> DeletePurchaseEntry(long purchaseentrycode, string tenantcode)
         {
             using (IDbConnection db = new NpgsqlConnection(con))
             {
@@ -1199,46 +1223,40 @@ namespace medico_backend.InventoryClass
                 {
                     try
                     {
-                        // 1. Get items
                         var items = await db.QueryAsync<purchase_entry_detail>(
                             "SELECT * FROM purchase_entry_detail WHERE purchaseentrycode = @id",
                             new { id = purchaseentrycode }, transaction);
 
-                        // 2. Reverse stock
                         foreach (var item in items)
                         {
                             await db.ExecuteAsync(@"
                                 UPDATE stock_master
                                 SET purchasedqty = purchasedqty - @qty,
                                     closingstock = closingstock - @qty
-                                WHERE itemcode = @itemcode;",
-                                new { qty = item.receivedqty, item.itemcode }, transaction);
+                                WHERE itemcode = @itemcode
+                                  AND tenantcode = @tenantcode;", 
+                                new { qty = item.receivedqty, item.itemcode, tenantcode }, transaction);
                         }
 
-                        // 3. Get purchasecode
                         var purchasecode = await db.ExecuteScalarAsync<long>(
-                            "SELECT purchasecode FROM purchase_master WHERE grncode = @id",
-                            new { id = purchaseentrycode }, transaction);
+                            "SELECT purchasecode FROM purchase_master WHERE grncode = @id AND tenantcode = @tenantcode",
+                            new { id = purchaseentrycode, tenantcode }, transaction);
 
-                        // 4. Delete purchase_detail
                         await db.ExecuteAsync(
                             "DELETE FROM purchase_detail WHERE purchasecode = @pc",
                             new { pc = purchasecode }, transaction);
 
-                        // 5. Delete purchase_master
                         await db.ExecuteAsync(
-                            "DELETE FROM purchase_master WHERE purchasecode = @pc",
-                            new { pc = purchasecode }, transaction);
+                            "DELETE FROM purchase_master WHERE purchasecode = @pc AND tenantcode = @tenantcode",
+                            new { pc = purchasecode, tenantcode }, transaction);
 
-                        // 6. Delete entry detail
                         await db.ExecuteAsync(
                             "DELETE FROM purchase_entry_detail WHERE purchaseentrycode = @id",
                             new { id = purchaseentrycode }, transaction);
 
-                        // 7. Delete entry master
                         await db.ExecuteAsync(
-                            "DELETE FROM purchase_entry_master WHERE purchaseentrycode = @id",
-                            new { id = purchaseentrycode }, transaction);
+                            "DELETE FROM purchase_entry_master WHERE purchaseentrycode = @id AND tenantcode = @tenantcode",
+                            new { id = purchaseentrycode, tenantcode }, transaction);
 
                         transaction.Commit();
                         return "Success";
@@ -1263,14 +1281,17 @@ namespace medico_backend.InventoryClass
                 new { tenantcode });
         }
 
-        public async Task<purchase_entry_request?> GetPurchaseEntryByCode(long purchaseentrycode)
+        // ← tenantcode added to signature + WHERE clause
+        public async Task<purchase_entry_request?> GetPurchaseEntryByCode(long purchaseentrycode, string tenantcode)
         {
             using IDbConnection db = new NpgsqlConnection(con);
 
             var master = await db.QueryFirstOrDefaultAsync<purchase_entry_master>(@"
                 SELECT * FROM public.purchase_entry_master
-                WHERE purchaseentrycode = @purchaseentrycode AND deleted = false;",
-                new { purchaseentrycode });
+                WHERE purchaseentrycode = @purchaseentrycode
+                  AND tenantcode = @tenantcode
+                  AND deleted = false;",
+                new { purchaseentrycode, tenantcode });
 
             if (master == null) return null;
 

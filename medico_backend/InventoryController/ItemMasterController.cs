@@ -17,16 +17,11 @@ namespace medico_backend.InventoryController
             itemclass = _imc;
         }
 
-        /// <summary>
-        /// Reads tenantcode from the request header.
-        /// Every endpoint that needs multi-tenancy filtering calls this helper.
-        /// </summary>
+       
         private string GetTenantCode() =>
             Request.Headers["tenantcode"].FirstOrDefault() ?? string.Empty;
 
-        /// <summary>
-        /// Returns a 400 response when the tenantcode header is missing.
-        /// </summary>
+       
         private IActionResult MissingTenantCode() =>
             BadRequest(new { Status = "Failed", Message = "Header 'tenantcode' is required." });
 
@@ -38,7 +33,6 @@ namespace medico_backend.InventoryController
         {
             try
             {
-                // Inject tenantcode from header if not already set in the body
                 if (string.IsNullOrEmpty(item.tenantcode))
                     item.tenantcode = GetTenantCode();
 
@@ -90,7 +84,10 @@ namespace medico_backend.InventoryController
         {
             try
             {
-                var res = await itemclass.DeleteItem(itemcode);
+                var tenantcode = GetTenantCode();
+                if (string.IsNullOrEmpty(tenantcode)) return MissingTenantCode();
+
+                var res = await itemclass.DeleteItem(itemcode, tenantcode);
 
                 return res == "Success"
                     ? Ok(new { Status = "Success", Message = "Item deleted successfully" })
@@ -126,7 +123,10 @@ namespace medico_backend.InventoryController
         {
             try
             {
-                var result = await itemclass.GetItemByCode(itemcode);
+                var tenantcode = GetTenantCode();
+                if (string.IsNullOrEmpty(tenantcode)) return MissingTenantCode();
+
+                var result = await itemclass.GetItemByCode(itemcode, tenantcode);
 
                 return result == null
                     ? NotFound(new { Status = "Failed", Message = "Item not found" })
@@ -197,7 +197,10 @@ namespace medico_backend.InventoryController
         {
             try
             {
-                var res = await itemclass.DeleteVendor(vendorcode);
+                var tenantcode = GetTenantCode();
+                if (string.IsNullOrEmpty(tenantcode)) return MissingTenantCode();
+
+                var res = await itemclass.DeleteVendor(vendorcode, tenantcode);
 
                 return res == "Success"
                     ? Ok(new { Status = "Success", Message = "Vendor deleted successfully" })
@@ -233,7 +236,10 @@ namespace medico_backend.InventoryController
         {
             try
             {
-                var result = await itemclass.GetVendorByCode(vendorcode);
+                var tenantcode = GetTenantCode();
+                if (string.IsNullOrEmpty(tenantcode)) return MissingTenantCode();
+
+                var result = await itemclass.GetVendorByCode(vendorcode, tenantcode);
 
                 return result == null
                     ? NotFound(new { Status = "Failed", Message = "Vendor not found" })
@@ -259,7 +265,6 @@ namespace medico_backend.InventoryController
                 if (string.IsNullOrEmpty(request.master.tenantcode))
                     return MissingTenantCode();
 
-                // Propagate tenantcode to all detail lines
                 foreach (var d in request.details)
                     if (string.IsNullOrEmpty(d.tenantcode))
                         d.tenantcode = request.master.tenantcode;
@@ -306,7 +311,10 @@ namespace medico_backend.InventoryController
         {
             try
             {
-                var result = await itemclass.DeletePurchase(purchasecode);
+                var tenantcode = GetTenantCode();
+                if (string.IsNullOrEmpty(tenantcode)) return MissingTenantCode();
+
+                var result = await itemclass.DeletePurchase(purchasecode, tenantcode);
 
                 return result == "Success"
                     ? Ok(new { Status = "Success", Message = "Purchase deleted successfully" })
@@ -342,7 +350,10 @@ namespace medico_backend.InventoryController
         {
             try
             {
-                var result = await itemclass.GetPurchaseByCode(purchasecode);
+                var tenantcode = GetTenantCode();
+                if (string.IsNullOrEmpty(tenantcode)) return MissingTenantCode();
+
+                var result = await itemclass.GetPurchaseByCode(purchasecode, tenantcode);
 
                 return result == null
                     ? NotFound(new { Status = "Failed", Message = "Purchase not found" })
@@ -404,7 +415,10 @@ namespace medico_backend.InventoryController
         {
             try
             {
-                var result = await itemclass.DeleteStock(stockcode);
+                var tenantcode = GetTenantCode();
+                if (string.IsNullOrEmpty(tenantcode)) return MissingTenantCode();
+
+                var result = await itemclass.DeleteStock(stockcode, tenantcode);
                 return Ok(new { Status = result });
             }
             catch (Exception ex)
@@ -437,7 +451,10 @@ namespace medico_backend.InventoryController
         {
             try
             {
-                var result = await itemclass.GetStockByCode(stockcode);
+                var tenantcode = GetTenantCode();
+                if (string.IsNullOrEmpty(tenantcode)) return MissingTenantCode();
+
+                var result = await itemclass.GetStockByCode(stockcode, tenantcode);
 
                 return result == null
                     ? NotFound(new { Status = "Failed", Message = "Stock not found" })
@@ -517,7 +534,10 @@ namespace medico_backend.InventoryController
         {
             try
             {
-                var result = await itemclass.DeleteIndent(indentcode);
+                var tenantcode = GetTenantCode();
+                if (string.IsNullOrEmpty(tenantcode)) return MissingTenantCode();
+
+                var result = await itemclass.DeleteIndent(indentcode, tenantcode);
 
                 return result == "Success"
                     ? Ok(new { Status = "Success", Message = "Indent deleted successfully" })
@@ -553,7 +573,10 @@ namespace medico_backend.InventoryController
         {
             try
             {
-                var result = await itemclass.GetIndentByCode(indentcode);
+                var tenantcode = GetTenantCode();
+                if (string.IsNullOrEmpty(tenantcode)) return MissingTenantCode();
+
+                var result = await itemclass.GetIndentByCode(indentcode, tenantcode);
 
                 return result == null
                     ? NotFound(new { Status = "Failed", Message = "Indent not found" })
@@ -632,7 +655,10 @@ namespace medico_backend.InventoryController
         {
             try
             {
-                var res = await itemclass.DeletePurchaseEntry(id);
+                var tenantcode = GetTenantCode();
+                if (string.IsNullOrEmpty(tenantcode)) return MissingTenantCode();
+
+                var res = await itemclass.DeletePurchaseEntry(id, tenantcode);
                 return Ok(res);
             }
             catch (Exception ex)
@@ -665,7 +691,10 @@ namespace medico_backend.InventoryController
         {
             try
             {
-                var result = await itemclass.GetPurchaseEntryByCode(purchaseentrycode);
+                var tenantcode = GetTenantCode();
+                if (string.IsNullOrEmpty(tenantcode)) return MissingTenantCode();
+
+                var result = await itemclass.GetPurchaseEntryByCode(purchaseentrycode, tenantcode);
 
                 return result == null
                     ? NotFound(new { Status = "Failed", Message = "Purchase Entry not found" })
@@ -685,6 +714,9 @@ namespace medico_backend.InventoryController
         {
             try
             {
+                var tenantcode = GetTenantCode();
+                if (string.IsNullOrEmpty(tenantcode)) return MissingTenantCode();
+
                 if (file == null || file.Length == 0)
                     return BadRequest("No file uploaded");
 
