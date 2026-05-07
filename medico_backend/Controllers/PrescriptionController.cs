@@ -1,4 +1,4 @@
-﻿using medico_backend.Class;
+using medico_backend.Class;
 using medico_backend.Model;
 using medico_backend.Services;
 using Microsoft.AspNetCore.Mvc;
@@ -28,10 +28,10 @@ namespace medico_backend.Controllers
         // Form: file, bucketName, clientFolder, fileName
         [HttpPost("upload")]
         public async Task<IActionResult> Upload(
-            [FromForm] IFormFile file,
-            [FromForm] string? bucketName,
-            [FromForm] string clientFolder,
-            [FromForm] string fileName)
+    [FromForm] IFormFile file,
+    [FromForm] string bucketName,
+    [FromForm] string clientFolder,
+    [FromForm] string fileName)
         {
             if (file == null || file.Length == 0)
                 return BadRequest("No file uploaded.");
@@ -42,34 +42,51 @@ namespace medico_backend.Controllers
             if (string.IsNullOrWhiteSpace(fileName))
                 return BadRequest("fileName is required.");
 
-            if(bucketName== null || bucketName.Length == 0)
-                bucketName = "cms"; // default bucket
+            if (string.IsNullOrWhiteSpace(bucketName))
+                return BadRequest("bucketName is required.");
 
-            // Upload to MinIO
-            var key = await _s3.UploadAsync(file, bucketName, clientFolder, fileName);
-            if (key == null)
-                return BadRequest("Upload failed.");
+            // Log exactly what Flutter is sending
+            _logger.LogInformation("Upload Request → file: {Name}, size: {Size}, contentType: {CT}, bucket: {Bucket}, folder: {Folder}",
+                file.FileName, file.Length, file.ContentType, bucketName, clientFolder);
 
-            // Save metadata to DB
-            var model = new PrescriptionModel
+            try
             {
-                filename = Path.GetFileName(key),
-                bucketname = bucketName,
-                filepath = $"{bucketName}/{key}",   // full path: bucket/folder/file
-                uploaded_date = DateTime.UtcNow
-            };
+                var key = await _s3.UploadAsync(file, bucketName, clientFolder, fileName);
+                if (key == null)
+                {
+                    _logger.LogError("S3 upload returned null → check S3PrescriptionService logs");
+                    return BadRequest("Upload to storage failed.");
+                }
 
-            var newId = await _prescriptionClass.InsertAsync(model);
+                var model = new PrescriptionModel
+                {
+                    filename = Path.GetFileName(key),
+                    bucketname = bucketName,
+                    filepath = $"{bucketName}/{key}",
+                    uploaded_date = DateTime.UtcNow
+                };
 
-            return Ok(new
+                _logger.LogInformation("Inserting to DB → {FilePath}", model.filepath);
+
+                var newId = await _prescriptionClass.InsertAsync(model);
+
+                _logger.LogInformation("DB insert success → ID: {Id}", newId);
+
+                return Ok(new
+                {
+                    Message = "Uploaded successfully.",
+                    Id = newId,
+                    model.filename,
+                    model.bucketname,
+                    model.filepath,
+                    model.uploaded_date
+                });
+            }
+            catch (Exception ex)
             {
-                Message = "Uploaded successfully.",
-                Id = newId,
-                model.filename,
-                model.bucketname,
-                model.filepath,
-                model.uploaded_date
-            });
+                _logger.LogError(ex, "Prescription upload exception");
+                return StatusCode(500, ex.Message);
+            }
         }
 
         // GET: api/prescription/get
@@ -108,7 +125,7 @@ namespace medico_backend.Controllers
         }
 
         // DELETE: api/prescription/delete/{id}
-        [HttpDelete("delete")]
+        [HttpGet("delete")]
         public async Task<IActionResult> Delete([FromQuery]int id)
         {
             var record = await _prescriptionClass.GetByIdAsync(id);
