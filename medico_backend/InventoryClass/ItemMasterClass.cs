@@ -15,7 +15,7 @@ namespace medico_backend.InventoryClass
             con = config.GetConnectionString("inventory_conn");
         }
 
-        // ─── ITEM MASTER ─────────────────────────────────────────────────────────────
+        // ─── ITEM MASTER ──────────────────────────────────────────────────────────────
 
         public async Task<long> InsertItem(item_master item)
         {
@@ -104,7 +104,7 @@ namespace medico_backend.InventoryClass
                             usercode        = @usercode,
                             tenantcode      = @tenantcode
                         WHERE itemcode = @itemcode
-                          AND tenantcode = @tenantcode;"; 
+                          AND tenantcode = @tenantcode;";
 
                     int rows = await db.ExecuteAsync(query, item);
                     return rows > 0 ? "Success" : "Failed";
@@ -116,7 +116,6 @@ namespace medico_backend.InventoryClass
             }
         }
 
-        // ← tenantcode added to signature + WHERE clause
         public async Task<string> DeleteItem(long itemcode, string tenantcode)
         {
             try
@@ -129,7 +128,7 @@ namespace medico_backend.InventoryClass
                         UPDATE public.item_master
                         SET deleted = true, isactive = false
                         WHERE itemcode = @itemcode
-                          AND tenantcode = @tenantcode;"; 
+                          AND tenantcode = @tenantcode;";
 
                     int rows = await db.ExecuteAsync(query, new { itemcode, tenantcode });
                     return rows > 0 ? "Success" : "Failed";
@@ -152,7 +151,6 @@ namespace medico_backend.InventoryClass
                 new { tenantcode });
         }
 
-        // ← tenantcode added to signature + WHERE clause
         public async Task<item_master?> GetItemByCode(long itemcode, string tenantcode)
         {
             using IDbConnection db = new NpgsqlConnection(con);
@@ -164,7 +162,7 @@ namespace medico_backend.InventoryClass
                 new { itemcode, tenantcode });
         }
 
-        // ─── VENDOR MASTER ───────────────────────────────────────────────────────────
+        // ─── VENDOR MASTER ────────────────────────────────────────────────────────────
 
         public async Task<long> UpsertVendor(vendor_master vendor)
         {
@@ -250,7 +248,7 @@ namespace medico_backend.InventoryClass
                                 tenantcode            = @tenantcode,
                                 branchcode            = @branchcode
                             WHERE vendorcode = @vendorcode
-                              AND tenantcode = @tenantcode        -- ← tenant guard
+                              AND tenantcode = @tenantcode
                             RETURNING vendorcode;";
                     }
 
@@ -310,7 +308,7 @@ namespace medico_backend.InventoryClass
                             tenantcode            = @tenantcode,
                             branchcode            = @branchcode
                         WHERE vendorcode = @vendorcode
-                          AND tenantcode = @tenantcode;"; 
+                          AND tenantcode = @tenantcode;";
 
                     int rows = await db.ExecuteAsync(query, vendor);
                     return rows > 0 ? "Success" : "Failed";
@@ -322,7 +320,6 @@ namespace medico_backend.InventoryClass
             }
         }
 
-        // ← tenantcode added to signature + WHERE clause
         public async Task<string> DeleteVendor(long vendorcode, string tenantcode)
         {
             try
@@ -335,7 +332,7 @@ namespace medico_backend.InventoryClass
                         UPDATE public.vendor_master
                         SET deleted = true, isactive = false, modifieddate = CURRENT_TIMESTAMP
                         WHERE vendorcode = @vendorcode
-                          AND tenantcode = @tenantcode;"; 
+                          AND tenantcode = @tenantcode;";
 
                     int rows = await db.ExecuteAsync(query, new { vendorcode, tenantcode });
                     return rows > 0 ? "Success" : "Failed";
@@ -358,7 +355,6 @@ namespace medico_backend.InventoryClass
                 new { tenantcode });
         }
 
-        // ← tenantcode added to signature + WHERE clause
         public async Task<vendor_master?> GetVendorByCode(long vendorcode, string tenantcode)
         {
             using IDbConnection db = new NpgsqlConnection(con);
@@ -370,7 +366,7 @@ namespace medico_backend.InventoryClass
                 new { vendorcode, tenantcode });
         }
 
-        // ─── PURCHASE MASTER ─────────────────────────────────────────────────────────
+        // ─── PURCHASE MASTER ──────────────────────────────────────────────────────────
 
         public async Task<long> InsertPurchase(purchase_request request)
         {
@@ -475,7 +471,7 @@ namespace medico_backend.InventoryClass
                                 branchcode      = @branchcode,
                                 companycode     = @companycode
                             WHERE purchasecode = @purchasecode
-                              AND tenantcode = @tenantcode;"; 
+                              AND tenantcode = @tenantcode;";
 
                         await db.ExecuteAsync(masterQuery, request.master, transaction);
 
@@ -517,7 +513,6 @@ namespace medico_backend.InventoryClass
             }
         }
 
-        // ← tenantcode added to signature + WHERE clause
         public async Task<string> DeletePurchase(long purchasecode, string tenantcode)
         {
             using (IDbConnection db = new NpgsqlConnection(con))
@@ -532,7 +527,7 @@ namespace medico_backend.InventoryClass
                             UPDATE public.purchase_master
                             SET deleted = true, isactive = false, modifieddate = CURRENT_TIMESTAMP
                             WHERE purchasecode = @purchasecode
-                              AND tenantcode = @tenantcode;", 
+                              AND tenantcode = @tenantcode;",
                             new { purchasecode, tenantcode }, transaction);
 
                         await db.ExecuteAsync(
@@ -562,7 +557,6 @@ namespace medico_backend.InventoryClass
                 new { tenantcode });
         }
 
-        // ← tenantcode added to signature + WHERE clause
         public async Task<purchase_request?> GetPurchaseByCode(long purchasecode, string tenantcode)
         {
             using IDbConnection db = new NpgsqlConnection(con);
@@ -584,7 +578,7 @@ namespace medico_backend.InventoryClass
             return new purchase_request { master = master, details = details.ToList() };
         }
 
-        // ─── STOCK MASTER ────────────────────────────────────────────────────────────
+        // ─── STOCK MASTER ─────────────────────────────────────────────────────────────
 
         public async Task<long> InsertStock(stock_master stock)
         {
@@ -635,29 +629,29 @@ namespace medico_backend.InventoryClass
                     string query = @"
                         UPDATE public.stock_master
                         SET
-                            itemcode        = @itemcode,
-                            warehousecode   = @warehousecode,
-                            branchcode      = @branchcode,
-                            locationcode    = @locationcode,
-                            openingstock    = @openingstock,
-                            purchasedqty    = @purchasedqty,
-                            soldqty         = @soldqty,
-                            damagedqty      = @damagedqty,
-                            returnqty       = @returnqty,
-                            closingstock    = @closingstock,
-                            unitcost        = @unitcost,
-                            stockvalue      = @stockvalue,
-                            batchno         = @batchno,
+                            itemcode          = @itemcode,
+                            warehousecode     = @warehousecode,
+                            branchcode        = @branchcode,
+                            locationcode      = @locationcode,
+                            openingstock      = @openingstock,
+                            purchasedqty      = @purchasedqty,
+                            soldqty           = @soldqty,
+                            damagedqty        = @damagedqty,
+                            returnqty         = @returnqty,
+                            closingstock      = @closingstock,
+                            unitcost          = @unitcost,
+                            stockvalue        = @stockvalue,
+                            batchno           = @batchno,
                             manufacturingdate = @manufacturingdate,
-                            expirydate      = @expirydate,
-                            isactive        = @isactive,
-                            deleted         = @deleted,
-                            modifieddate    = CURRENT_TIMESTAMP,
-                            usercode        = @usercode,
-                            tenantcode      = @tenantcode,
-                            companycode     = @companycode
+                            expirydate        = @expirydate,
+                            isactive          = @isactive,
+                            deleted           = @deleted,
+                            modifieddate      = CURRENT_TIMESTAMP,
+                            usercode          = @usercode,
+                            tenantcode        = @tenantcode,
+                            companycode       = @companycode
                         WHERE stockcode = @stockcode
-                          AND tenantcode = @tenantcode;"; 
+                          AND tenantcode = @tenantcode;";
 
                     int rows = await db.ExecuteAsync(query, stock);
                     return rows > 0 ? "Success" : "Failed";
@@ -669,7 +663,6 @@ namespace medico_backend.InventoryClass
             }
         }
 
-        // ← tenantcode added to signature + WHERE clause
         public async Task<string> DeleteStock(long stockcode, string tenantcode)
         {
             try
@@ -682,7 +675,7 @@ namespace medico_backend.InventoryClass
                         UPDATE public.stock_master
                         SET deleted = true, isactive = false, modifieddate = CURRENT_TIMESTAMP
                         WHERE stockcode = @stockcode
-                          AND tenantcode = @tenantcode;"; 
+                          AND tenantcode = @tenantcode;";
 
                     int rows = await db.ExecuteAsync(query, new { stockcode, tenantcode });
                     return rows > 0 ? "Success" : "Failed";
@@ -705,7 +698,6 @@ namespace medico_backend.InventoryClass
                 new { tenantcode });
         }
 
-        // ← tenantcode added to signature + WHERE clause
         public async Task<stock_master?> GetStockByCode(long stockcode, string tenantcode)
         {
             using IDbConnection db = new NpgsqlConnection(con);
@@ -729,7 +721,7 @@ namespace medico_backend.InventoryClass
                 new { itemcode, tenantcode });
         }
 
-        // ─── INDENT MASTER ───────────────────────────────────────────────────────────
+        // ─── INDENT MASTER ────────────────────────────────────────────────────────────
 
         public async Task<long> InsertIndent(indent_request request)
         {
@@ -806,7 +798,7 @@ namespace medico_backend.InventoryClass
                                 approvalstatus = @approvalstatus,
                                 tenantcode     = @tenantcode
                             WHERE indentcode = @indentcode
-                              AND tenantcode = @tenantcode;", 
+                              AND tenantcode = @tenantcode;",
                             request.master, transaction);
 
                         await db.ExecuteAsync(
@@ -837,7 +829,6 @@ namespace medico_backend.InventoryClass
             }
         }
 
-        // ← tenantcode added to signature + WHERE clause
         public async Task<string> DeleteIndent(long indentcode, string tenantcode)
         {
             using (IDbConnection db = new NpgsqlConnection(con))
@@ -852,7 +843,7 @@ namespace medico_backend.InventoryClass
                             UPDATE public.indent_master
                             SET deleted = true, isactive = false
                             WHERE indentcode = @indentcode
-                              AND tenantcode = @tenantcode;", 
+                              AND tenantcode = @tenantcode;",
                             new { indentcode, tenantcode }, transaction);
 
                         await db.ExecuteAsync(
@@ -882,7 +873,6 @@ namespace medico_backend.InventoryClass
                 new { tenantcode });
         }
 
-        // ← tenantcode added to signature + WHERE clause
         public async Task<indent_request?> GetIndentByCode(long indentcode, string tenantcode)
         {
             using IDbConnection db = new NpgsqlConnection(con);
@@ -903,11 +893,10 @@ namespace medico_backend.InventoryClass
             return new indent_request { master = master, details = details.ToList() };
         }
 
-        // ─── PURCHASE ENTRY (GRN) ────────────────────────────────────────────────────
+        // ─── PURCHASE ENTRY (GRN) ─────────────────────────────────────────────────────
 
         public async Task<long> InsertPurchaseEntry(purchase_entry_request request)
         {
-            // unchanged — tenantcode already flows through request.master.tenantcode
             using (IDbConnection db = new NpgsqlConnection(con))
             {
                 db.Open();
@@ -1087,7 +1076,7 @@ namespace medico_backend.InventoryClass
                     try
                     {
                         var entryId = request.master.purchaseentrycode;
-                        var tenantcode = request.master.tenantcode;    // ← capture for guards
+                        var tenantcode = request.master.tenantcode;
 
                         var oldItems = await db.QueryAsync<purchase_entry_detail>(
                             "SELECT * FROM purchase_entry_detail WHERE purchaseentrycode = @id",
@@ -1100,7 +1089,7 @@ namespace medico_backend.InventoryClass
                                 SET purchasedqty = purchasedqty - @qty,
                                     closingstock = closingstock - @qty
                                 WHERE itemcode = @itemcode
-                                  AND tenantcode = @tenantcode;", 
+                                  AND tenantcode = @tenantcode;",
                                 new { qty = item.receivedqty, item.itemcode, tenantcode }, transaction);
                         }
 
@@ -1123,7 +1112,7 @@ namespace medico_backend.InventoryClass
                                 remarks        = @remarks,
                                 modifieddate   = CURRENT_TIMESTAMP
                             WHERE purchaseentrycode = @purchaseentrycode
-                              AND tenantcode = @tenantcode;", 
+                              AND tenantcode = @tenantcode;",
                             request.master, transaction);
 
                         await db.ExecuteAsync(
@@ -1159,7 +1148,7 @@ namespace medico_backend.InventoryClass
                                 remarks        = @remarks,
                                 modifieddate   = CURRENT_TIMESTAMP
                             WHERE grncode = @purchaseentrycode
-                              AND tenantcode = @tenantcode;", 
+                              AND tenantcode = @tenantcode;",
                             request.master, transaction);
 
                         var purchasecode = await db.ExecuteScalarAsync<long>(
@@ -1196,7 +1185,7 @@ namespace medico_backend.InventoryClass
                                 SET purchasedqty = purchasedqty + @qty,
                                     closingstock = closingstock + @qty
                                 WHERE itemcode = @itemcode
-                                  AND tenantcode = @tenantcode;", 
+                                  AND tenantcode = @tenantcode;",
                                 new { qty = item.receivedqty, item.itemcode, item.tenantcode }, transaction);
                         }
 
@@ -1212,7 +1201,6 @@ namespace medico_backend.InventoryClass
             }
         }
 
-        // ← tenantcode added to signature + WHERE clauses
         public async Task<string> DeletePurchaseEntry(long purchaseentrycode, string tenantcode)
         {
             using (IDbConnection db = new NpgsqlConnection(con))
@@ -1234,7 +1222,7 @@ namespace medico_backend.InventoryClass
                                 SET purchasedqty = purchasedqty - @qty,
                                     closingstock = closingstock - @qty
                                 WHERE itemcode = @itemcode
-                                  AND tenantcode = @tenantcode;", 
+                                  AND tenantcode = @tenantcode;",
                                 new { qty = item.receivedqty, item.itemcode, tenantcode }, transaction);
                         }
 
@@ -1281,7 +1269,6 @@ namespace medico_backend.InventoryClass
                 new { tenantcode });
         }
 
-        // ← tenantcode added to signature + WHERE clause
         public async Task<purchase_entry_request?> GetPurchaseEntryByCode(long purchaseentrycode, string tenantcode)
         {
             using IDbConnection db = new NpgsqlConnection(con);
@@ -1303,9 +1290,10 @@ namespace medico_backend.InventoryClass
             return new purchase_entry_request { master = master, details = details.ToList() };
         }
 
-        // ─── EXCEL BULK UPLOAD ───────────────────────────────────────────────────────
+        // ─── EXCEL BULK UPLOAD ────────────────────────────────────────────────────────
 
-        public async Task ProcessExcel(string filePath)
+        // tenantcode parameter added — passed from controller header
+        public async Task ProcessExcel(string filePath, string tenantcode)
         {
             using (var package = new ExcelPackage(new FileInfo(filePath)))
             {
@@ -1323,28 +1311,32 @@ namespace medico_backend.InventoryClass
                         description = worksheet.Cells[row, 3].Text,
                         categorycode = int.Parse(worksheet.Cells[row, 4].Text),
                         subcategorycode = int.Parse(worksheet.Cells[row, 5].Text),
-                        purchaserate = decimal.Parse(worksheet.Cells[row, 6].Text)
+                        purchaserate = decimal.Parse(worksheet.Cells[row, 6].Text),
+                        tenantcode = tenantcode   // set from header
                     };
 
                     items.Add(item);
                 }
 
-                await InsertBulk(items);
+                await InsertBulk(items, tenantcode);
             }
         }
 
-        public async Task InsertBulk(List<item_master> items)
+        public async Task InsertBulk(List<item_master> items, string tenantcode)
         {
             using (IDbConnection db = new NpgsqlConnection(con))
             {
                 string query = @"
                     INSERT INTO item_master
-                    (itemname, shortname, description, categorycode, subcategorycode, purchaserate)
+                    (itemname, shortname, description, categorycode, subcategorycode, purchaserate, tenantcode)
                     VALUES
-                    (@itemname, @shortname, @description, @categorycode, @subcategorycode, @purchaserate)";
+                    (@itemname, @shortname, @description, @categorycode, @subcategorycode, @purchaserate, @tenantcode)";
 
                 foreach (var item in items)
+                {
+                    item.tenantcode = tenantcode; // ensure every row carries the correct tenant
                     await db.ExecuteAsync(query, item);
+                }
             }
         }
     }
