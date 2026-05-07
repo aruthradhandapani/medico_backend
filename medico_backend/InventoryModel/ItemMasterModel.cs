@@ -26,7 +26,7 @@
         public bool deleted { get; set; }
         public DateTime createddate { get; set; }
         public int usercode { get; set; }
-        public string tenantcode { get; set; }
+        public string? tenantcode { get; set; }
     }
     public class vendor_master
     {
@@ -65,7 +65,7 @@
         public DateTime createddate { get; set; }
         public DateTime? modifieddate { get; set; }
         public long usercode { get; set; }
-        public string tenantcode { get; set; }
+        public string? tenantcode { get; set; }
         public string branchcode { get; set; }
     }
     public class purchase_master

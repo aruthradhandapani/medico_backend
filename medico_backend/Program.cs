@@ -2,6 +2,8 @@ using Amazon.S3;
 using Dapper;
 using medico_backend.Class;
 using medico_backend.Controllers;
+using medico_backend.InventoryClass;
+using medico_backend.InventoryController;
 using medico_backend.Services;
 using Medico_Backend.Class;
 using Medico_Backend.Controllers;
@@ -31,6 +33,8 @@ builder.Services.AddScoped<S3ImageService>();
 builder.Services.AddSingleton<S3PrescriptionService>();
 builder.Services.AddScoped<PrescriptionClass>();
 builder.Services.AddScoped<PrescriptionController>();
+builder.Services.AddScoped<ItemMasterClass>();
+builder.Services.AddScoped<ItemMasterController>();
 
 
 
