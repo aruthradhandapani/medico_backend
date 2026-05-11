@@ -26,23 +26,24 @@ namespace Medico_Backend.Class
             using IDbConnection db = new NpgsqlConnection(_db_conn);
 
             string sql = @"SELECT slot_master_id,
-                                  dcode,
-                                  tenant_code,
-                                  day_of_week,
-                                  slot_start_time,
-                                  slot_end_time,
-                                  max_patients,
-                                  max_walkin,
-                                  max_online,
-                                  slot_date,
-                                  is_active,
-                                  isdeleted,
-                                  created_at AT TIME ZONE 'UTC' AS created_at,
-                                  updated_at AT TIME ZONE 'UTC' AS updated_at
-                           FROM   doctor_appointment_slot_master
-                           WHERE  isdeleted   = false
-                           AND    tenant_code = @tenant_code
-                           ORDER  BY dcode, day_of_week, slot_start_time";
+                           slotnum,
+                           dcode,
+                           tenant_code,
+                           day_of_week,
+                           slot_start_time,
+                           slot_end_time,
+                           max_patients,
+                           max_walkin,
+                           max_online,
+                           slot_date,
+                           is_active,
+                           isdeleted,
+                           created_at AT TIME ZONE 'UTC' AS created_at,
+                           updated_at AT TIME ZONE 'UTC' AS updated_at
+                           FROM doctor_appointment_slot_master
+                           WHERE isdeleted = false
+                           AND tenant_code = @tenant_code
+                           ORDER BY dcode, day_of_week, slot_start_time";
 
             var res = await db.QueryAsync<DoctorAppointmentSlotMasterModel>(
                 sql, new { tenant_code });
@@ -131,39 +132,39 @@ namespace Medico_Backend.Class
                     data.updated_at = DateTime.UtcNow;
 
                     string sql = @"INSERT INTO doctor_appointment_slot_master
-                    (
-                        slot_master_id,
-                        dcode,
-                        tenant_code,
-                        day_of_week,
-                        slot_start_time,
-                        slot_end_time,
-                        max_patients,
-                        max_walkin,
-                        max_online,
-                        slot_date,
-                        is_active,
-                        isdeleted,
-                        created_at,
-                        updated_at
-                    )
-                    VALUES
-                    (
-                        @slot_master_id,
-                        @dcode,
-                        @tenant_code,
-                        @day_of_week,
-                        @slot_start_time,
-                        @slot_end_time,
-                        @max_patients,
-                        @max_walkin,
-                        @max_online,
-                        @slot_date,
-                        @is_active,
-                        @isdeleted,
-                        @created_at,
-                        @updated_at
-                    )";
+(
+    slot_master_id,
+    dcode,
+    tenant_code,
+    day_of_week,
+    slot_start_time,
+    slot_end_time,
+    max_patients,
+    max_walkin,
+    max_online,
+    slot_date,
+    is_active,
+    isdeleted,
+    created_at,
+    updated_at
+)
+VALUES
+(
+    @slot_master_id,
+    @dcode,
+    @tenant_code,
+    @day_of_week,
+    @slot_start_time,
+    @slot_end_time,
+    @max_patients,
+    @max_walkin,
+    @max_online,
+    @slot_date,
+    @is_active,
+    @isdeleted,
+    @created_at,
+    @updated_at
+)";
 
                     await db.ExecuteAsync(sql, new
                     {
@@ -177,8 +178,8 @@ namespace Medico_Backend.Class
                         data.max_walkin,
                         data.max_online,
                         slot_date = data.slot_date.HasValue
-                            ? data.slot_date.Value.ToDateTime(TimeOnly.MinValue)
-                            : (DateTime?)null,
+        ? data.slot_date.Value.ToDateTime(TimeOnly.MinValue)
+        : (DateTime?)null,
                         data.is_active,
                         data.isdeleted,
                         data.created_at,
@@ -567,6 +568,18 @@ namespace Medico_Backend.Class
                 skipped_dates = skipped_dates,
                 failed_dates = failed_dates
             };
+        }
+        public async Task<int> GetNextSlotNum(string tenant_code)
+        {
+            using IDbConnection db = new NpgsqlConnection(_db_conn);
+
+            string sql = @"SELECT COALESCE(MAX(slotnum),0) + 1
+                    FROM doctor_appointment_slot_master
+                    WHERE tenant_code = @tenant_code";
+
+            return await db.ExecuteScalarAsync<int>(
+                sql,
+                new { tenant_code });
         }
     }
 }
