@@ -24,6 +24,8 @@ namespace Medico_Backend.Class
             {
                 using IDbConnection db = new NpgsqlConnection(db_conn);
 
+                data.dcode = await GetNextDcode(data.tenant_code!);
+                data.doctorcode = await GetNextDoctorCode(data.tenant_code!);
                 data.entereddate = DateTime.UtcNow;
                 data.ibsdate = DateTime.UtcNow;
                 data.deleted = false;
@@ -164,6 +166,22 @@ namespace Medico_Backend.Class
                            WHERE tenant_code = @tenant_code";
 
             return await db.ExecuteScalarAsync<int>(sql, new { tenant_code });
+        }
+
+        public async Task<string> GetNextDoctorCode(string tenant_code)
+        {
+            using IDbConnection db = new NpgsqlConnection(db_conn);
+
+            string sql = @"
+        SELECT COALESCE(MAX(dcode), 0) + 1
+        FROM doctor_master
+        WHERE tenant_code = @tenant_code";
+
+            int nextNo = await db.ExecuteScalarAsync<int>(
+                sql,
+                new { tenant_code });
+
+            return $"DOC{nextNo.ToString("D3")}";
         }
     }
 }

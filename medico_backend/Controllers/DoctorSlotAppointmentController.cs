@@ -34,12 +34,14 @@ namespace Medico_Backend.Controllers
         }
 
         [HttpPost("master/insert")]
-        public async Task<IActionResult> InsertMaster(
-            [FromBody] DoctorAppointmentSlotMasterModel data)
+        public async Task<IActionResult> BulkInsertMaster(
+    [FromBody] List<DoctorAppointmentSlotMasterModel> data)
         {
             var tenant = Request.Headers["tenant_code"].ToString();
-            data.tenant_code = tenant;
-            return Ok(await cls.InsertMaster(data));
+
+            var result = await cls.BulkInsertMaster(data, tenant);
+
+            return Ok(result);
         }
 
         [HttpPost("master/update")]

@@ -35,6 +35,12 @@ builder.Services.AddScoped<PrescriptionClass>();
 builder.Services.AddScoped<PrescriptionController>();
 builder.Services.AddScoped<ItemMasterClass>();
 builder.Services.AddScoped<ItemMasterController>();
+builder.Services.AddScoped<TestMasterClass>();
+builder.Services.AddScoped<TestMasterController>();
+builder.Services.AddScoped<PrefixMasterClass>();
+builder.Services.AddScoped<PrefixMasterController>();
+builder.Services.AddScoped<UserMasterClass>();
+builder.Services.AddScoped<UserMasterController>();
 
 
 

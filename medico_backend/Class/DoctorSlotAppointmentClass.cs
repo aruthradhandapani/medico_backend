@@ -83,75 +83,123 @@ namespace Medico_Backend.Class
         }
 
         // ─────────────────────────────────────────
-        // MASTER - INSERT WITH DUPLICATE CHECK
+        // MASTER - BULK INSERT
         // ─────────────────────────────────────────
-        public async Task<string> InsertMaster(DoctorAppointmentSlotMasterModel data)
+        public async Task<object> BulkInsertMaster(
+            List<DoctorAppointmentSlotMasterModel> slots,
+            string tenant_code)
         {
-            try
+            var success = new List<string>();
+            var skipped = new List<string>();
+            var failed = new List<string>();
+
+            using IDbConnection db = new NpgsqlConnection(_db_conn);
+
+            foreach (var data in slots)
             {
-                using IDbConnection db = new NpgsqlConnection(_db_conn);
-
-                // ✅ Duplicate check — same doctor, same day/date, same time
-                string checkSql = @"SELECT COUNT(1)
-                                    FROM   doctor_appointment_slot_master
-                                    WHERE  isdeleted       = false
-                                    AND    dcode           = @dcode
-                                    AND    tenant_code     = @tenant_code
-                                    AND    day_of_week     = @day_of_week
-                                    AND    slot_start_time = @slot_start_time
-                                    AND    slot_end_time   = @slot_end_time";
-
-                int exists = await db.ExecuteScalarAsync<int>(checkSql, new
+                try
                 {
-                    data.dcode,
-                    data.tenant_code,
-                    data.day_of_week,
-                    slot_start_time = data.slot_start_time.ToTimeSpan(),
-                    slot_end_time = data.slot_end_time.ToTimeSpan()
-                });
+                    string checkSql = @"SELECT COUNT(1)
+                                FROM doctor_appointment_slot_master
+                                WHERE isdeleted       = false
+                                AND tenant_code       = @tenant_code
+                                AND dcode             = @dcode
+                                AND day_of_week       = @day_of_week
+                                AND slot_start_time   = @slot_start_time
+                                AND slot_end_time     = @slot_end_time";
 
-                if (exists > 0)
-                    return $"Duplicate! Doctor {data.dcode} already has a slot on " +
-                           $"{data.day_of_week} from {data.slot_start_time} to {data.slot_end_time}";
+                    int exists = await db.ExecuteScalarAsync<int>(checkSql, new
+                    {
+                        tenant_code,
+                        data.dcode,
+                        data.day_of_week,
+                        slot_start_time = data.slot_start_time.ToTimeSpan(),
+                        slot_end_time = data.slot_end_time.ToTimeSpan()
+                    });
 
-                data.slot_master_id = Guid.NewGuid();
-                data.created_at = DateTime.SpecifyKind(DateTime.UtcNow, DateTimeKind.Utc);
-                data.updated_at = DateTime.SpecifyKind(DateTime.UtcNow, DateTimeKind.Utc);
+                    if (exists > 0)
+                    {
+                        skipped.Add(
+                            $"{data.day_of_week} {data.slot_start_time}-{data.slot_end_time}");
+                        continue;
+                    }
 
-                string sql = @"INSERT INTO doctor_appointment_slot_master
-                        (slot_master_id, dcode, tenant_code, day_of_week,
-                         slot_start_time, slot_end_time,
-                         max_patients, max_walkin, max_online,
-                         slot_date, is_active, isdeleted, created_at, updated_at)
-                       VALUES
-                        (@slot_master_id, @dcode, @tenant_code, @day_of_week,
-                         @slot_start_time, @slot_end_time,
-                         @max_patients, @max_walkin, @max_online,
-                         @slot_date, @is_active, @isdeleted, @created_at, @updated_at)";
+                    data.slot_master_id = Guid.NewGuid();
+                    data.tenant_code = tenant_code;
 
-                await db.ExecuteAsync(sql, new
+                    data.created_at = DateTime.UtcNow;
+                    data.updated_at = DateTime.UtcNow;
+
+                    string sql = @"INSERT INTO doctor_appointment_slot_master
+                    (
+                        slot_master_id,
+                        dcode,
+                        tenant_code,
+                        day_of_week,
+                        slot_start_time,
+                        slot_end_time,
+                        max_patients,
+                        max_walkin,
+                        max_online,
+                        slot_date,
+                        is_active,
+                        isdeleted,
+                        created_at,
+                        updated_at
+                    )
+                    VALUES
+                    (
+                        @slot_master_id,
+                        @dcode,
+                        @tenant_code,
+                        @day_of_week,
+                        @slot_start_time,
+                        @slot_end_time,
+                        @max_patients,
+                        @max_walkin,
+                        @max_online,
+                        @slot_date,
+                        @is_active,
+                        @isdeleted,
+                        @created_at,
+                        @updated_at
+                    )";
+
+                    await db.ExecuteAsync(sql, new
+                    {
+                        data.slot_master_id,
+                        data.dcode,
+                        data.tenant_code,
+                        data.day_of_week,
+                        slot_start_time = data.slot_start_time.ToTimeSpan(),
+                        slot_end_time = data.slot_end_time.ToTimeSpan(),
+                        data.max_patients,
+                        data.max_walkin,
+                        data.max_online,
+                        slot_date = data.slot_date.HasValue
+                            ? data.slot_date.Value.ToDateTime(TimeOnly.MinValue)
+                            : (DateTime?)null,
+                        data.is_active,
+                        data.isdeleted,
+                        data.created_at,
+                        data.updated_at
+                    });
+
+                    success.Add(
+                        $"{data.day_of_week} {data.slot_start_time}-{data.slot_end_time}");
+                }
+                catch (Exception ex)
                 {
-                    data.slot_master_id,
-                    data.dcode,
-                    data.tenant_code,
-                    data.day_of_week,
-                    slot_start_time = data.slot_start_time.ToTimeSpan(),
-                    slot_end_time = data.slot_end_time.ToTimeSpan(),
-                    data.max_patients,
-                    data.max_walkin,
-                    data.max_online,
-                    slot_date = data.slot_date.HasValue
-                        ? data.slot_date.Value.ToDateTime(TimeOnly.MinValue)
-                        : (DateTime?)null,
-                    data.is_active,
-                    data.isdeleted,
-                    data.created_at,
-                    data.updated_at
-                });
-
-                return "Success";
+                    failed.Add(ex.Message);
+                }
             }
-            catch (Exception ex) { return ex.Message; }
+
+            return new
+            {
+                inserted = success,
+                skipped = skipped,
+                failed = failed
+            };
         }
 
         // ─────────────────────────────────────────

@@ -7,16 +7,17 @@ namespace Medico_Backend.Model
     {
         [ExplicitKey]
         public Guid slot_master_id { get; set; } = Guid.NewGuid();
+        public int slotnum { get; set; }
         public int dcode { get; set; }
         public string? tenant_code { get; set; }
-        // MONDAY, TUESDAY ... SUNDAY  (or null if slot_date is set)
+        
         public string? day_of_week { get; set; }
         public TimeOnly slot_start_time { get; set; }
         public TimeOnly slot_end_time { get; set; }
         public int max_patients { get; set; } = 10;
         public int max_walkin { get; set; } = 5;
         public int max_online { get; set; } = 5;
-        // ✅ For one-time date slots (optional — null = recurring by day_of_week)
+        
         public DateOnly? slot_date { get; set; }
         public bool is_active { get; set; } = true;
         public bool isdeleted { get; set; } = false;
@@ -70,5 +71,9 @@ namespace Medico_Backend.Model
         public int max_walkin { get; set; } = 5;
         public int max_online { get; set; } = 5;
         public bool is_active { get; set; } = true;
+    }
+    public class DoctorAppointmentSlotMasterBulkModel
+    {
+        public List<DoctorAppointmentSlotMasterModel> Slots { get; set; } = new();
     }
 }
