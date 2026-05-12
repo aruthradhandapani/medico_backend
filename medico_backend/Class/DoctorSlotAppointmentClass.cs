@@ -59,6 +59,7 @@ namespace Medico_Backend.Class
             using IDbConnection db = new NpgsqlConnection(_db_conn);
 
             string sql = @"SELECT slot_master_id,
+                                  slotnum,
                                   dcode,
                                   tenant_code,
                                   day_of_week,
@@ -87,8 +88,8 @@ namespace Medico_Backend.Class
         // MASTER - BULK INSERT
         // ─────────────────────────────────────────
         public async Task<object> BulkInsertMaster(
-            List<DoctorAppointmentSlotMasterModel> slots,
-            string tenant_code)
+    List<DoctorAppointmentSlotMasterModel> slots,
+    string tenant_code)
         {
             var success = new List<string>();
             var skipped = new List<string>();
@@ -100,6 +101,7 @@ namespace Medico_Backend.Class
             {
                 try
                 {
+                    // ✅ Duplicate check
                     string checkSql = @"SELECT COUNT(1)
                                 FROM doctor_appointment_slot_master
                                 WHERE isdeleted       = false
@@ -118,22 +120,34 @@ namespace Medico_Backend.Class
                         slot_end_time = data.slot_end_time.ToTimeSpan()
                     });
 
+                    // ✅ Skip duplicate slot
                     if (exists > 0)
                     {
                         skipped.Add(
                             $"{data.day_of_week} {data.slot_start_time}-{data.slot_end_time}");
+
                         continue;
                     }
 
+                    // ✅ Generate IDs
                     data.slot_master_id = Guid.NewGuid();
+
+                    // ✅ Generate slot number based on doctor
+                    data.slotnum = await GetNextSlotNum(data.dcode, tenant_code);
+
                     data.tenant_code = tenant_code;
 
-                    data.created_at = DateTime.UtcNow;
-                    data.updated_at = DateTime.UtcNow;
+                    data.created_at =
+                        DateTime.SpecifyKind(DateTime.UtcNow, DateTimeKind.Utc);
 
+                    data.updated_at =
+                        DateTime.SpecifyKind(DateTime.UtcNow, DateTimeKind.Utc);
+
+                    // ✅ Insert query
                     string sql = @"INSERT INTO doctor_appointment_slot_master
 (
     slot_master_id,
+    slotnum,
     dcode,
     tenant_code,
     day_of_week,
@@ -151,6 +165,7 @@ namespace Medico_Backend.Class
 VALUES
 (
     @slot_master_id,
+    @slotnum,
     @dcode,
     @tenant_code,
     @day_of_week,
@@ -166,20 +181,29 @@ VALUES
     @updated_at
 )";
 
+                    // ✅ Execute insert
                     await db.ExecuteAsync(sql, new
                     {
                         data.slot_master_id,
+                        data.slotnum,
                         data.dcode,
                         data.tenant_code,
                         data.day_of_week,
-                        slot_start_time = data.slot_start_time.ToTimeSpan(),
-                        slot_end_time = data.slot_end_time.ToTimeSpan(),
+
+                        slot_start_time =
+                            data.slot_start_time.ToTimeSpan(),
+
+                        slot_end_time =
+                            data.slot_end_time.ToTimeSpan(),
+
                         data.max_patients,
                         data.max_walkin,
                         data.max_online,
+
                         slot_date = data.slot_date.HasValue
-        ? data.slot_date.Value.ToDateTime(TimeOnly.MinValue)
-        : (DateTime?)null,
+                            ? data.slot_date.Value.ToDateTime(TimeOnly.MinValue)
+                            : (DateTime?)null,
+
                         data.is_active,
                         data.isdeleted,
                         data.created_at,
@@ -187,7 +211,9 @@ VALUES
                     });
 
                     success.Add(
-                        $"{data.day_of_week} {data.slot_start_time}-{data.slot_end_time}");
+                        $"Doctor:{data.dcode} Slot:{data.slotnum} " +
+                        $"{data.day_of_week} " +
+                        $"{data.slot_start_time}-{data.slot_end_time}");
                 }
                 catch (Exception ex)
                 {
@@ -569,17 +595,22 @@ VALUES
                 failed_dates = failed_dates
             };
         }
-        public async Task<int> GetNextSlotNum(string tenant_code)
+        public async Task<int> GetNextSlotNum(int dcode, string tenant_code)
         {
             using IDbConnection db = new NpgsqlConnection(_db_conn);
 
-            string sql = @"SELECT COALESCE(MAX(slotnum),0) + 1
-                    FROM doctor_appointment_slot_master
-                    WHERE tenant_code = @tenant_code";
+            string sql = @"SELECT COALESCE(MAX(slotnum), 0) + 1
+                   FROM doctor_appointment_slot_master
+                   WHERE tenant_code = @tenant_code
+                   AND dcode = @dcode";
 
             return await db.ExecuteScalarAsync<int>(
                 sql,
-                new { tenant_code });
+                new
+                {
+                    dcode,
+                    tenant_code
+                });
         }
     }
 }

@@ -1339,5 +1339,170 @@ namespace medico_backend.InventoryClass
                 }
             }
         }
+        public async Task<long> InsertCategory(category_master category)
+        {
+            try
+            {
+                using (IDbConnection db = new NpgsqlConnection(con))
+                {
+                    db.Open();
+
+                    long categorycode = await db.ExecuteScalarAsync<long>(
+                        "SELECT COALESCE(MAX(categorycode),0)+1 FROM category_master");
+
+                    category.categorycode = categorycode;
+
+                    string query = @"
+                    INSERT INTO category_master
+                    (
+                        categorycode,
+                        categoryname,
+                        shortname,
+                        description,
+                        parentcategorycode,
+                        isactive,
+                        deleted,
+                        createddate,
+                        usercode,
+                        tenantcode
+                    )
+                    VALUES
+                    (
+                        @categorycode,
+                        @categoryname,
+                        @shortname,
+                        @description,
+                        @parentcategorycode,
+                        @isactive,
+                        @deleted,
+                        CURRENT_TIMESTAMP,
+                        @usercode,
+                        @tenantcode
+                    )";
+
+                    await db.ExecuteAsync(query, category);
+
+                    return categorycode;
+                }
+            }
+            catch (Exception ex)
+            {
+                throw new Exception("Insert failed : " + ex.Message);
+            }
+        }
+
+        // GET ALL CATEGORIES
+        public async Task<IEnumerable<category_master>> GetCategories(string tenantcode)
+        {
+            try
+            {
+                using (IDbConnection db = new NpgsqlConnection(con))
+                {
+                    string query = @"
+                    SELECT *
+                    FROM category_master
+                    WHERE tenantcode = @tenantcode
+                    AND deleted = false
+                    ORDER BY categorycode";
+
+                    return await db.QueryAsync<category_master>(
+                        query,
+                        new { tenantcode });
+                }
+            }
+            catch (Exception ex)
+            {
+                throw new Exception("Get failed : " + ex.Message);
+            }
+        }
+
+        // GET CATEGORY BY ID
+        public async Task<category_master?> GetCategoryById(
+            long categorycode,
+            string tenantcode)
+        {
+            try
+            {
+                using (IDbConnection db = new NpgsqlConnection(con))
+                {
+                    string query = @"
+                    SELECT *
+                    FROM category_master
+                    WHERE categorycode = @categorycode
+                    AND tenantcode = @tenantcode
+                    AND deleted = false";
+
+                    return await db.QueryFirstOrDefaultAsync<category_master>(
+                        query,
+                        new { categorycode, tenantcode });
+                }
+            }
+            catch (Exception ex)
+            {
+                throw new Exception("Get by id failed : " + ex.Message);
+            }
+        }
+
+        // UPDATE CATEGORY
+        public async Task<bool> UpdateCategory(category_master category)
+        {
+            try
+            {
+                using (IDbConnection db = new NpgsqlConnection(con))
+                {
+                    string query = @"
+                    UPDATE category_master
+                    SET
+                        categoryname = @categoryname,
+                        shortname = @shortname,
+                        description = @description,
+                        parentcategorycode = @parentcategorycode,
+                        isactive = @isactive,
+                        deleted = @deleted,
+                        usercode = @usercode,
+                        tenantcode = @tenantcode
+                    WHERE categorycode = @categorycode
+                    AND tenantcode = @tenantcode";
+
+                    int rows = await db.ExecuteAsync(query, category);
+
+                    return rows > 0;
+                }
+            }
+            catch (Exception ex)
+            {
+                throw new Exception("Update failed : " + ex.Message);
+            }
+        }
+
+        // DELETE CATEGORY
+        public async Task<bool> DeleteCategory(
+            long categorycode,
+            string tenantcode)
+        {
+            try
+            {
+                using (IDbConnection db = new NpgsqlConnection(con))
+                {
+                    string query = @"
+                    UPDATE category_master
+                    SET
+                        deleted = true,
+                        isactive = false
+                    WHERE categorycode = @categorycode
+                    AND tenantcode = @tenantcode";
+
+                    int rows = await db.ExecuteAsync(
+                        query,
+                        new { categorycode, tenantcode });
+
+                    return rows > 0;
+                }
+            }
+            catch (Exception ex)
+            {
+                throw new Exception("Delete failed : " + ex.Message);
+            }
+        }
     }
 }
