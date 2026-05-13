@@ -128,10 +128,10 @@ namespace Medico_Backend.Class
         // MASTER - BULK INSERT
         // ═══════════════════════════════════════════
         public async Task<object> BulkInsertMaster(
-            List<DoctorAppointmentSlotMasterModel> slots,
-            string tenant_code)
+     List<DoctorAppointmentSlotMasterModel> slots,
+     string tenant_code)
         {
-            var success = new List<string>();
+            var inserted = new List<string>();
             var skipped = new List<string>();
             var failed = new List<string>();
 
@@ -142,26 +142,46 @@ namespace Medico_Backend.Class
             {
                 try
                 {
+                    // ✅ VALIDATE DATE
                     if (!data.slot_date.HasValue)
                     {
                         failed.Add("slot_date is required");
                         continue;
                     }
 
-                    // ✅ CHECK MASTER DUPLICATE
-                    string checkSql = @"
-                    SELECT COUNT(1)
-                    FROM doctor_appointment_slot_master
-                    WHERE isdeleted = false
-                    AND tenant_code = @tenant_code
-                    AND dcode = @dcode
-                    AND slot_date = @slot_date
-                    AND slot_start_time = @slot_start_time
-                    AND slot_end_time = @slot_end_time";
+                    // ✅ VALIDATE TIME
+                    if (data.slot_start_time >= data.slot_end_time)
+                    {
+                        failed.Add(
+                            $"Invalid time range : " +
+                            $"{data.slot_start_time} - {data.slot_end_time}");
 
-                    int exists =
+                        continue;
+                    }
+
+                    // ✅ CHECK OVERLAPPING SLOT
+                    // EXAMPLE:
+                    // EXISTING : 09:00 - 10:00
+                    // NEW      : 09:30 - 10:30 ❌
+                    // NEW      : 08:00 - 09:30 ❌
+                    // NEW      : 09:00 - 10:00 ❌
+                    // NEW      : 10:00 - 11:00 ✅
+
+                    string overlapSql = @"
+            SELECT COUNT(1)
+            FROM doctor_appointment_slot_master
+            WHERE isdeleted = false
+            AND tenant_code = @tenant_code
+            AND dcode = @dcode
+            AND slot_date = @slot_date
+            AND (
+                    @new_start < slot_end_time
+                AND @new_end   > slot_start_time
+                )";
+
+                    int overlapExists =
                         await db.ExecuteScalarAsync<int>(
-                            checkSql,
+                            overlapSql,
                             new
                             {
                                 tenant_code,
@@ -169,31 +189,33 @@ namespace Medico_Backend.Class
 
                                 slot_date =
                                     data.slot_date.Value
-                                        .ToDateTime(
-                                            TimeOnly.MinValue),
+                                        .ToDateTime(TimeOnly.MinValue),
 
-                                slot_start_time =
+                                new_start =
                                     data.slot_start_time
                                         .ToTimeSpan(),
 
-                                slot_end_time =
+                                new_end =
                                     data.slot_end_time
                                         .ToTimeSpan()
                             });
 
-                    if (exists > 0)
+                    // ✅ IF SLOT EXISTS / OVERLAPS
+                    if (overlapExists > 0)
                     {
                         skipped.Add(
-                            $"{data.slot_date} " +
-                            $"{data.slot_start_time}-" +
+                            $"Slot already exists or overlaps : " +
+                            $"{data.slot_date:dd-MM-yyyy} " +
+                            $"{data.slot_start_time} - " +
                             $"{data.slot_end_time}");
 
                         continue;
                     }
 
-                    // ✅ MASTER VALUES
+                    // ✅ GENERATE MASTER ID
                     data.slot_master_id = Guid.NewGuid();
 
+                    // ✅ SLOT NUMBER
                     data.slotnum =
                         await GetNextSlotNum(
                             data.dcode,
@@ -213,42 +235,42 @@ namespace Medico_Backend.Class
 
                     // ✅ INSERT MASTER
                     string masterSql = @"
-                    INSERT INTO doctor_appointment_slot_master
-                    (
-                        slot_master_id,
-                        slotnum,
-                        dcode,
-                        tenant_code,
-                        day_of_week,
-                        slot_start_time,
-                        slot_end_time,
-                        max_patients,
-                        max_walkin,
-                        max_online,
-                        slot_date,
-                        is_active,
-                        isdeleted,
-                        created_at,
-                        updated_at
-                    )
-                    VALUES
-                    (
-                        @slot_master_id,
-                        @slotnum,
-                        @dcode,
-                        @tenant_code,
-                        @day_of_week,
-                        @slot_start_time,
-                        @slot_end_time,
-                        @max_patients,
-                        @max_walkin,
-                        @max_online,
-                        @slot_date,
-                        @is_active,
-                        @isdeleted,
-                        @created_at,
-                        @updated_at
-                    )";
+            INSERT INTO doctor_appointment_slot_master
+            (
+                slot_master_id,
+                slotnum,
+                dcode,
+                tenant_code,
+                day_of_week,
+                slot_start_time,
+                slot_end_time,
+                max_patients,
+                max_walkin,
+                max_online,
+                slot_date,
+                is_active,
+                isdeleted,
+                created_at,
+                updated_at
+            )
+            VALUES
+            (
+                @slot_master_id,
+                @slotnum,
+                @dcode,
+                @tenant_code,
+                @day_of_week,
+                @slot_start_time,
+                @slot_end_time,
+                @max_patients,
+                @max_walkin,
+                @max_online,
+                @slot_date,
+                @is_active,
+                @isdeleted,
+                @created_at,
+                @updated_at
+            )";
 
                     await db.ExecuteAsync(masterSql, new
                     {
@@ -259,10 +281,12 @@ namespace Medico_Backend.Class
                         data.day_of_week,
 
                         slot_start_time =
-                            data.slot_start_time.ToTimeSpan(),
+                            data.slot_start_time
+                                .ToTimeSpan(),
 
                         slot_end_time =
-                            data.slot_end_time.ToTimeSpan(),
+                            data.slot_end_time
+                                .ToTimeSpan(),
 
                         data.max_patients,
                         data.max_walkin,
@@ -278,50 +302,50 @@ namespace Medico_Backend.Class
                         data.updated_at
                     });
 
-                    // ✅ INSERT DETAILS
+                    // ✅ AUTO INSERT DETAILS
                     string detailSql = @"
-                    INSERT INTO doctor_appointment_slot_details
-                    (
-                        slot_detail_id,
-                        slot_master_id,
-                        dcode,
-                        tenant_code,
-                        appointment_date,
-                        slot_start_time,
-                        slot_end_time,
-                        max_patients,
-                        max_walkin,
-                        max_online,
-                        booked_count,
-                        walkin_count,
-                        online_count,
-                        slot_status,
-                        is_active,
-                        isdeleted,
-                        created_at,
-                        updated_at
-                    )
-                    VALUES
-                    (
-                        @slot_detail_id,
-                        @slot_master_id,
-                        @dcode,
-                        @tenant_code,
-                        @appointment_date,
-                        @slot_start_time,
-                        @slot_end_time,
-                        @max_patients,
-                        @max_walkin,
-                        @max_online,
-                        0,
-                        0,
-                        0,
-                        'OPEN',
-                        @is_active,
-                        false,
-                        @created_at,
-                        @updated_at
-                    )";
+            INSERT INTO doctor_appointment_slot_details
+            (
+                slot_detail_id,
+                slot_master_id,
+                dcode,
+                tenant_code,
+                appointment_date,
+                slot_start_time,
+                slot_end_time,
+                max_patients,
+                max_walkin,
+                max_online,
+                booked_count,
+                walkin_count,
+                online_count,
+                slot_status,
+                is_active,
+                isdeleted,
+                created_at,
+                updated_at
+            )
+            VALUES
+            (
+                @slot_detail_id,
+                @slot_master_id,
+                @dcode,
+                @tenant_code,
+                @appointment_date,
+                @slot_start_time,
+                @slot_end_time,
+                @max_patients,
+                @max_walkin,
+                @max_online,
+                0,
+                0,
+                0,
+                'OPEN',
+                @is_active,
+                false,
+                @created_at,
+                @updated_at
+            )";
 
                     await db.ExecuteAsync(detailSql, new
                     {
@@ -336,8 +360,7 @@ namespace Medico_Backend.Class
 
                         appointment_date =
                             data.slot_date.Value
-                                .ToDateTime(
-                                    TimeOnly.MinValue),
+                                .ToDateTime(TimeOnly.MinValue),
 
                         slot_start_time =
                             data.slot_start_time
@@ -360,10 +383,10 @@ namespace Medico_Backend.Class
                             data.updated_at
                     });
 
-                    success.Add(
-                        $"Doctor:{data.dcode} " +
-                        $"Date:{data.slot_date} " +
-                        $"{data.slot_start_time}-" +
+                    inserted.Add(
+                        $"Inserted Successfully : " +
+                        $"{data.slot_date:dd-MM-yyyy} " +
+                        $"{data.slot_start_time} - " +
                         $"{data.slot_end_time}");
                 }
                 catch (Exception ex)
@@ -374,7 +397,7 @@ namespace Medico_Backend.Class
 
             return new
             {
-                inserted = success,
+                inserted,
                 skipped,
                 failed
             };
