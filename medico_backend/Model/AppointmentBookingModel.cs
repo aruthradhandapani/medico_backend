@@ -15,9 +15,7 @@ namespace Medico_Backend.Model
         public TimeOnly slot_start_time { get; set; }
         public TimeOnly slot_end_time { get; set; }
         public int token_no { get; set; } = 0;
-        // BOOKED, CONFIRMED, VISITED, CANCELLED, RESCHEDULED
         public string booking_status { get; set; } = "BOOKED";
-        // ✅ WALKIN or ONLINE
         public string booking_type { get; set; } = "ONLINE";
         public Guid? rescheduled_from { get; set; }
         public string? reschedule_reason { get; set; }

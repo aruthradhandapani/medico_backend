@@ -41,6 +41,8 @@ builder.Services.AddScoped<PrefixMasterClass>();
 builder.Services.AddScoped<PrefixMasterController>();
 builder.Services.AddScoped<UserMasterClass>();
 builder.Services.AddScoped<UserMasterController>();
+builder.Services.AddScoped<AppointmentBookingClass>();
+builder.Services.AddScoped<AppointmentBookingController>();
 
 
 

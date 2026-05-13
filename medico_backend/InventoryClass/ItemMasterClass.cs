@@ -556,11 +556,35 @@ namespace medico_backend.InventoryClass
         {
             using IDbConnection db = new NpgsqlConnection(con);
             return await db.QueryAsync<purchase_master>(@"
-                SELECT * FROM public.purchase_master
-                WHERE deleted = false
-                  AND tenantcode = @tenantcode
-                ORDER BY purchasecode DESC;",
-                new { tenantcode });
+SELECT
+    purchasecode,
+    billno,
+    CAST(billdate AS timestamp) AS billdate,
+    invoiceno,
+    CAST(invoicedate AS timestamp) AS invoicedate,
+    vendorcode,
+    grossamount,
+    discountamount,
+    taxamount,
+    netamount,
+    paymentmode,
+    paymentstatus,
+    currencycode,
+    isactive,
+    deleted,
+    remarks,
+    createddate,
+    modifieddate,
+    usercode,
+    tenantcode,
+    branchcode,
+    companycode,
+    grncode
+FROM public.purchase_master
+WHERE deleted = false
+AND tenantcode = @tenantcode
+ORDER BY purchasecode DESC;",
+new { tenantcode });
         }
 
         public async Task<purchase_request?> GetPurchaseByCode(long purchasecode, string tenantcode)
@@ -568,22 +592,68 @@ namespace medico_backend.InventoryClass
             using IDbConnection db = new NpgsqlConnection(con);
 
             var master = await db.QueryFirstOrDefaultAsync<purchase_master>(@"
-                SELECT * FROM public.purchase_master
-                WHERE purchasecode = @purchasecode
-                  AND tenantcode = @tenantcode
-                  AND deleted = false;",
+        SELECT 
+            purchasecode,
+            billno,
+            CAST(billdate AS timestamp) AS billdate,
+            invoiceno,
+            CAST(invoicedate AS timestamp) AS invoicedate,
+            vendorcode,
+            grossamount,
+            discountamount,
+            taxamount,
+            netamount,
+            paymentmode,
+            paymentstatus,
+            currencycode,
+            isactive,
+            deleted,
+            remarks,
+            CAST(createddate AS timestamp) AS createddate,
+            CAST(modifieddate AS timestamp) AS modifieddate,
+            usercode,
+            tenantcode,
+            branchcode,
+            companycode,
+            grncode
+        FROM public.purchase_master
+        WHERE purchasecode = @purchasecode
+          AND tenantcode = @tenantcode
+          AND deleted = false;",
                 new { purchasecode, tenantcode });
 
-            if (master == null) return null;
+            if (master == null)
+                return null;
 
             var details = await db.QueryAsync<purchase_detail>(@"
-                SELECT * FROM public.purchase_detail
-                WHERE purchasecode = @purchasecode;",
+        SELECT
+            purchasedetailcode,
+            purchasecode,
+            itemcode,
+            quantity,
+            freequantity,
+            uomcode,
+            rate,
+            discountpercentage,
+            discountamount,
+            taxpercentage,
+            taxamount,
+            amount,
+            totalamount,
+            batchno,
+            CAST(manufacturingdate AS timestamp) AS manufacturingdate,
+            CAST(expirydate AS timestamp) AS expirydate,
+            tenantcode
+        FROM public.purchase_detail
+        WHERE purchasecode = @purchasecode;",
                 new { purchasecode });
 
-            return new purchase_request { master = master, details = details.ToList() };
+            return new purchase_request
+            {
+                master = master,
+                details = details.ToList()
+            };
         }
-
         // ─── STOCK MASTER ─────────────────────────────────────────────────────────────
 
         public async Task<long> InsertStock(stock_master stock)
