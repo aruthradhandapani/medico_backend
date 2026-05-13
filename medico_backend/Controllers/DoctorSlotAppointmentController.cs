@@ -10,7 +10,8 @@ namespace Medico_Backend.Controllers
     {
         private readonly DoctorAppointmentSlotClass cls;
 
-        public DoctorAppointmentSlotController(DoctorAppointmentSlotClass _cls)
+        public DoctorAppointmentSlotController(
+            DoctorAppointmentSlotClass _cls)
         {
             cls = _cls;
         }
@@ -19,99 +20,109 @@ namespace Medico_Backend.Controllers
         // MASTER
         // ═══════════════════════════════════════════
 
+        // ✅ GET ALL MASTER
         [HttpGet("master/get")]
         public async Task<IActionResult> GetAllMaster()
         {
-            var tenant = Request.Headers["tenant_code"].ToString();
-            return Ok(await cls.GetAllMaster(tenant));
+            var tenant =
+                Request.Headers["tenant_code"].ToString();
+
+            return Ok(
+                await cls.GetAllMaster(tenant));
         }
 
+        // ✅ GET MASTER BY DOCTOR
         [HttpGet("master/get-by-doctor")]
-        public async Task<IActionResult> GetMasterByDoctor(int dcode)
+        public async Task<IActionResult> GetMasterByDoctor(
+            int dcode)
         {
-            var tenant = Request.Headers["tenant_code"].ToString();
-            return Ok(await cls.GetMasterByDoctor(dcode, tenant));
+            var tenant =
+                Request.Headers["tenant_code"].ToString();
+
+            return Ok(
+                await cls.GetMasterByDoctor(
+                    dcode,
+                    tenant));
         }
 
+        // ✅ BULK INSERT MASTER
+        // DETAILS AUTO INSERTS
         [HttpPost("master/insert")]
         public async Task<IActionResult> BulkInsertMaster(
-    [FromBody] List<DoctorAppointmentSlotMasterModel> data)
+            [FromBody]
+            List<DoctorAppointmentSlotMasterModel> data)
         {
-            var tenant = Request.Headers["tenant_code"].ToString();
+            var tenant =
+                Request.Headers["tenant_code"].ToString();
 
-            var result = await cls.BulkInsertMaster(data, tenant);
+            var result =
+                await cls.BulkInsertMaster(
+                    data,
+                    tenant);
 
             return Ok(result);
         }
 
+        // ✅ UPDATE MASTER
+        // DETAILS AUTO UPDATE
         [HttpPost("master/update")]
         public async Task<IActionResult> UpdateMaster(
-            [FromBody] DoctorAppointmentSlotMasterModel data)
+            [FromBody]
+            DoctorAppointmentSlotMasterModel data)
         {
-            var tenant = Request.Headers["tenant_code"].ToString();
+            var tenant =
+                Request.Headers["tenant_code"].ToString();
+
             data.tenant_code = tenant;
-            return Ok(await cls.UpdateMaster(data));
+
+            return Ok(
+                await cls.UpdateMaster(data));
         }
 
-        // ✅ Fixed — DELETE not GET
+        // ✅ DELETE MASTER
+        // DETAILS AUTO DELETE
         [HttpGet("master/delete")]
-        public async Task<IActionResult> DeleteMaster(Guid slot_master_id)
+        public async Task<IActionResult> DeleteMaster(
+            Guid slot_master_id)
         {
-            var tenant = Request.Headers["tenant_code"].ToString();
-            return Ok(await cls.DeleteMaster(slot_master_id, tenant));
+            var tenant =
+                Request.Headers["tenant_code"].ToString();
+
+            return Ok(
+                await cls.DeleteMaster(
+                    slot_master_id,
+                    tenant));
         }
 
         // ═══════════════════════════════════════════
         // DETAILS
         // ═══════════════════════════════════════════
 
+        // ✅ GET ALL DETAILS
         [HttpGet("details/get")]
         public async Task<IActionResult> GetAllDetails()
         {
-            var tenant = Request.Headers["tenant_code"].ToString();
-            return Ok(await cls.GetAllDetails(tenant));
+            var tenant =
+                Request.Headers["tenant_code"].ToString();
+
+            return Ok(
+                await cls.GetAllDetails(tenant));
         }
 
+        // ✅ GET DETAILS BY DATE
         [HttpGet("details/get-by-date")]
-        public async Task<IActionResult> GetDetailsByDate(int dcode, DateOnly appointment_date)
+        public async Task<IActionResult> GetDetailsByDate(
+            int dcode,
+            DateOnly appointment_date)
         {
-            var tenant = Request.Headers["tenant_code"].ToString();
-            return Ok(await cls.GetDetailsByDate(dcode, appointment_date, tenant));
-        }
+            var tenant =
+                Request.Headers["tenant_code"].ToString();
 
-        [HttpPost("details/insert")]
-        public async Task<IActionResult> InsertDetails(
-            [FromBody] DoctorAppointmentSlotDetailsModel data)
-        {
-            var tenant = Request.Headers["tenant_code"].ToString();
-            data.tenant_code = tenant;
-            return Ok(await cls.InsertDetails(data));
-        }
-
-        [HttpPost("details/update")]
-        public async Task<IActionResult> UpdateDetails(
-            [FromBody] DoctorAppointmentSlotDetailsModel data)
-        {
-            var tenant = Request.Headers["tenant_code"].ToString();
-            data.tenant_code = tenant;
-            return Ok(await cls.UpdateDetails(data));
-        }
-
-        // ✅ Fixed — DELETE not GET
-        [HttpDelete("details/delete")]
-        public async Task<IActionResult> DeleteDetails(Guid slot_detail_id)
-        {
-            var tenant = Request.Headers["tenant_code"].ToString();
-            return Ok(await cls.DeleteDetails(slot_detail_id, tenant));
-        }
-
-        // ✅ Fixed — POST with body, bulk insert
-        [HttpPost("details/bulk-insert")]
-        public async Task<IActionResult> BulkInsertDetails(
-            [FromBody] BulkInsertSlotDetailsRequest request)
-        {
-            var tenant = Request.Headers["tenant_code"].ToString();
-            return Ok(await cls.BulkInsertDetails(request, tenant));
+            return Ok(
+                await cls.GetDetailsByDate(
+                    dcode,
+                    appointment_date,
+                    tenant));
         }
     }
 }

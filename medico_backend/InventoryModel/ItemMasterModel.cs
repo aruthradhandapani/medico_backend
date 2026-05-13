@@ -27,6 +27,10 @@
         public DateTime createddate { get; set; }
         public int usercode { get; set; }
         public string? tenantcode { get; set; }
+        public string? hsncode { get; set; }
+        public int? gstpercentage { get; set; }
+        public int? noofdays { get; set;  }
+
     }
     public class vendor_master
     {
@@ -299,5 +303,31 @@
         public DateTime createddate { get; set; }
         public int usercode { get; set; }
         public string? tenantcode { get; set; }
+    }
+    public class uom_master
+    {
+        public long ucode { get; set; }
+
+        public int orderno { get; set; }
+
+        public string? name { get; set; }
+
+        public string? shortname { get; set; }
+
+        public string? description { get; set; }
+
+        public bool? deleted { get; set; } = false;
+
+        public int? usercode { get; set; }
+
+        public int? computercode { get; set; }
+
+        public DateTime? entereddate { get; set; }
+
+        public DateTime? ibsdate { get; set; }
+
+        public int? packsize { get; set; }
+
+        public string? tenant_code { get; set; }
     }
 }

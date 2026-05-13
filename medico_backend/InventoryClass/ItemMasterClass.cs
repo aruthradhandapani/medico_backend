@@ -36,7 +36,7 @@ namespace medico_backend.InventoryClass
                                 categorycode, subcategorycode, itemtype,
                                 uomcode, purchaserate, salesrate,
                                 isactive, deleted, createddate,
-                                usercode, tenantcode
+                                usercode, tenantcode,hsncode,gstpercentage,noofdays
                             )
                             VALUES
                             (
@@ -44,7 +44,7 @@ namespace medico_backend.InventoryClass
                                 @categorycode, @subcategorycode, @itemtype,
                                 @uomcode, @purchaserate, @salesrate,
                                 @isactive, @deleted, CURRENT_TIMESTAMP,
-                                @usercode, @tenantcode
+                                @usercode, @tenantcode,@hsncode,@gstpercentage,@noofdays
                             )
                             RETURNING itemcode;";
                     }
@@ -65,7 +65,10 @@ namespace medico_backend.InventoryClass
                                 isactive        = @isactive,
                                 deleted         = @deleted,
                                 usercode        = @usercode,
-                                tenantcode      = @tenantcode
+                                tenantcode      = @tenantcode,
+                                hsncode         = @hsncode,
+                                gstpercentage   = @gstpercentage,
+                                noofdays        = @noofdays
                             WHERE itemcode = @itemcode
                             RETURNING itemcode;";
                     }
@@ -102,7 +105,10 @@ namespace medico_backend.InventoryClass
                             isactive        = @isactive,
                             deleted         = @deleted,
                             usercode        = @usercode,
-                            tenantcode      = @tenantcode
+                            tenantcode      = @tenantcode,
+                            hsncode         = @hsncode,
+                            gstpercentage   = @gstpercentage,
+                            noofdays        = @noofdays
                         WHERE itemcode = @itemcode
                           AND tenantcode = @tenantcode;";
 
@@ -1495,6 +1501,161 @@ namespace medico_backend.InventoryClass
                     int rows = await db.ExecuteAsync(
                         query,
                         new { categorycode, tenantcode });
+
+                    return rows > 0;
+                }
+            }
+            catch (Exception ex)
+            {
+                throw new Exception("Delete failed : " + ex.Message);
+            }
+        }
+        // INSERT
+        public async Task<long> InsertUom(uom_master model)
+        {
+            try
+            {
+                using (IDbConnection db = new NpgsqlConnection(con))
+                {
+                    db.Open();
+
+                    string query = @"
+                    INSERT INTO uom_master
+                    (
+                        orderno,
+                        name,
+                        shortname,
+                        description,
+                        deleted,
+                        usercode,
+                        computercode,
+                        entereddate,
+                        ibsdate,
+                        packsize,
+                        tenant_code
+                    )
+                    VALUES
+                    (
+                        @orderno,
+                        @name,
+                        @shortname,
+                        @description,
+                        @deleted,
+                        @usercode,
+                        @computercode,
+                        CURRENT_TIMESTAMP,
+                        CURRENT_TIMESTAMP,
+                        @packsize,
+                        @tenant_code
+                    )
+                    RETURNING ucode;";
+
+                    return await db.ExecuteScalarAsync<long>(query, model);
+                }
+            }
+            catch (Exception ex)
+            {
+                throw new Exception("Insert failed : " + ex.Message);
+            }
+        }
+
+        // GET ALL
+        public async Task<IEnumerable<uom_master>> GetAllUom(string tenant_code)
+        {
+            try
+            {
+                using (IDbConnection db = new NpgsqlConnection(con))
+                {
+                    string query = @"
+                    SELECT *
+                    FROM uom_master
+                    WHERE deleted = false
+                    AND tenant_code = @tenant_code
+                    ORDER BY ucode DESC";
+
+                    return await db.QueryAsync<uom_master>(query, new { tenant_code });
+                }
+            }
+            catch (Exception ex)
+            {
+                throw new Exception("Get failed : " + ex.Message);
+            }
+        }
+
+        // GET BY ID
+        public async Task<uom_master?> GetUomByCode(long ucode, string tenant_code)
+        {
+            try
+            {
+                using (IDbConnection db = new NpgsqlConnection(con))
+                {
+                    string query = @"
+                    SELECT *
+                    FROM uom_master
+                    WHERE ucode = @ucode
+                    AND tenant_code = @tenant_code
+                    AND deleted = false";
+
+                    return await db.QueryFirstOrDefaultAsync<uom_master>(
+                        query,
+                        new { ucode, tenant_code });
+                }
+            }
+            catch (Exception ex)
+            {
+                throw new Exception("Get by code failed : " + ex.Message);
+            }
+        }
+
+        // UPDATE
+        public async Task<bool> UpdateUom(uom_master model)
+        {
+            try
+            {
+                using (IDbConnection db = new NpgsqlConnection(con))
+                {
+                    string query = @"
+                    UPDATE uom_master
+                    SET
+                        orderno = @orderno,
+                        name = @name,
+                        shortname = @shortname,
+                        description = @description,
+                        deleted = @deleted,
+                        usercode = @usercode,
+                        computercode = @computercode,
+                        packsize = @packsize,
+                        tenant_code = @tenant_code
+                    WHERE ucode = @ucode
+                    AND tenant_code = @tenant_code";
+
+                    int rows = await db.ExecuteAsync(query, model);
+
+                    return rows > 0;
+                }
+            }
+            catch (Exception ex)
+            {
+                throw new Exception("Update failed : " + ex.Message);
+            }
+        }
+
+        // DELETE
+        public async Task<bool> DeleteUom(long ucode, string tenant_code)
+        {
+            try
+            {
+                using (IDbConnection db = new NpgsqlConnection(con))
+                {
+                    string query = @"
+                    UPDATE uom_master
+                    SET deleted = true
+                    WHERE ucode = @ucode
+                    AND tenant_code = @tenant_code";
+
+                    int rows = await db.ExecuteAsync(
+                        query,
+                        new { ucode, tenant_code });
 
                     return rows > 0;
                 }

@@ -793,5 +793,105 @@ namespace medico_backend.InventoryController
                 });
             }
         }
+        // INSERT
+        [HttpPost("insertuom")]
+        public async Task<IActionResult> Insert(uom_master model)
+        {
+            try
+            {
+                var tenant = GetTenantCode();
+
+                if (string.IsNullOrEmpty(tenant))
+                    return BadRequest("tenant_code header required");
+
+                model.tenant_code = tenant;
+
+                var id = await itemclass.InsertUom(model);
+
+                return Ok(new
+                {
+                    status = "Success",
+                    ucode = id
+                });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(ex.Message);
+            }
+        }
+
+        // GET ALL
+        [HttpGet("getalluom")]
+        public async Task<IActionResult> Getuom()
+        {
+            try
+            {
+                var tenant = GetTenantCode();
+
+                var data = await itemclass.GetAllUom(tenant);
+
+                return Ok(data);
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(ex.Message);
+            }
+        }
+
+        // GET BY CODE
+        [HttpGet("getuombycode")]
+        public async Task<IActionResult> GetByCode(long ucode)
+        {
+            try
+            {
+                var tenant = GetTenantCode();
+
+                var data = await itemclass.GetUomByCode(ucode, tenant);
+
+                return Ok(data);
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(ex.Message);
+            }
+        }
+
+        // UPDATE
+        [HttpPost("updateuom")]
+        public async Task<IActionResult> Update(uom_master model)
+        {
+            try
+            {
+                var tenant = GetTenantCode();
+
+                model.tenant_code = tenant;
+
+                var result = await itemclass.UpdateUom(model);
+
+                return Ok(result);
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(ex.Message);
+            }
+        }
+
+        // DELETE
+        [HttpGet("deleteuom")]
+        public async Task<IActionResult> Delete(long ucode)
+        {
+            try
+            {
+                var tenant = GetTenantCode();
+
+                var result = await itemclass.DeleteUom(ucode, tenant);
+
+                return Ok(result);
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(ex.Message);
+            }
+        }
     }
 }

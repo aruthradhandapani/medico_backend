@@ -53,7 +53,7 @@ namespace Medico_Backend.Model
         public string slot_status { get; set; } = "OPEN";
         public bool is_active { get; set; } = true;
         public bool isdeleted { get; set; } = false;
-        public DateTime created_at { get; set; } =
+        public DateTime created_at { get; set; } =   
             DateTime.SpecifyKind(DateTime.UtcNow, DateTimeKind.Utc);
         public DateTime updated_at { get; set; } =
             DateTime.SpecifyKind(DateTime.UtcNow, DateTimeKind.Utc);
