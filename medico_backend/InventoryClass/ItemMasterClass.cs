@@ -552,107 +552,183 @@ namespace medico_backend.InventoryClass
             }
         }
 
-        public async Task<IEnumerable<purchase_master>> GetAllPurchases(string tenantcode)
+        public async Task<IEnumerable<purchase_request>> GetAllPurchases(string tenantcode)
         {
             using IDbConnection db = new NpgsqlConnection(con);
-            return await db.QueryAsync<purchase_master>(@"
-SELECT
-    purchasecode,
-    billno,
-    CAST(billdate AS timestamp) AS billdate,
-    invoiceno,
-    CAST(invoicedate AS timestamp) AS invoicedate,
-    vendorcode,
-    grossamount,
-    discountamount,
-    taxamount,
-    netamount,
-    paymentmode,
-    paymentstatus,
-    currencycode,
-    isactive,
-    deleted,
-    remarks,
-    createddate,
-    modifieddate,
-    usercode,
-    tenantcode,
-    branchcode,
-    companycode,
-    grncode
-FROM public.purchase_master
-WHERE deleted = false
-AND tenantcode = @tenantcode
-ORDER BY purchasecode DESC;",
-new { tenantcode });
+
+            var query = @"
+    SELECT 
+        -- MASTER TABLE
+        m.purchasecode,
+        m.billno,
+        CAST(m.billdate AS timestamp) AS billdate,
+        m.invoiceno,
+        CAST(m.invoicedate AS timestamp) AS invoicedate,
+        m.vendorcode,
+        m.grossamount,
+        m.discountamount,
+        m.taxamount,
+        m.netamount,
+        m.paymentmode,
+        m.paymentstatus,
+        m.currencycode,
+        m.remarks,
+        m.isactive,
+        m.deleted,
+        CAST(m.createddate AS timestamp) AS createddate,
+        CAST(m.modifieddate AS timestamp) AS modifieddate,
+        m.usercode,
+        m.tenantcode,
+        m.branchcode,
+        m.companycode,
+        m.grncode,
+
+        -- DETAIL TABLE
+        d.purchasedetailcode,
+        d.purchasecode,
+        d.itemcode,
+        d.quantity,
+        d.freequantity,
+        d.uomcode,
+        d.rate,
+        d.discountpercentage,
+        d.discountamount,
+        d.taxpercentage,
+        d.taxamount,
+        d.amount,
+        d.totalamount,
+        d.batchno,
+        CAST(d.manufacturingdate AS timestamp) AS manufacturingdate,
+        CAST(d.expirydate AS timestamp) AS expirydate,
+        d.tenantcode
+
+    FROM public.purchase_master m
+
+    LEFT JOIN public.purchase_detail d
+        ON m.purchasecode = d.purchasecode
+
+    WHERE m.deleted = false
+      AND m.tenantcode = @tenantcode
+
+    ORDER BY m.purchasecode DESC;";
+
+            var purchaseDictionary = new Dictionary<long, purchase_request>();
+
+            var data = await db.QueryAsync<purchase_master, purchase_detail, purchase_request>(
+                query,
+                (master, detail) =>
+                {
+                    if (!purchaseDictionary.TryGetValue(master.purchasecode, out var purchase))
+                    {
+                        purchase = new purchase_request
+                        {
+                            master = master,
+                            details = new List<purchase_detail>()
+                        };
+
+                        purchaseDictionary.Add(master.purchasecode, purchase);
+                    }
+
+                    if (detail != null && detail.purchasedetailcode != 0)
+                    {
+                        purchase.details.Add(detail);
+                    }
+
+                    return purchase;
+                },
+                new { tenantcode },
+                splitOn: "purchasedetailcode"
+            );
+
+            return purchaseDictionary.Values.ToList();
         }
 
         public async Task<purchase_request?> GetPurchaseByCode(long purchasecode, string tenantcode)
         {
             using IDbConnection db = new NpgsqlConnection(con);
 
-            var master = await db.QueryFirstOrDefaultAsync<purchase_master>(@"
-        SELECT 
-            purchasecode,
-            billno,
-            CAST(billdate AS timestamp) AS billdate,
-            invoiceno,
-            CAST(invoicedate AS timestamp) AS invoicedate,
-            vendorcode,
-            grossamount,
-            discountamount,
-            taxamount,
-            netamount,
-            paymentmode,
-            paymentstatus,
-            currencycode,
-            isactive,
-            deleted,
-            remarks,
-            CAST(createddate AS timestamp) AS createddate,
-            CAST(modifieddate AS timestamp) AS modifieddate,
-            usercode,
-            tenantcode,
-            branchcode,
-            companycode,
-            grncode
-        FROM public.purchase_master
-        WHERE purchasecode = @purchasecode
-          AND tenantcode = @tenantcode
-          AND deleted = false;",
-                new { purchasecode, tenantcode });
+            var query = @"
+    SELECT 
+        -- MASTER TABLE
+        m.purchasecode,
+        m.billno,
+        CAST(m.billdate AS timestamp) AS billdate,
+        m.invoiceno,
+        CAST(m.invoicedate AS timestamp) AS invoicedate,
+        m.vendorcode,
+        m.grossamount,
+        m.discountamount,
+        m.taxamount,
+        m.netamount,
+        m.paymentmode,
+        m.paymentstatus,
+        m.currencycode,
+        m.remarks,
+        m.isactive,
+        m.deleted,
+        CAST(m.createddate AS timestamp) AS createddate,
+        CAST(m.modifieddate AS timestamp) AS modifieddate,
+        m.usercode,
+        m.tenantcode,
+        m.branchcode,
+        m.companycode,
+        m.grncode,
 
-            if (master == null)
-                return null;
+        -- DETAIL TABLE
+        d.purchasedetailcode,
+        d.purchasecode,
+        d.itemcode,
+        d.quantity,
+        d.freequantity,
+        d.uomcode,
+        d.rate,
+        d.discountpercentage,
+        d.discountamount,
+        d.taxpercentage,
+        d.taxamount,
+        d.amount,
+        d.totalamount,
+        d.batchno,
+        CAST(d.manufacturingdate AS timestamp) AS manufacturingdate,
+        CAST(d.expirydate AS timestamp) AS expirydate,
+        d.tenantcode
 
-            var details = await db.QueryAsync<purchase_detail>(@"
-        SELECT
-            purchasedetailcode,
-            purchasecode,
-            itemcode,
-            quantity,
-            freequantity,
-            uomcode,
-            rate,
-            discountpercentage,
-            discountamount,
-            taxpercentage,
-            taxamount,
-            amount,
-            totalamount,
-            batchno,
-            CAST(manufacturingdate AS timestamp) AS manufacturingdate,
-            CAST(expirydate AS timestamp) AS expirydate,
-            tenantcode
-        FROM public.purchase_detail
-        WHERE purchasecode = @purchasecode;",
-                new { purchasecode });
+    FROM public.purchase_master m
 
-            return new purchase_request
-            {
-                master = master,
-                details = details.ToList()
-            };
+    LEFT JOIN public.purchase_detail d
+        ON m.purchasecode = d.purchasecode
+
+    WHERE m.purchasecode = @purchasecode
+      AND m.tenantcode = @tenantcode
+      AND m.deleted = false;";
+
+            purchase_request? response = null;
+
+            await db.QueryAsync<purchase_master, purchase_detail, purchase_request>(
+                query,
+                (master, detail) =>
+                {
+                    if (response == null)
+                    {
+                        response = new purchase_request
+                        {
+                            master = master,
+                            details = new List<purchase_detail>()
+                        };
+                    }
+
+                    if (detail != null && detail.purchasedetailcode != 0)
+                    {
+                        response.details.Add(detail);
+                    }
+
+                    return response;
+                },
+                new { purchasecode, tenantcode },
+                splitOn: "purchasedetailcode"
+            );
+
+            return response;
         }
         // ─── STOCK MASTER ─────────────────────────────────────────────────────────────
 
@@ -1733,6 +1809,92 @@ new { tenantcode });
             catch (Exception ex)
             {
                 throw new Exception("Delete failed : " + ex.Message);
+            }
+        }
+        public async Task<string> InsertParentCategory(parent_category_master model)
+        {
+            using (IDbConnection db = new NpgsqlConnection(con))
+            {
+                string query = @"
+        INSERT INTO parent_category_master
+        (
+            parentcategoryname,
+            shortname,
+            description,
+            isactive,
+            deleted,
+            createddate,
+            tenantcode
+        )
+        VALUES
+        (
+            @parentcategoryname,
+            @shortname,
+            @description,
+            @isactive,
+            @deleted,
+            CURRENT_TIMESTAMP,
+            @tenantcode
+        )";
+
+                await db.ExecuteAsync(query, model);
+
+                return "Inserted Successfully";
+            }
+        }
+
+        public async Task<IEnumerable<parent_category_master>> GetParentCategories(string tenantcode)
+        {
+            using (IDbConnection db = new NpgsqlConnection(con))
+            {
+                string query = @"
+        SELECT *
+        FROM parent_category_master
+        WHERE deleted = false
+        AND tenantcode = @tenantcode
+        ORDER BY parentcategorycode";
+
+                return await db.QueryAsync<parent_category_master>(
+                    query,
+                    new { tenantcode });
+            }
+        }
+
+        public async Task<string> UpdateParentCategory(parent_category_master model)
+        {
+            using (IDbConnection db = new NpgsqlConnection(con))
+            {
+                string query = @"
+        UPDATE parent_category_master
+        SET
+            parentcategoryname = @parentcategoryname,
+            shortname = @shortname,
+            description = @description,
+            isactive = @isactive,
+            deleted = @deleted
+        WHERE parentcategorycode = @parentcategorycode
+        AND tenantcode = @tenantcode";
+
+                await db.ExecuteAsync(query, model);
+
+                return "Updated Successfully";
+            }
+        }
+
+        public async Task<string> DeleteParentCategory(int parentcategorycode, string tenantcode)
+        {
+            using (IDbConnection db = new NpgsqlConnection(con))
+            {
+                string query = @"
+        UPDATE parent_category_master
+        SET deleted = true
+        WHERE parentcategorycode = @parentcategorycode
+        AND tenantcode = @tenantcode";
+
+                await db.ExecuteAsync(query,
+                    new { parentcategorycode, tenantcode });
+
+                return "Deleted Successfully";
             }
         }
     }

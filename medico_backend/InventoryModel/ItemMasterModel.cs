@@ -330,4 +330,16 @@
 
         public string? tenant_code { get; set; }
     }
+    public class parent_category_master
+    {
+        public int parentcategorycode { get; set; }
+        public string parentcategoryname { get; set; }
+        public string shortname { get; set; }
+        public string description { get; set; }
+        public bool isactive { get; set; }
+        public bool deleted { get; set; }
+        public DateTime createddate { get; set; }
+        public string? tenantcode { get; set; }
+    }
+
 }

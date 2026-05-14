@@ -893,5 +893,122 @@ namespace medico_backend.InventoryController
                 return BadRequest(ex.Message);
             }
         }
+        [HttpPost("insertparentcategory")]
+        public async Task<IActionResult> InsertParentCategory(parent_category_master model)
+        {
+            try
+            {
+                var tenantcode = GetTenantCode();
+
+                if (string.IsNullOrEmpty(tenantcode))
+                    return MissingTenantCode();
+
+                model.tenantcode = tenantcode;
+
+                var result = await itemclass.InsertParentCategory(model);
+
+                return Ok(new
+                {
+                    Status = "Success",
+                    Message = result
+                });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new
+                {
+                    Status = "Failed",
+                    Message = ex.Message
+                });
+            }
+        }
+
+        [HttpGet("getparentcategory")]
+        public async Task<IActionResult> GetParentCategories()
+        {
+            try
+            {
+                var tenantcode = GetTenantCode();
+
+                if (string.IsNullOrEmpty(tenantcode))
+                    return MissingTenantCode();
+
+                var result = await itemclass.GetParentCategories(tenantcode);
+
+                return Ok(new
+                {
+                    Status = "Success",
+                    Data = result
+                });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new
+                {
+                    Status = "Failed",
+                    Message = ex.Message
+                });
+            }
+        }
+
+        [HttpPost("updateparentcategory")]
+        public async Task<IActionResult> UpdateParentCategory(parent_category_master model)
+        {
+            try
+            {
+                var tenantcode = GetTenantCode();
+
+                if (string.IsNullOrEmpty(tenantcode))
+                    return MissingTenantCode();
+
+                model.tenantcode = tenantcode;
+
+                var result = await itemclass.UpdateParentCategory(model);
+
+                return Ok(new
+                {
+                    Status = "Success",
+                    Message = result
+                });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new
+                {
+                    Status = "Failed",
+                    Message = ex.Message
+                });
+            }
+        }
+
+        [HttpGet("deleteparentcategory")]
+        public async Task<IActionResult> DeleteParentCategory(int parentcategorycode)
+        {
+            try
+            {
+                var tenantcode = GetTenantCode();
+
+                if (string.IsNullOrEmpty(tenantcode))
+                    return MissingTenantCode();
+
+                var result = await itemclass.DeleteParentCategory(
+                    parentcategorycode,
+                    tenantcode);
+
+                return Ok(new
+                {
+                    Status = "Success",
+                    Message = result
+                });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new
+                {
+                    Status = "Failed",
+                    Message = ex.Message
+                });
+            }
+        }
     }
 }
