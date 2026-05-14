@@ -124,5 +124,6 @@ namespace Medico_Backend.Controllers
                     appointment_date,
                     tenant));
         }
+
     }
 }

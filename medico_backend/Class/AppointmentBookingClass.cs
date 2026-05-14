@@ -99,7 +99,7 @@ namespace Medico_Backend.Class
                 string checkSql = @"SELECT slot_status, booked_count, max_patients,
                                            walkin_count, max_walkin,
                                            online_count, max_online
-                                    FROM   doctor_appointment_slot_details
+                                    FROM   doctor_appointment_slot_details  
                                     WHERE  slot_detail_id = @slot_detail_id
                                     AND    tenant_code    = @tenant_code
                                     AND    isdeleted      = false

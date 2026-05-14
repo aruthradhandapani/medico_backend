@@ -43,6 +43,8 @@ builder.Services.AddScoped<UserMasterClass>();
 builder.Services.AddScoped<UserMasterController>();
 builder.Services.AddScoped<AppointmentBookingClass>();
 builder.Services.AddScoped<AppointmentBookingController>();
+builder.Services.AddScoped<DoctorAppointmentSlotTypeController>();
+builder.Services.AddScoped<DoctorAppointmentSlotTypeClass>();
 
 
 

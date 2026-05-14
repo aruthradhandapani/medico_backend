@@ -32,6 +32,7 @@ namespace Medico_Backend.Class
                 day_of_week,
                 slot_start_time,
                 slot_end_time,
+                typeofslot,
                 max_patients,
                 max_walkin,
                 max_online,
@@ -73,6 +74,7 @@ namespace Medico_Backend.Class
                 day_of_week,
                 slot_start_time,
                 slot_end_time,
+                typeofslot,
                 max_patients,
                 max_walkin,
                 max_online,
@@ -244,6 +246,7 @@ namespace Medico_Backend.Class
                 day_of_week,
                 slot_start_time,
                 slot_end_time,
+                typeofslot,
                 max_patients,
                 max_walkin,
                 max_online,
@@ -262,6 +265,7 @@ namespace Medico_Backend.Class
                 @day_of_week,
                 @slot_start_time,
                 @slot_end_time,
+                @typeofslot,
                 @max_patients,
                 @max_walkin,
                 @max_online,
@@ -287,7 +291,7 @@ namespace Medico_Backend.Class
                         slot_end_time =
                             data.slot_end_time
                                 .ToTimeSpan(),
-
+                        data.typeofslot,
                         data.max_patients,
                         data.max_walkin,
                         data.max_online,
@@ -427,6 +431,7 @@ namespace Medico_Backend.Class
                     day_of_week = @day_of_week,
                     slot_start_time = @slot_start_time,
                     slot_end_time = @slot_end_time,
+                    typeofslot = @typeofslot,
                     max_patients = @max_patients,
                     max_walkin = @max_walkin,
                     max_online = @max_online,
@@ -449,7 +454,7 @@ namespace Medico_Backend.Class
                         slot_end_time =
                             data.slot_end_time
                                 .ToTimeSpan(),
-
+                        data.typeofslot,
                         data.max_patients,
                         data.max_walkin,
                         data.max_online,
@@ -588,6 +593,7 @@ namespace Medico_Backend.Class
                 appointment_date,
                 slot_start_time,
                 slot_end_time,
+                typeofslot,
                 max_patients,
                 max_walkin,
                 max_online,
@@ -640,6 +646,7 @@ namespace Medico_Backend.Class
                 appointment_date,
                 slot_start_time,
                 slot_end_time,
+                typeofslot,
                 max_patients,
                 max_walkin,
                 max_online,

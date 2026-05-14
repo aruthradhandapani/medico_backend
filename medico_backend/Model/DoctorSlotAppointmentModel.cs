@@ -14,6 +14,7 @@ namespace Medico_Backend.Model
         public string? day_of_week { get; set; }
         public TimeOnly slot_start_time { get; set; }
         public TimeOnly slot_end_time { get; set; }
+        public string? typeofslot { get; set; }
         public int max_patients { get; set; } = 10;
         public int max_walkin { get; set; } = 5;
         public int max_online { get; set; } = 5;
@@ -38,6 +39,7 @@ namespace Medico_Backend.Model
         public DateOnly appointment_date { get; set; }
         public TimeOnly slot_start_time { get; set; }
         public TimeOnly slot_end_time { get; set; }
+
         // ── Capacity ───────────────────────────────────────────────
         public int max_patients { get; set; } = 10;
         public int max_walkin { get; set; } = 5;
@@ -53,10 +55,34 @@ namespace Medico_Backend.Model
         public string slot_status { get; set; } = "OPEN";
         public bool is_active { get; set; } = true;
         public bool isdeleted { get; set; } = false;
-        public DateTime created_at { get; set; } =   
+        public DateTime created_at { get; set; } =
             DateTime.SpecifyKind(DateTime.UtcNow, DateTimeKind.Utc);
         public DateTime updated_at { get; set; } =
             DateTime.SpecifyKind(DateTime.UtcNow, DateTimeKind.Utc);
+    }
+    [Table("doctor_appointment_slot_type")]
+    public class DoctorAppointmentSlotTypeModel
+    {
+        [ExplicitKey]
+        public long slot_type_id { get; set; }
+
+        public string? name { get; set; }
+
+        public string? shortname { get; set; }
+
+        public string? colorcode { get; set; }
+
+        public string? description { get; set; }
+
+        public DateTime entereddate { get; set; } =
+            DateTime.SpecifyKind(DateTime.UtcNow, DateTimeKind.Utc);
+
+        public DateTime ibsdate { get; set; } =
+            DateTime.SpecifyKind(DateTime.UtcNow, DateTimeKind.Utc);
+
+        public bool deleted { get; set; } = false;
+
+        public string? tenant_code { get; set; }
     }
 
     // ✅ Used for bulk insert of slot details from a master
