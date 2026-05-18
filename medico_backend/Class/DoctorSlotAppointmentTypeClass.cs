@@ -32,6 +32,8 @@ namespace Medico_Backend.Class
                 shortname,
                 colorcode,
                 description,
+                is_visiting,
+                emoji,
                 entereddate AT TIME ZONE 'UTC'
                     AS entereddate,
                 ibsdate AT TIME ZONE 'UTC'
@@ -70,6 +72,8 @@ namespace Medico_Backend.Class
                 shortname,
                 colorcode,
                 description,
+                is_visiting,
+                emoji,
                 entereddate AT TIME ZONE 'UTC'
                     AS entereddate,
                 ibsdate AT TIME ZONE 'UTC'
@@ -138,6 +142,8 @@ namespace Medico_Backend.Class
                     shortname,
                     colorcode,
                     description,
+                    is_visiting,
+                    emoji,
                     entereddate,
                     ibsdate,
                     deleted,
@@ -149,6 +155,8 @@ namespace Medico_Backend.Class
                     @shortname,
                     @colorcode,
                     @description,
+                    @is_visiting,
+                    @emoji,
                     @entereddate,
                     @ibsdate,
                     false,
@@ -188,6 +196,8 @@ namespace Medico_Backend.Class
                     shortname = @shortname,
                     colorcode = @colorcode,
                     description = @description,
+                    is_visiting = @is_visiting,
+                    emoji = @emoji,
                     ibsdate = @ibsdate
                 WHERE slot_type_id = @slot_type_id
                 AND tenant_code = @tenant_code";

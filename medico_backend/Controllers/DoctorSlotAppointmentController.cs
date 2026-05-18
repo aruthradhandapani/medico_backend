@@ -63,20 +63,17 @@ namespace Medico_Backend.Controllers
             return Ok(result);
         }
 
-        // ✅ UPDATE MASTER
-        // DETAILS AUTO UPDATE
         [HttpPost("master/update")]
-        public async Task<IActionResult> UpdateMaster(
-            [FromBody]
-            DoctorAppointmentSlotMasterModel data)
+        public async Task<IActionResult> BulkUpdateMaster(
+    [FromBody] List<DoctorAppointmentSlotMasterModel> data)
         {
             var tenant =
                 Request.Headers["tenant_code"].ToString();
 
-            data.tenant_code = tenant;
+            var result =
+                await cls.BulkUpdateMaster(data, tenant);
 
-            return Ok(
-                await cls.UpdateMaster(data));
+            return Ok(result);
         }
 
         // ✅ DELETE MASTER
@@ -123,6 +120,24 @@ namespace Medico_Backend.Controllers
                     dcode,
                     appointment_date,
                     tenant));
+        }
+
+        [HttpPost("master/cancel")]
+        public async Task<IActionResult> CancelSlot(
+    Guid slot_master_id,
+    string cancel_reason)
+        {
+            var tenant = Request.Headers["tenant_code"].ToString();
+
+            if (string.IsNullOrWhiteSpace(tenant))
+                return BadRequest("tenant_code is required");
+
+            var result = await cls.CancelSlot(
+                slot_master_id,
+                tenant,
+                cancel_reason);
+
+            return Ok(result);
         }
 
     }

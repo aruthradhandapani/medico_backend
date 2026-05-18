@@ -36,6 +36,7 @@ namespace Medico_Backend.Class
                 max_patients,
                 max_walkin,
                 max_online,
+                avgtime,
                 slot_date,
                 is_active,
                 isdeleted,
@@ -43,6 +44,7 @@ namespace Medico_Backend.Class
                 updated_at AT TIME ZONE 'UTC' AS updated_at
             FROM doctor_appointment_slot_master
             WHERE isdeleted = false
+            AND is_cancel=false
             AND tenant_code = @tenant_code
             ORDER BY slot_date, slot_start_time";
 
@@ -78,13 +80,16 @@ namespace Medico_Backend.Class
                 max_patients,
                 max_walkin,
                 max_online,
+                avgtime,
                 slot_date,
                 is_active,
+                is_cancel,
                 isdeleted,
                 created_at AT TIME ZONE 'UTC' AS created_at,
                 updated_at AT TIME ZONE 'UTC' AS updated_at
             FROM doctor_appointment_slot_master
             WHERE isdeleted = false
+            AND is_cancel=false
             AND dcode = @dcode
             AND tenant_code = @tenant_code
             ORDER BY slot_date, slot_start_time";
@@ -161,13 +166,6 @@ namespace Medico_Backend.Class
                         continue;
                     }
 
-                    // ✅ CHECK OVERLAPPING SLOT
-                    // EXAMPLE:
-                    // EXISTING : 09:00 - 10:00
-                    // NEW      : 09:30 - 10:30 ❌
-                    // NEW      : 08:00 - 09:30 ❌
-                    // NEW      : 09:00 - 10:00 ❌
-                    // NEW      : 10:00 - 11:00 ✅
 
                     string overlapSql = @"
             SELECT COUNT(1)
@@ -250,6 +248,7 @@ namespace Medico_Backend.Class
                 max_patients,
                 max_walkin,
                 max_online,
+                avgtime,
                 slot_date,
                 is_active,
                 isdeleted,
@@ -269,6 +268,7 @@ namespace Medico_Backend.Class
                 @max_patients,
                 @max_walkin,
                 @max_online,
+                @avgtime,
                 @slot_date,
                 @is_active,
                 @isdeleted,
@@ -295,7 +295,7 @@ namespace Medico_Backend.Class
                         data.max_patients,
                         data.max_walkin,
                         data.max_online,
-
+                        data.avgtime,
                         slot_date =
                             data.slot_date.Value
                                 .ToDateTime(TimeOnly.MinValue),
@@ -410,117 +410,81 @@ namespace Medico_Backend.Class
         // ═══════════════════════════════════════════
         // MASTER - UPDATE
         // ═══════════════════════════════════════════
-        public async Task<string> UpdateMaster(
-            DoctorAppointmentSlotMasterModel data)
+        public async Task<object> BulkUpdateMaster(
+            List<DoctorAppointmentSlotMasterModel> slots,
+            string tenant_code)
         {
-            try
+            var updated = new List<string>();
+            var failed = new List<string>();
+
+            using IDbConnection db =
+                new NpgsqlConnection(_db_conn);
+
+            foreach (var data in slots)
             {
-                using IDbConnection db =
-                    new NpgsqlConnection(_db_conn);
+                try
+                {
+                    data.updated_at =
+                        DateTime.SpecifyKind(DateTime.UtcNow, DateTimeKind.Utc);
 
-                data.updated_at =
-                    DateTime.SpecifyKind(
-                        DateTime.UtcNow,
-                        DateTimeKind.Utc);
+                    string masterSql = @"
+            UPDATE doctor_appointment_slot_master
+            SET
+                dcode = @dcode,
+                day_of_week = @day_of_week,
+                slot_start_time = @slot_start_time,
+                slot_end_time = @slot_end_time,
+                typeofslot = @typeofslot,
+                max_patients = @max_patients,
+                max_walkin = @max_walkin,
+                max_online = @max_online,
+                avgtime = @avgtime,
+                slot_date = @slot_date,
+                is_active = @is_active,
+                updated_at = @updated_at
+            WHERE slot_master_id = @slot_master_id
+            AND tenant_code = @tenant_code";
 
-                // ✅ UPDATE MASTER
-                string masterSql = @"
-                UPDATE doctor_appointment_slot_master
-                SET
-                    dcode = @dcode,
-                    day_of_week = @day_of_week,
-                    slot_start_time = @slot_start_time,
-                    slot_end_time = @slot_end_time,
-                    typeofslot = @typeofslot,
-                    max_patients = @max_patients,
-                    max_walkin = @max_walkin,
-                    max_online = @max_online,
-                    slot_date = @slot_date,
-                    is_active = @is_active,
-                    updated_at = @updated_at
-                WHERE slot_master_id = @slot_master_id
-                AND tenant_code = @tenant_code";
-
-                int rows =
-                    await db.ExecuteAsync(masterSql, new
+                    int rows = await db.ExecuteAsync(masterSql, new
                     {
                         data.dcode,
                         data.day_of_week,
 
-                        slot_start_time =
-                            data.slot_start_time
-                                .ToTimeSpan(),
+                        slot_start_time = data.slot_start_time.ToTimeSpan(),
+                        slot_end_time = data.slot_end_time.ToTimeSpan(),
 
-                        slot_end_time =
-                            data.slot_end_time
-                                .ToTimeSpan(),
                         data.typeofslot,
                         data.max_patients,
                         data.max_walkin,
                         data.max_online,
+                        data.avgtime,
 
-                        slot_date =
-                            data.slot_date.HasValue
-                            ? data.slot_date.Value
-                                .ToDateTime(TimeOnly.MinValue)
+                        slot_date = data.slot_date.HasValue
+                            ? data.slot_date.Value.ToDateTime(TimeOnly.MinValue)
                             : (DateTime?)null,
 
                         data.is_active,
                         data.updated_at,
                         data.slot_master_id,
-                        data.tenant_code
+                        tenant_code
                     });
 
-                // ✅ UPDATE DETAILS
-                string detailSql = @"
-                UPDATE doctor_appointment_slot_details
-                SET
-                    dcode = @dcode,
-                    appointment_date = @appointment_date,
-                    slot_start_time = @slot_start_time,
-                    slot_end_time = @slot_end_time,
-                    max_patients = @max_patients,
-                    max_walkin = @max_walkin,
-                    max_online = @max_online,
-                    is_active = @is_active,
-                    updated_at = @updated_at
-                WHERE slot_master_id = @slot_master_id
-                AND tenant_code = @tenant_code";
-
-                await db.ExecuteAsync(detailSql, new
+                    if (rows > 0)
+                        updated.Add($"Updated: {data.slot_master_id}");
+                    else
+                        failed.Add($"Not Found: {data.slot_master_id}");
+                }
+                catch (Exception ex)
                 {
-                    data.dcode,
-
-                    appointment_date =
-                        data.slot_date.HasValue
-                        ? data.slot_date.Value
-                            .ToDateTime(TimeOnly.MinValue)
-                        : (DateTime?)null,
-
-                    slot_start_time =
-                        data.slot_start_time.ToTimeSpan(),
-
-                    slot_end_time =
-                        data.slot_end_time.ToTimeSpan(),
-
-                    data.max_patients,
-                    data.max_walkin,
-                    data.max_online,
-
-                    data.is_active,
-                    data.updated_at,
-                    data.slot_master_id,
-                    data.tenant_code
-                });
-
-                return rows > 0
-                    ? "Success"
-                    : "No data found";
+                    failed.Add(ex.Message);
+                }
             }
-            catch (Exception ex)
+
+            return new
             {
-                return ex.Message;
-            }
+                updated,
+                failed
+            };
         }
 
         // ═══════════════════════════════════════════
@@ -686,6 +650,54 @@ namespace Medico_Backend.Class
                     });
 
             return res.ToList();
+        }
+
+        public async Task<string> CancelSlot(
+    Guid slot_master_id,
+    string tenant_code,
+    string cancel_reason)
+        {
+            using IDbConnection db =
+                new NpgsqlConnection(_db_conn);
+
+            string sql = @"
+        UPDATE doctor_appointment_slot_master
+        SET
+            is_cancel = true,
+            cancel_reason = @cancel_reason,
+            is_active = false,
+            updated_at = now()
+        WHERE slot_master_id = @slot_master_id
+        AND tenant_code = @tenant_code
+        AND isdeleted = false";
+
+            int rows = await db.ExecuteAsync(sql, new
+            {
+                slot_master_id,
+                tenant_code,
+                cancel_reason
+            });
+
+            if (rows == 0)
+                return "No record found";
+
+            // OPTIONAL: also cancel details
+            string detailSql = @"
+        UPDATE doctor_appointment_slot_details
+        SET
+            slot_status = 'CANCELLED',
+            is_active = false,
+            updated_at = now()
+        WHERE slot_master_id = @slot_master_id
+        AND tenant_code = @tenant_code";
+
+            await db.ExecuteAsync(detailSql, new
+            {
+                slot_master_id,
+                tenant_code
+            });
+
+            return "Cancelled Successfully";
         }
     }
 }

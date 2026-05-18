@@ -842,34 +842,115 @@ namespace medico_backend.InventoryClass
         public async Task<IEnumerable<stock_master>> GetAllStocks(string tenantcode)
         {
             using IDbConnection db = new NpgsqlConnection(con);
+
             return await db.QueryAsync<stock_master>(@"
-                SELECT * FROM public.stock_master
-                WHERE deleted = false
-                  AND tenantcode = @tenantcode
-                ORDER BY stockcode DESC;",
+        SELECT 
+            stockcode,
+            itemcode,
+            warehousecode,
+            branchcode,
+            locationcode,
+            openingstock,
+            purchasedqty,
+            soldqty,
+            damagedqty,
+            returnqty,
+            closingstock,
+            unitcost,
+            stockvalue,
+            batchno,
+
+            manufacturingdate::timestamp AS manufacturingdate,
+            expirydate::timestamp AS expirydate,
+
+            isactive,
+            deleted,
+            createddate,
+            modifieddate,
+            usercode,
+            tenantcode,
+            companycode
+        FROM public.stock_master
+        WHERE deleted = false
+          AND tenantcode = @tenantcode
+        ORDER BY stockcode DESC;",
                 new { tenantcode });
         }
 
         public async Task<stock_master?> GetStockByCode(long stockcode, string tenantcode)
         {
             using IDbConnection db = new NpgsqlConnection(con);
+
             return await db.QueryFirstOrDefaultAsync<stock_master>(@"
-                SELECT * FROM public.stock_master
-                WHERE stockcode = @stockcode
-                  AND tenantcode = @tenantcode
-                  AND deleted = false;",
+        SELECT 
+            stockcode,
+            itemcode,
+            warehousecode,
+            branchcode,
+            locationcode,
+            openingstock,
+            purchasedqty,
+            soldqty,
+            damagedqty,
+            returnqty,
+            closingstock,
+            unitcost,
+            stockvalue,
+            batchno,
+
+            manufacturingdate::timestamp AS manufacturingdate,
+            expirydate::timestamp AS expirydate,
+
+            isactive,
+            deleted,
+            createddate,
+            modifieddate,
+            usercode,
+            tenantcode,
+            companycode
+        FROM public.stock_master
+        WHERE stockcode = @stockcode
+          AND tenantcode = @tenantcode
+          AND deleted = false;",
                 new { stockcode, tenantcode });
         }
 
         public async Task<IEnumerable<stock_master>> GetStockByItem(long itemcode, string tenantcode)
         {
             using IDbConnection db = new NpgsqlConnection(con);
+
             return await db.QueryAsync<stock_master>(@"
-                SELECT * FROM public.stock_master
-                WHERE itemcode = @itemcode
-                  AND tenantcode = @tenantcode
-                  AND deleted = false
-                ORDER BY stockcode DESC;",
+        SELECT 
+            stockcode,
+            itemcode,
+            warehousecode,
+            branchcode,
+            locationcode,
+            openingstock,
+            purchasedqty,
+            soldqty,
+            damagedqty,
+            returnqty,
+            closingstock,
+            unitcost,
+            stockvalue,
+            batchno,
+
+            manufacturingdate::timestamp AS manufacturingdate,
+            expirydate::timestamp AS expirydate,
+
+            isactive,
+            deleted,
+            createddate,
+            modifieddate,
+            usercode,
+            tenantcode,
+            companycode
+        FROM public.stock_master
+        WHERE itemcode = @itemcode
+          AND tenantcode = @tenantcode
+          AND deleted = false
+        ORDER BY stockcode DESC;",
                 new { itemcode, tenantcode });
         }
 
@@ -1014,35 +1095,68 @@ namespace medico_backend.InventoryClass
             }
         }
 
-        public async Task<IEnumerable<indent_master>> GetAllIndents(string tenantcode)
+        public async Task<IEnumerable<object>> GetAllIndents(string tenantcode)
         {
             using IDbConnection db = new NpgsqlConnection(con);
-            return await db.QueryAsync<indent_master>(@"
-                SELECT * FROM public.indent_master
-                WHERE deleted = false
-                  AND tenantcode = @tenantcode
-                ORDER BY indentcode DESC;",
+
+            var masters = await db.QueryAsync<indent_master>(@"
+        SELECT *
+        FROM indent_master
+        WHERE deleted = false
+          AND tenantcode = @tenantcode
+        ORDER BY indentcode DESC;",
                 new { tenantcode });
+
+            var result = new List<object>();
+
+            foreach (var master in masters)
+            {
+                var details = await db.QueryAsync<indent_detail>(@"
+            SELECT *
+            FROM indent_detail
+            WHERE indentcode = @indentcode;",
+                    new
+                    {
+                        indentcode = master.indentcode,
+                        tenantcode
+                    });
+
+                result.Add(new
+                {
+                    master,
+                    details
+                });
+            }
+
+            return result;
         }
 
-        public async Task<indent_request?> GetIndentByCode(long indentcode, string tenantcode)
+        public async Task<object?> GetIndentByCode(long indentcode, string tenantcode)
         {
             using IDbConnection db = new NpgsqlConnection(con);
 
             var master = await db.QueryFirstOrDefaultAsync<indent_master>(@"
-                SELECT * FROM public.indent_master
-                WHERE indentcode = @indentcode
-                  AND tenantcode = @tenantcode
-                  AND deleted = false;",
+        SELECT *
+        FROM indent_master
+        WHERE indentcode = @indentcode
+          AND tenantcode = @tenantcode
+          AND deleted = false;",
                 new { indentcode, tenantcode });
 
-            if (master == null) return null;
+            if (master == null)
+                return null;
 
             var details = await db.QueryAsync<indent_detail>(@"
-                SELECT * FROM public.indent_detail WHERE indentcode = @indentcode;",
-                new { indentcode });
+        SELECT *
+        FROM indent_detail
+        WHERE indentcode = @indentcode;",
+                new { indentcode, tenantcode });
 
-            return new indent_request { master = master, details = details.ToList() };
+            return new
+            {
+                master,
+                details
+            };
         }
 
         // ─── PURCHASE ENTRY (GRN) ─────────────────────────────────────────────────────
@@ -1410,37 +1524,153 @@ namespace medico_backend.InventoryClass
             }
         }
 
-        public async Task<IEnumerable<purchase_entry_master>> GetAllPurchaseEntries(string tenantcode)
+        public async Task<List<purchase_entry_request>> GetAllPurchaseEntries(string tenantcode)
         {
             using IDbConnection db = new NpgsqlConnection(con);
-            return await db.QueryAsync<purchase_entry_master>(@"
-                SELECT * FROM public.purchase_entry_master
-                WHERE deleted = false
-                  AND tenantcode = @tenantcode
-                ORDER BY purchaseentrycode DESC;",
-                new { tenantcode });
-        }
 
+            var masters = (await db.QueryAsync<purchase_entry_master>(@"
+        SELECT 
+            purchaseentrycode,
+            grnno,
+            grndate,
+            receivedby,
+            billno,
+            TO_CHAR(billdate, 'YYYY-MM-DD') AS billdate,
+            TO_CHAR(invoicedate, 'YYYY-MM-DD') AS invoicedate,
+            vendorcode,
+            totalqty,
+            receivedqty,
+            grossamount,
+            discountamount,
+            taxamount,
+            othercharges,
+            netamount,
+            paymentmode,
+            paymentstatus,
+            approvalstatus,
+            posted,
+            remarks,
+            isactive,
+            deleted,
+            usercode,
+            tenantcode,
+            branchcode,
+            companycode
+        FROM public.purchase_entry_master
+        WHERE deleted = false
+          AND tenantcode = @tenantcode
+        ORDER BY purchaseentrycode DESC;",
+                new { tenantcode })).ToList();
+
+            var details = (await db.QueryAsync<purchase_entry_detail>(@"
+        SELECT 
+            purchaseentrydetailcode,
+            purchaseentrycode,
+            itemcode,
+            orderedqty,
+            receivedqty,
+            rejectedqty,
+            quantity,
+            rate,
+            discountpercentage,
+            discountamount,
+            taxpercentage,
+            taxamount,
+            amount,
+            totalamount,
+            batchno,
+            TO_CHAR(manufacturingdate, 'YYYY-MM-DD') AS manufacturingdate,
+            TO_CHAR(expirydate, 'YYYY-MM-DD') AS expirydate,
+            warehousecode,
+            tenantcode
+        FROM public.purchase_entry_detail
+        WHERE tenantcode = @tenantcode;",
+                new { tenantcode })).ToList();
+
+            var result = masters.Select(m => new purchase_entry_request
+            {
+                master = m,
+                details = details
+                    .Where(d => d.purchaseentrycode == m.purchaseentrycode)
+                    .ToList()
+            }).ToList();
+
+            return result;
+        }
         public async Task<purchase_entry_request?> GetPurchaseEntryByCode(long purchaseentrycode, string tenantcode)
         {
             using IDbConnection db = new NpgsqlConnection(con);
 
             var master = await db.QueryFirstOrDefaultAsync<purchase_entry_master>(@"
-                SELECT * FROM public.purchase_entry_master
-                WHERE purchaseentrycode = @purchaseentrycode
-                  AND tenantcode = @tenantcode
-                  AND deleted = false;",
+        SELECT 
+            purchaseentrycode,
+            grnno,
+            grndate,
+            receivedby,
+            billno,
+            TO_CHAR(billdate, 'YYYY-MM-DD') AS billdate,
+            TO_CHAR(invoicedate, 'YYYY-MM-DD') AS invoicedate,
+            vendorcode,
+            totalqty,
+            receivedqty,
+            grossamount,
+            discountamount,
+            taxamount,
+            othercharges,
+            netamount,
+            paymentmode,
+            paymentstatus,
+            approvalstatus,
+            posted,
+            remarks,
+            isactive,
+            deleted,
+            TO_CHAR(createddate, 'YYYY-MM-DD') AS createddate,
+            TO_CHAR(modifieddate, 'YYYY-MM-DD') AS modifieddate,
+            usercode,
+            tenantcode,
+            branchcode,
+            companycode
+        FROM public.purchase_entry_master
+        WHERE purchaseentrycode = @purchaseentrycode
+          AND tenantcode = @tenantcode
+          AND deleted = false;",
                 new { purchaseentrycode, tenantcode });
 
             if (master == null) return null;
 
             var details = await db.QueryAsync<purchase_entry_detail>(@"
-                SELECT * FROM public.purchase_entry_detail
-                WHERE purchaseentrycode = @purchaseentrycode;",
+        SELECT 
+            purchaseentrydetailcode,
+            purchaseentrycode,
+            itemcode,
+            orderedqty,
+            receivedqty,
+            rejectedqty,
+            quantity,
+            rate,
+            discountpercentage,
+            discountamount,
+            taxpercentage,
+            taxamount,
+            amount,
+            totalamount,
+            batchno,
+            TO_CHAR(manufacturingdate, 'YYYY-MM-DD') AS manufacturingdate,
+            TO_CHAR(expirydate, 'YYYY-MM-DD') AS expirydate,
+            warehousecode,
+            tenantcode
+        FROM public.purchase_entry_detail
+        WHERE purchaseentrycode = @purchaseentrycode;",
                 new { purchaseentrycode });
 
-            return new purchase_entry_request { master = master, details = details.ToList() };
+            return new purchase_entry_request
+            {
+                master = master,
+                details = details.ToList()
+            };
         }
+
 
         // ─── EXCEL BULK UPLOAD ────────────────────────────────────────────────────────
 
