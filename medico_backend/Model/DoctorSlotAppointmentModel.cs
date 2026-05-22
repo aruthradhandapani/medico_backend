@@ -49,17 +49,32 @@ namespace Medico_Backend.Model
         public int max_patients { get; set; } = 10;
         public int max_walkin { get; set; } = 5;
         public int max_online { get; set; } = 5;
+
         // ── Live Counters ──────────────────────────────────────────
         public int booked_count { get; set; } = 0;
         public int walkin_count { get; set; } = 0;
         public int online_count { get; set; } = 0;
+
         // ── Computed (from SQL — not a DB column) ──────────────────
         [Computed]
         public int remaining_seats { get; set; }
+
+        [Computed]
+        public int remaining_walkin { get; set; }   // ✅ ADD — max_walkin - walkin_count
+
+        [Computed]
+        public int remaining_online { get; set; }   // ✅ ADD — max_online - online_count
+
+        // ── Status ────────────────────────────────────────────────
         // OPEN, FULL, CLOSED, CANCELLED
         public string slot_status { get; set; } = "OPEN";
+
+        public string? typeofslot { get; set; }     // ✅ ADD — your master has it, details should too
+
+        // ── Flags ─────────────────────────────────────────────────
         public bool is_active { get; set; } = true;
         public bool isdeleted { get; set; } = false;
+
         public DateTime created_at { get; set; } =
             DateTime.SpecifyKind(DateTime.UtcNow, DateTimeKind.Utc);
         public DateTime updated_at { get; set; } =

@@ -140,5 +140,21 @@ namespace Medico_Backend.Controllers
             return Ok(result);
         }
 
+        // ✅ GET DETAILS BY MASTER — useful to see all dates a master slot covers
+        [HttpGet("details/get-by-master")]
+        public async Task<IActionResult> GetDetailsByMaster(Guid slot_master_id)
+        {
+            var tenant = Request.Headers["tenant_code"].ToString();
+            return Ok(await cls.GetDetailsByMaster(slot_master_id, tenant));
+        }
+
+        // ✅ GET SINGLE DETAIL — needed before booking to verify status
+        [HttpGet("details/get-by-id")]
+        public async Task<IActionResult> GetDetailById(Guid slot_detail_id)
+        {
+            var tenant = Request.Headers["tenant_code"].ToString();
+            return Ok(await cls.GetDetailById(slot_detail_id, tenant));
+        }
+
     }
 }

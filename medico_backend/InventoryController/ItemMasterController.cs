@@ -583,7 +583,7 @@ namespace medico_backend.InventoryController
             }
         }
 
-        [HttpDelete("deletepurchaseentry")]
+        [HttpGet("deletepurchaseentry")]
         public async Task<IActionResult> DeletePurchaseEntry(long id)
         {
             try

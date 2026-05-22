@@ -91,12 +91,13 @@ namespace Medico_Backend.Controllers
         }
 
         // ✅ Fixed — PATCH is correct for status updates, not GET
-        [HttpPatch("update-status")]
+        [HttpPost  ("update-status")]
         public async Task<IActionResult> UpdateStatus(Guid booking_id, string booking_status)
         {
             var tenant = Request.Headers["tenant_code"].ToString();
             var res = await cls.UpdateStatus(booking_id, booking_status, tenant);
             return Ok(res);
         }
+       
     }
 }

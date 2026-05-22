@@ -13,7 +13,7 @@ namespace Medico_Backend.Class
         public AppointmentBookingClass(IConfiguration configuration)
         {
             _db_conn = configuration.GetConnectionString("conn")!;
-            _customer_conn = configuration.GetConnectionString("customer_conn")!;
+            _customer_conn = configuration.GetConnectionString("cust_conn")!;
         }
 
         // ─────────────────────────────────────────
@@ -443,5 +443,6 @@ namespace Medico_Backend.Class
             return await db.QueryFirstOrDefaultAsync<CustomerMasterModel>(
                 sql, new { custid, tenant_code });
         }
+       
     }
 }
