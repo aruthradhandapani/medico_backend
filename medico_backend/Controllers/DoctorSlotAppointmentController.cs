@@ -65,7 +65,7 @@ namespace Medico_Backend.Controllers
 
         [HttpPost("master/update")]
         public async Task<IActionResult> BulkUpdateMaster(
-    [FromBody] List<DoctorAppointmentSlotMasterModel> data)
+        [FromBody] List<DoctorAppointmentSlotMasterModel> data)
         {
             var tenant =
                 Request.Headers["tenant_code"].ToString();

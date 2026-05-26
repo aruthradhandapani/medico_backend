@@ -285,7 +285,7 @@ namespace Medico_Backend.Class
             }
             catch (Exception ex) { return ex.Message; }
         }
-
+       
         // ─────────────────────────────────────────
         // UPDATE STATUS
         // ─────────────────────────────────────────
@@ -443,6 +443,252 @@ namespace Medico_Backend.Class
             return await db.QueryFirstOrDefaultAsync<CustomerMasterModel>(
                 sql, new { custid, tenant_code });
         }
-       
+        // ─────────────────────────────────────────
+        // RESCHEDULE SLOT ITEM
+        // (internal — used by RescheduleWholeSlot)
+        // ─────────────────────────────────────────
+        private async Task<string> RescheduleSlotItem(
+            RescheduleSlotItemRequest request, string tenant_code)
+        {
+            try
+            {
+                using IDbConnection db = new NpgsqlConnection(_db_conn);
+
+                // ✅ Check old booking is RESCHEDULE_PENDING
+                string checkSql = @"
+                    SELECT booking_id, booking_status, custid, dcode
+                    FROM   appointment_booking
+                    WHERE  booking_id  = @booking_id
+                    AND    tenant_code = @tenant_code
+                    AND    isdeleted   = false";
+
+                var oldBooking = await db.QueryFirstOrDefaultAsync(
+                    checkSql, new
+                    {
+                        booking_id = request.old_booking_id,
+                        tenant_code
+                    });
+
+                if (oldBooking == null)
+                    return "Original booking not found";
+
+                if (oldBooking.booking_status != "RESCHEDULE_PENDING")
+                    return $"Status must be RESCHEDULE_PENDING. " +
+                           $"Current: {oldBooking.booking_status}";
+
+                // ✅ Cancel old booking
+                var cancelResult = await CancelAppointment(
+                    request.old_booking_id,
+                    "Rescheduled — whole slot moved",
+                    tenant_code);
+
+                if (cancelResult != "Cancelled Successfully")
+                    return $"Cancel failed: {cancelResult}";
+
+                // ✅ Build and book new appointment
+                var newBooking = new AppointmentBookingModel
+                {
+                    custid = oldBooking.custid,
+                    dcode = request.new_dcode > 0
+                                            ? request.new_dcode
+                                            : (int)oldBooking.dcode,
+                    slot_detail_id = request.new_slot_detail_id,
+                    slot_master_id = request.new_slot_master_id,
+                    appointment_date = request.new_appointment_date,
+                    slot_start_time = request.new_slot_start_time,
+                    slot_end_time = request.new_slot_end_time,
+                    booking_type = request.booking_type.ToUpper(),
+                    booking_status = "RESCHEDULED",
+                    rescheduled_from = request.old_booking_id,
+                    reschedule_reason = request.reschedule_reason,
+                    notes = request.notes,
+                    tenant_code = tenant_code
+                };
+
+                return await BookAppointment(newBooking);
+            }
+            catch (Exception ex) { return ex.Message; }
+        }
+
+        // ─────────────────────────────────────────
+        // RESCHEDULE WHOLE SLOT
+        // ─────────────────────────────────────────
+        public async Task<object> RescheduleWholeSlot(
+            RescheduleWholeSlotRequest request, string tenant_code)
+        {
+            var rescheduled = new List<string>();
+            var failed = new List<string>();
+
+            try
+            {
+                using IDbConnection db = new NpgsqlConnection(_db_conn);
+
+                // ✅ STEP 1 — Validate new slot
+                string slotCheckSql = @"
+                    SELECT slot_status,
+                           booked_count, max_patients,
+                           walkin_count, max_walkin,
+                           online_count, max_online
+                    FROM   doctor_appointment_slot_details
+                    WHERE  slot_detail_id = @slot_detail_id
+                    AND    tenant_code    = @tenant_code
+                    AND    isdeleted      = false
+                    AND    is_active      = true";
+
+                var newSlot = await db.QueryFirstOrDefaultAsync(
+                    slotCheckSql, new
+                    {
+                        slot_detail_id = request.new_slot_detail_id,
+                        tenant_code
+                    });
+
+                if (newSlot == null)
+                    return new
+                    {
+                        rescheduled,
+                        failed = new List<string>
+                        {
+                            "New slot not found or not available"
+                        }
+                    };
+
+                if (newSlot.slot_status != "OPEN")
+                    return new
+                    {
+                        rescheduled,
+                        failed = new List<string> { "New slot is not OPEN" }
+                    };
+
+                // ✅ STEP 2 — Get all RESCHEDULE_PENDING bookings
+                string getPendingSql = @"
+                    SELECT ab.booking_id,
+                           ab.custid,
+                           ab.dcode,
+                           ab.booking_type,
+                           ab.slot_detail_id,
+                           ab.notes
+                    FROM   appointment_booking             ab
+                    JOIN   doctor_appointment_slot_details sd
+                           ON sd.slot_detail_id = ab.slot_detail_id
+                    WHERE  sd.slot_master_id = @slot_master_id
+                    AND    ab.tenant_code    = @tenant_code
+                    AND    ab.booking_status = 'RESCHEDULE_PENDING'
+                    AND    ab.isdeleted      = false
+                    ORDER  BY ab.token_no";
+
+                var pendingBookings = (await db.QueryAsync(
+                    getPendingSql, new
+                    {
+                        request.slot_master_id,
+                        tenant_code
+                    })).ToList();
+
+                if (pendingBookings.Count == 0)
+                    return new
+                    {
+                        rescheduled,
+                        failed = new List<string>
+                        {
+                            "No pending bookings found for this slot"
+                        }
+                    };
+
+                // ✅ STEP 3 — Check capacity
+                int remainingSeats =
+                    (int)newSlot.max_patients - (int)newSlot.booked_count;
+
+                if (pendingBookings.Count > remainingSeats)
+                    return new
+                    {
+                        rescheduled,
+                        failed = new List<string>
+                        {
+                            $"New slot only has {remainingSeats} seats " +
+                            $"but {pendingBookings.Count} patients " +
+                            $"need rescheduling. Please pick a bigger slot."
+                        }
+                    };
+
+                // ✅ STEP 4 — Reschedule each patient
+                foreach (var booking in pendingBookings)
+                {
+                    try
+                    {
+                        var itemRequest = new RescheduleSlotItemRequest
+                        {
+                            old_booking_id = booking.booking_id,
+                            booking_type = booking.booking_type,
+                            reschedule_reason = request.reschedule_reason,
+                            new_slot_detail_id = request.new_slot_detail_id,
+                            new_slot_master_id = request.new_slot_master_id,
+                            new_appointment_date = request.new_appointment_date,
+                            new_slot_start_time = request.new_slot_start_time,
+                            new_slot_end_time = request.new_slot_end_time,
+                            new_dcode = request.new_dcode > 0
+                                                       ? request.new_dcode
+                                                       : (int)booking.dcode,
+                            notes = booking.notes
+                        };
+
+                        var result = await RescheduleSlotItem(
+                            itemRequest, tenant_code);
+
+                        if (result.StartsWith("Success"))
+                            rescheduled.Add(
+                                $"CustId: {booking.custid} " +
+                                $"| OldBooking: {booking.booking_id} " +
+                                $"→ {result}");
+                        else
+                            failed.Add(
+                                $"CustId: {booking.custid} " +
+                                $"| OldBooking: {booking.booking_id} " +
+                                $"→ {result}");
+                    }
+                    catch (Exception ex)
+                    {
+                        failed.Add(
+                            $"CustId: {booking.custid} " +
+                            $"| OldBooking: {booking.booking_id} " +
+                            $"→ {ex.Message}");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                failed.Add($"System error: {ex.Message}");
+            }
+
+            return new { rescheduled, failed };
+        }
+
+        // ─────────────────────────────────────────
+        // GET RESCHEDULE PENDING
+        // ─────────────────────────────────────────
+        public async Task<List<AppointmentBookingModel>> GetReschedulePending(
+            string tenant_code)
+        {
+            using IDbConnection db = new NpgsqlConnection(_db_conn);
+
+            string sql = @"
+                SELECT booking_id, custid, dcode,
+                       slot_detail_id, slot_master_id,
+                       appointment_date, slot_start_time, slot_end_time,
+                       token_no, booking_status, booking_type,
+                       cancel_reason, cancelled_at,
+                       rescheduled_from, reschedule_reason,
+                       tenant_code, isdeleted,
+                       created_at AT TIME ZONE 'UTC' AS created_at,
+                       updated_at AT TIME ZONE 'UTC' AS updated_at
+                FROM   appointment_booking
+                WHERE  booking_status = 'RESCHEDULE_PENDING'
+                AND    tenant_code    = @tenant_code
+                AND    isdeleted      = false
+                ORDER  BY appointment_date, token_no";
+
+            var res = await db.QueryAsync<AppointmentBookingModel>(
+                sql, new { tenant_code });
+
+            return res.ToList();
+        }
     }
 }

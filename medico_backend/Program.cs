@@ -45,7 +45,8 @@ builder.Services.AddScoped<AppointmentBookingClass>();
 builder.Services.AddScoped<AppointmentBookingController>();
 builder.Services.AddScoped<DoctorAppointmentSlotTypeController>();
 builder.Services.AddScoped<DoctorAppointmentSlotTypeClass>();
-
+builder.Services.AddScoped<TenantDirectUrlClass>();
+builder.Services.AddScoped<TenantDirectUrlController>();
 
 
 

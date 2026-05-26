@@ -98,6 +98,24 @@ namespace Medico_Backend.Controllers
             var res = await cls.UpdateStatus(booking_id, booking_status, tenant);
             return Ok(res);
         }
-       
+        // ✅ Reschedule ALL patients from a cancelled slot into one new slot
+        // ✅ Whole slot reschedule — doctor cancelled, move all patients
+        [HttpPost("reschedule-whole-slot")]
+        public async Task<IActionResult> RescheduleWholeSlot(
+            [FromBody] RescheduleWholeSlotRequest request)
+        {
+            var tenant = Request.Headers["tenant_code"].ToString();
+
+            if (request.slot_master_id == Guid.Empty)
+                return BadRequest("slot_master_id is required");
+
+            if (request.new_slot_detail_id == Guid.Empty)
+                return BadRequest("new_slot_detail_id is required");
+
+            if (request.new_appointment_date == default)
+                return BadRequest("new_appointment_date is required");
+
+            return Ok(await cls.RescheduleWholeSlot(request, tenant));
+        }
     }
 }

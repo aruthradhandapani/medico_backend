@@ -44,6 +44,32 @@ namespace Medico_Backend.Model
         public string? reschedule_reason { get; set; }
         public AppointmentBookingModel new_booking { get; set; } = new();
     }
+    public class RescheduleSlotItemRequest
+    {
+        public Guid old_booking_id { get; set; }
+        public string booking_type { get; set; } = "ONLINE";
+        public string? reschedule_reason { get; set; }
+        public Guid new_slot_detail_id { get; set; }
+        public Guid new_slot_master_id { get; set; }
+        public DateOnly new_appointment_date { get; set; }
+        public TimeOnly new_slot_start_time { get; set; }
+        public TimeOnly new_slot_end_time { get; set; }
+        public int new_dcode { get; set; }
+        public string? notes { get; set; }
+    }
+
+    // ✅ NEW — used by reschedule-whole-slot endpoint
+    public class RescheduleWholeSlotRequest
+    {
+        public Guid slot_master_id { get; set; }
+        public Guid new_slot_detail_id { get; set; }
+        public Guid new_slot_master_id { get; set; }
+        public DateOnly new_appointment_date { get; set; }
+        public TimeOnly new_slot_start_time { get; set; }
+        public TimeOnly new_slot_end_time { get; set; }
+        public int new_dcode { get; set; }
+        public string? reschedule_reason { get; set; }
+    }
     public class AppointmentBookingViewModel
     {
         public Guid booking_id { get; set; }
@@ -70,4 +96,5 @@ namespace Medico_Backend.Model
 
         public string? tenant_code { get; set; }
     }
+
 }
