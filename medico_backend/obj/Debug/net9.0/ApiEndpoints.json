@@ -35,19 +35,14 @@
     "ContainingType": "Medico_Backend.Controllers.AppointmentBookingController",
     "Method": "Cancel",
     "RelativePath": "api/AppointmentBooking/cancel",
-    "HttpMethod": "GET",
+    "HttpMethod": "POST",
     "IsController": true,
     "Order": 0,
     "Parameters": [
       {
-        "Name": "booking_id",
-        "Type": "System.Guid",
-        "IsRequired": false
-      },
-      {
-        "Name": "cancel_reason",
-        "Type": "System.String",
-        "IsRequired": false
+        "Name": "request",
+        "Type": "Medico_Backend.Model.CancelAppointmentRequest",
+        "IsRequired": true
       }
     ],
     "ReturnTypes": []
@@ -66,6 +61,16 @@
         "IsRequired": false
       }
     ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "Medico_Backend.Controllers.AppointmentBookingController",
+    "Method": "GetAll",
+    "RelativePath": "api/AppointmentBooking/get-all",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [],
     "ReturnTypes": []
   },
   {
@@ -91,6 +96,22 @@
   },
   {
     "ContainingType": "Medico_Backend.Controllers.AppointmentBookingController",
+    "Method": "GetByDate",
+    "RelativePath": "api/AppointmentBooking/get-by-date",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "appointment_date",
+        "Type": "System.DateOnly",
+        "IsRequired": false
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "Medico_Backend.Controllers.AppointmentBookingController",
     "Method": "Reschedule",
     "RelativePath": "api/AppointmentBooking/reschedule",
     "HttpMethod": "POST",
@@ -98,13 +119,8 @@
     "Order": 0,
     "Parameters": [
       {
-        "Name": "old_booking_id",
-        "Type": "System.Guid",
-        "IsRequired": false
-      },
-      {
-        "Name": "new_data",
-        "Type": "Medico_Backend.Model.AppointmentBookingModel",
+        "Name": "request",
+        "Type": "Medico_Backend.Model.RescheduleAppointmentRequest",
         "IsRequired": true
       }
     ],
@@ -130,7 +146,7 @@
     "ContainingType": "Medico_Backend.Controllers.AppointmentBookingController",
     "Method": "UpdateStatus",
     "RelativePath": "api/AppointmentBooking/update-status",
-    "HttpMethod": "GET",
+    "HttpMethod": "PATCH",
     "IsController": true,
     "Order": 0,
     "Parameters": [
@@ -295,9 +311,25 @@
   },
   {
     "ContainingType": "Medico_Backend.Controllers.DoctorAppointmentSlotController",
-    "Method": "BookPatient",
-    "RelativePath": "api/DoctorAppointmentSlot/details/book-patient",
-    "HttpMethod": "GET",
+    "Method": "BulkInsertDetails",
+    "RelativePath": "api/DoctorAppointmentSlot/details/bulk-insert",
+    "HttpMethod": "POST",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "request",
+        "Type": "Medico_Backend.Model.BulkInsertSlotDetailsRequest",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "Medico_Backend.Controllers.DoctorAppointmentSlotController",
+    "Method": "DeleteDetails",
+    "RelativePath": "api/DoctorAppointmentSlot/details/delete",
+    "HttpMethod": "DELETE",
     "IsController": true,
     "Order": 0,
     "Parameters": [
@@ -311,18 +343,12 @@
   },
   {
     "ContainingType": "Medico_Backend.Controllers.DoctorAppointmentSlotController",
-    "Method": "DeleteDetails",
-    "RelativePath": "api/DoctorAppointmentSlot/details/delete",
+    "Method": "GetAllDetails",
+    "RelativePath": "api/DoctorAppointmentSlot/details/get",
     "HttpMethod": "GET",
     "IsController": true,
     "Order": 0,
-    "Parameters": [
-      {
-        "Name": "slot_detail_id",
-        "Type": "System.Guid",
-        "IsRequired": false
-      }
-    ],
+    "Parameters": [],
     "ReturnTypes": []
   },
   {
@@ -392,6 +418,16 @@
         "IsRequired": false
       }
     ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "Medico_Backend.Controllers.DoctorAppointmentSlotController",
+    "Method": "GetAllMaster",
+    "RelativePath": "api/DoctorAppointmentSlot/master/get",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [],
     "ReturnTypes": []
   },
   {
@@ -656,10 +692,486 @@
     "ReturnTypes": []
   },
   {
+    "ContainingType": "medico_backend.InventoryController.ItemMasterController",
+    "Method": "DeleteIndent",
+    "RelativePath": "api/ItemMaster/deleteindent",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "indentcode",
+        "Type": "System.Int64",
+        "IsRequired": false
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "medico_backend.InventoryController.ItemMasterController",
+    "Method": "DeleteItem",
+    "RelativePath": "api/ItemMaster/deleteitem",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "itemcode",
+        "Type": "System.Int64",
+        "IsRequired": false
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "medico_backend.InventoryController.ItemMasterController",
+    "Method": "DeletePurchase",
+    "RelativePath": "api/ItemMaster/deletepurchase",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "purchasecode",
+        "Type": "System.Int64",
+        "IsRequired": false
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "medico_backend.InventoryController.ItemMasterController",
+    "Method": "DeletePurchaseEntry",
+    "RelativePath": "api/ItemMaster/deletepurchaseentry",
+    "HttpMethod": "DELETE",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "id",
+        "Type": "System.Int64",
+        "IsRequired": false
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "medico_backend.InventoryController.ItemMasterController",
+    "Method": "DeleteStock",
+    "RelativePath": "api/ItemMaster/deletestock",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "stockcode",
+        "Type": "System.Int64",
+        "IsRequired": false
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "medico_backend.InventoryController.ItemMasterController",
+    "Method": "DeleteVendor",
+    "RelativePath": "api/ItemMaster/deletevendor",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "vendorcode",
+        "Type": "System.Int64",
+        "IsRequired": false
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "medico_backend.InventoryController.ItemMasterController",
+    "Method": "GetAllIndents",
+    "RelativePath": "api/ItemMaster/getallindents",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "medico_backend.InventoryController.ItemMasterController",
+    "Method": "GetAllItems",
+    "RelativePath": "api/ItemMaster/getallitems",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "medico_backend.InventoryController.ItemMasterController",
+    "Method": "GetAllPurchaseEntries",
+    "RelativePath": "api/ItemMaster/getallpurchaseentries",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "medico_backend.InventoryController.ItemMasterController",
+    "Method": "GetAllPurchases",
+    "RelativePath": "api/ItemMaster/getallpurchases",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "medico_backend.InventoryController.ItemMasterController",
+    "Method": "GetAllStocks",
+    "RelativePath": "api/ItemMaster/getallstocks",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "medico_backend.InventoryController.ItemMasterController",
+    "Method": "GetAllVendors",
+    "RelativePath": "api/ItemMaster/getallvendors",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "medico_backend.InventoryController.ItemMasterController",
+    "Method": "GetIndentByCode",
+    "RelativePath": "api/ItemMaster/getindentbycode",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "indentcode",
+        "Type": "System.Int64",
+        "IsRequired": false
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "medico_backend.InventoryController.ItemMasterController",
+    "Method": "GetItemByCode",
+    "RelativePath": "api/ItemMaster/getitembycode",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "itemcode",
+        "Type": "System.Int64",
+        "IsRequired": false
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "medico_backend.InventoryController.ItemMasterController",
+    "Method": "GetPurchaseByCode",
+    "RelativePath": "api/ItemMaster/getpurchasebycode",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "purchasecode",
+        "Type": "System.Int64",
+        "IsRequired": false
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "medico_backend.InventoryController.ItemMasterController",
+    "Method": "GetPurchaseEntryByCode",
+    "RelativePath": "api/ItemMaster/getpurchaseentrybycode",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "purchaseentrycode",
+        "Type": "System.Int64",
+        "IsRequired": false
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "medico_backend.InventoryController.ItemMasterController",
+    "Method": "GetStockByCode",
+    "RelativePath": "api/ItemMaster/getstockbycode",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "stockcode",
+        "Type": "System.Int64",
+        "IsRequired": false
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "medico_backend.InventoryController.ItemMasterController",
+    "Method": "GetStockByItem",
+    "RelativePath": "api/ItemMaster/getstockbyitem",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "itemcode",
+        "Type": "System.Int64",
+        "IsRequired": false
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "medico_backend.InventoryController.ItemMasterController",
+    "Method": "GetVendorByCode",
+    "RelativePath": "api/ItemMaster/getvendorbycode",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "vendorcode",
+        "Type": "System.Int64",
+        "IsRequired": false
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "medico_backend.InventoryController.ItemMasterController",
+    "Method": "InsertIndent",
+    "RelativePath": "api/ItemMaster/insertindent",
+    "HttpMethod": "POST",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "request",
+        "Type": "medico_backend.InventoryModel.indent_request",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "medico_backend.InventoryController.ItemMasterController",
+    "Method": "InsertItem",
+    "RelativePath": "api/ItemMaster/insertitem",
+    "HttpMethod": "POST",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "item",
+        "Type": "medico_backend.InventoryModel.item_master",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "medico_backend.InventoryController.ItemMasterController",
+    "Method": "InsertPurchase",
+    "RelativePath": "api/ItemMaster/insertpurchase",
+    "HttpMethod": "POST",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "request",
+        "Type": "medico_backend.InventoryModel.purchase_request",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "medico_backend.InventoryController.ItemMasterController",
+    "Method": "InsertPurchaseEntry",
+    "RelativePath": "api/ItemMaster/insertpurchaseentry",
+    "HttpMethod": "POST",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "request",
+        "Type": "medico_backend.InventoryModel.purchase_entry_request",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "medico_backend.InventoryController.ItemMasterController",
+    "Method": "InsertStock",
+    "RelativePath": "api/ItemMaster/insertstock",
+    "HttpMethod": "POST",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "stock",
+        "Type": "medico_backend.InventoryModel.stock_master",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "medico_backend.InventoryController.ItemMasterController",
+    "Method": "UpdateIndent",
+    "RelativePath": "api/ItemMaster/updateindent",
+    "HttpMethod": "POST",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "request",
+        "Type": "medico_backend.InventoryModel.indent_request",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "medico_backend.InventoryController.ItemMasterController",
+    "Method": "UpdateItem",
+    "RelativePath": "api/ItemMaster/updateitem",
+    "HttpMethod": "POST",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "item",
+        "Type": "medico_backend.InventoryModel.item_master",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "medico_backend.InventoryController.ItemMasterController",
+    "Method": "UpdatePurchase",
+    "RelativePath": "api/ItemMaster/updatepurchase",
+    "HttpMethod": "POST",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "request",
+        "Type": "medico_backend.InventoryModel.purchase_request",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "medico_backend.InventoryController.ItemMasterController",
+    "Method": "UpdatePurchaseEntry",
+    "RelativePath": "api/ItemMaster/updatepurchaseentry",
+    "HttpMethod": "POST",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "request",
+        "Type": "medico_backend.InventoryModel.purchase_entry_request",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "medico_backend.InventoryController.ItemMasterController",
+    "Method": "UpdateStock",
+    "RelativePath": "api/ItemMaster/updatestock",
+    "HttpMethod": "POST",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "stock",
+        "Type": "medico_backend.InventoryModel.stock_master",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "medico_backend.InventoryController.ItemMasterController",
+    "Method": "UpdateVendor",
+    "RelativePath": "api/ItemMaster/updatevendor",
+    "HttpMethod": "POST",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "vendor",
+        "Type": "medico_backend.InventoryModel.vendor_master",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "medico_backend.InventoryController.ItemMasterController",
+    "Method": "UploadExcel",
+    "RelativePath": "api/ItemMaster/upload-excel",
+    "HttpMethod": "POST",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "file",
+        "Type": "Microsoft.AspNetCore.Http.IFormFile",
+        "IsRequired": false
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "medico_backend.InventoryController.ItemMasterController",
+    "Method": "UpsertVendor",
+    "RelativePath": "api/ItemMaster/upsertvendor",
+    "HttpMethod": "POST",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "vendor",
+        "Type": "medico_backend.InventoryModel.vendor_master",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
     "ContainingType": "medico_backend.Controllers.PrescriptionController",
     "Method": "Delete",
     "RelativePath": "api/Prescription/delete",
-    "HttpMethod": "DELETE",
+    "HttpMethod": "GET",
     "IsController": true,
     "Order": 0,
     "Parameters": [

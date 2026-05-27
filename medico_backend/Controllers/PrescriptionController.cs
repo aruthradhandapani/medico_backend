@@ -25,7 +25,6 @@ namespace medico_backend.Controllers
         }
 
         // POST: api/prescription/upload
-        // Form: file, bucketName, clientFolder, fileName
         [HttpPost("upload")]
         public async Task<IActionResult> Upload(
     [FromForm] IFormFile file,
@@ -45,13 +44,18 @@ namespace medico_backend.Controllers
             if (string.IsNullOrWhiteSpace(bucketName))
                 return BadRequest("bucketName is required.");
 
-            // Log exactly what Flutter is sending
+            // Build date folder: e.g. "2025-05-27"
+            var dateFolder = DateTime.UtcNow.ToString("yyyy-MM-dd");
+
+            // Final folder path: clientFolder/2025-05-27
+            var folderPath = $"{clientFolder}/{dateFolder}";
+
             _logger.LogInformation("Upload Request → file: {Name}, size: {Size}, contentType: {CT}, bucket: {Bucket}, folder: {Folder}",
-                file.FileName, file.Length, file.ContentType, bucketName, clientFolder);
+                file.FileName, file.Length, file.ContentType, bucketName, folderPath);
 
             try
             {
-                var key = await _s3.UploadAsync(file, bucketName, clientFolder, fileName);
+                var key = await _s3.UploadAsync(file, bucketName, folderPath, fileName);
                 if (key == null)
                 {
                     _logger.LogError("S3 upload returned null → check S3PrescriptionService logs");
