@@ -341,5 +341,23 @@
         public DateTime createddate { get; set; }
         public string? tenantcode { get; set; }
     }
+    public class ledger_master
+    {
+        public int ledgercode { get; set; }
+        public string ledgername { get; set; }
+        public string lcode { get; set; }
+        public string ldgcode { get; set; }
 
+        public string taxtype { get; set; }
+        public string taxsubtype { get; set; }
+        public decimal taxpercentage { get; set; }
+
+        public decimal gstpercentage { get; set; }
+        public string hsncode { get; set; }
+
+        public bool isactive { get; set; }
+        public bool deleted { get; set; }
+        public DateTime createddate { get; set; }
+        public string? tenantcode { get; set; }
+    }
 }
