@@ -102,7 +102,7 @@ namespace Medico_Backend.Controllers
         // ✅ Whole slot reschedule — doctor cancelled, move all patients
         [HttpPost("reschedule-whole-slot")]
         public async Task<IActionResult> RescheduleWholeSlot(
-            [FromBody] RescheduleWholeSlotRequest request)
+    [FromBody] RescheduleWholeSlotRequest request)
         {
             var tenant = Request.Headers["tenant_code"].ToString();
 
@@ -115,7 +115,15 @@ namespace Medico_Backend.Controllers
             if (request.new_appointment_date == default)
                 return BadRequest("new_appointment_date is required");
 
-            return Ok(await cls.RescheduleWholeSlot(request, tenant));
+            try
+            {
+                var result = await cls.RescheduleWholeSlot(request, tenant);
+                return Ok(result);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { error = ex.Message, inner = ex.InnerException?.Message });
+            }
         }
     }
 }
