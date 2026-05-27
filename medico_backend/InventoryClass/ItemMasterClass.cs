@@ -385,56 +385,121 @@ namespace medico_backend.InventoryClass
                     try
                     {
                         string masterQuery = @"
-                    INSERT INTO public.purchase_master
-                    (
-                        billno, billdate, invoiceno, invoicedate,
-                        vendorcode,
-                        grossamount, discountamount, taxamount, netamount,
-                        paymentmode, paymentstatus, currencycode,
-                        remarks, isactive, deleted,
-                        createddate, usercode,
-                        tenantcode, branchcode, companycode
-                    )
-                    VALUES
-                    (
-                        @billno, @billdate, @invoiceno, @invoicedate,
-                        @vendorcode,
-                        @grossamount, @discountamount, @taxamount, @netamount,
-                        @paymentmode, @paymentstatus, @currencycode,
-                        @remarks, @isactive, @deleted,
-                        CURRENT_TIMESTAMP, @usercode,
-                        @tenantcode, @branchcode, @companycode
-                    )
-                    RETURNING purchasecode;";
+                INSERT INTO public.purchase_master
+                (
+                    billno,
+                    billdate,
+                    invoiceno,
+                    invoicedate,
+                    vendorcode,
+                    grossamount,
+                    discountamount,
+                    taxamount,
+                    netamount,
+                    paymentmode,
+                    paymentstatus,
+                    currencycode,
+                    isactive,
+                    deleted,
+                    remarks,
+                    createddate,
+                    usercode,
+                    tenantcode,
+                    branchcode,
+                    companycode,
+                    grncode
+                )
+                VALUES
+                (
+                    @billno,
+                    @billdate,
+                    @invoiceno,
+                    @invoicedate,
+                    @vendorcode,
+                    @grossamount,
+                    @discountamount,
+                    @taxamount,
+                    @netamount,
+                    @paymentmode,
+                    @paymentstatus,
+                    @currencycode,
+                    @isactive,
+                    @deleted,
+                    @remarks,
+                    CURRENT_TIMESTAMP,
+                    @usercode,
+                    @tenantcode,
+                    @branchcode,
+                    @companycode,
+                    @grncode
+                )
+                RETURNING purchasecode;";
 
                         long purchasecode = await db.ExecuteScalarAsync<long>(
-                            masterQuery, request.master, transaction);
+                            masterQuery,
+                            request.master,
+                            transaction);
 
                         string detailQuery = @"
-                    INSERT INTO public.purchase_detail
-                    (
-                        purchasecode, itemcode, quantity, freequantity,
-                        uomcode, rate, discountpercentage, discountamount,
-                        taxpercentage, taxamount, amount, totalamount,
-                        batchno, manufacturingdate, expirydate,
-                        tenantcode
-                    )
-                    VALUES
-                    (
-                        @purchasecode, @itemcode, @quantity, @freequantity,
-                        @uomcode, @rate, @discountpercentage, @discountamount,
-                        @taxpercentage, @taxamount, @amount, @totalamount,
-                        @batchno, @manufacturingdate, @expirydate,
-                        @tenantcode
-                    );";
+                INSERT INTO public.purchase_detail
+                (
+                    purchasecode,
+                    itemcode,
+                    quantity,
+                    freequantity,
+                    uomcode,
+                    rate,
+                    discountpercentage,
+                    discountamount,
+                    taxpercentage,
+                    taxamount,
+                    amount,
+                    totalamount,
+                    batchno,
+                    manufacturingdate,
+                    expirydate,
+                    orderedqty,
+                    receivedqty,
+                    rejectedqty,
+                    warehousecode,
+                    tenantcode
+                )
+                VALUES
+                (
+                    @purchasecode,
+                    @itemcode,
+                    @quantity,
+                    @freequantity,
+                    @uomcode,
+                    @rate,
+                    @discountpercentage,
+                    @discountamount,
+                    @taxpercentage,
+                    @taxamount,
+                    @amount,
+                    @totalamount,
+                    @batchno,
+                    @manufacturingdate,
+                    @expirydate,
+                    @orderedqty,
+                    @receivedqty,
+                    @rejectedqty,
+                    @warehousecode,
+                    @tenantcode
+                );";
 
                         foreach (var item in request.details)
                         {
                             item.purchasecode = purchasecode;
-                            await db.ExecuteAsync(detailQuery, item, transaction);
+
+                            await db.ExecuteAsync(
+                                detailQuery,
+                                item,
+                                transaction);
                         }
 
                         transaction.Commit();
+
                         return purchasecode;
                     }
                     catch (Exception ex)
@@ -457,66 +522,109 @@ namespace medico_backend.InventoryClass
                     try
                     {
                         string masterQuery = @"
-                    UPDATE public.purchase_master
-                    SET
-                        billno         = @billno,
-                        billdate       = @billdate,
-                        invoiceno      = @invoiceno,
-                        invoicedate    = @invoicedate,
-                        vendorcode     = @vendorcode,
-                        grossamount    = @grossamount,
-                        discountamount = @discountamount,
-                        taxamount      = @taxamount,
-                        netamount      = @netamount,
-                        paymentmode    = @paymentmode,
-                        paymentstatus  = @paymentstatus,
-                        currencycode   = @currencycode,
-                        remarks        = @remarks,
-                        isactive       = @isactive,
-                        deleted        = @deleted,
-                        modifieddate   = CURRENT_TIMESTAMP,
-                        usercode       = @usercode,
-                        tenantcode     = @tenantcode,
-                        branchcode     = @branchcode,
-                        companycode    = @companycode
-                    WHERE purchasecode = @purchasecode
-                      AND tenantcode = @tenantcode;";
+                UPDATE public.purchase_master
+                SET
+                    billno         = @billno,
+                    billdate       = @billdate,
+                    invoiceno      = @invoiceno,
+                    invoicedate    = @invoicedate,
+                    vendorcode     = @vendorcode,
+                    grossamount    = @grossamount,
+                    discountamount = @discountamount,
+                    taxamount      = @taxamount,
+                    netamount      = @netamount,
+                    paymentmode    = @paymentmode,
+                    paymentstatus  = @paymentstatus,
+                    currencycode   = @currencycode,
+                    isactive       = @isactive,
+                    deleted        = @deleted,
+                    remarks        = @remarks,
+                    modifieddate   = CURRENT_TIMESTAMP,
+                    usercode       = @usercode,
+                    tenantcode     = @tenantcode,
+                    branchcode     = @branchcode,
+                    companycode    = @companycode,
+                    grncode        = @grncode
+                WHERE purchasecode = @purchasecode
+                  AND tenantcode = @tenantcode;";
 
                         int masterRows = await db.ExecuteAsync(
-                            masterQuery, request.master, transaction);
+                            masterQuery,
+                            request.master,
+                            transaction);
 
                         if (masterRows == 0)
                             throw new Exception("Purchase record not found");
 
                         await db.ExecuteAsync(
-                            "DELETE FROM public.purchase_detail WHERE purchasecode = @purchasecode;",
-                            new { purchasecode = request.master.purchasecode }, transaction);
+                            @"DELETE FROM public.purchase_detail
+                      WHERE purchasecode = @purchasecode;",
+                            new
+                            {
+                                purchasecode = request.master.purchasecode
+                            },
+                            transaction);
 
                         string detailQuery = @"
-                    INSERT INTO public.purchase_detail
-                    (
-                        purchasecode, itemcode, quantity, freequantity,
-                        uomcode, rate, discountpercentage, discountamount,
-                        taxpercentage, taxamount, amount, totalamount,
-                        batchno, manufacturingdate, expirydate,
-                        tenantcode
-                    )
-                    VALUES
-                    (
-                        @purchasecode, @itemcode, @quantity, @freequantity,
-                        @uomcode, @rate, @discountpercentage, @discountamount,
-                        @taxpercentage, @taxamount, @amount, @totalamount,
-                        @batchno, @manufacturingdate, @expirydate,
-                        @tenantcode
-                    );";
+                INSERT INTO public.purchase_detail
+                (
+                    purchasecode,
+                    itemcode,
+                    quantity,
+                    freequantity,
+                    uomcode,
+                    rate,
+                    discountpercentage,
+                    discountamount,
+                    taxpercentage,
+                    taxamount,
+                    amount,
+                    totalamount,
+                    batchno,
+                    manufacturingdate,
+                    expirydate,
+                    orderedqty,
+                    receivedqty,
+                    rejectedqty,
+                    warehousecode,
+                    tenantcode
+                )
+                VALUES
+                (
+                    @purchasecode,
+                    @itemcode,
+                    @quantity,
+                    @freequantity,
+                    @uomcode,
+                    @rate,
+                    @discountpercentage,
+                    @discountamount,
+                    @taxpercentage,
+                    @taxamount,
+                    @amount,
+                    @totalamount,
+                    @batchno,
+                    @manufacturingdate,
+                    @expirydate,
+                    @orderedqty,
+                    @receivedqty,
+                    @rejectedqty,
+                    @warehousecode,
+                    @tenantcode
+                );";
 
                         foreach (var item in request.details)
                         {
                             item.purchasecode = request.master.purchasecode;
-                            await db.ExecuteAsync(detailQuery, item, transaction);
+
+                            await db.ExecuteAsync(
+                                detailQuery,
+                                item,
+                                transaction);
                         }
 
                         transaction.Commit();
+
                         return request.master.purchasecode;
                     }
                     catch (Exception ex)
@@ -539,17 +647,28 @@ namespace medico_backend.InventoryClass
                     try
                     {
                         int masterRows = await db.ExecuteAsync(@"
-                    UPDATE public.purchase_master
-                    SET deleted = true, isactive = false, modifieddate = CURRENT_TIMESTAMP
-                    WHERE purchasecode = @purchasecode
-                      AND tenantcode = @tenantcode;",
-                            new { purchasecode, tenantcode }, transaction);
+                UPDATE public.purchase_master
+                SET
+                    deleted = true,
+                    isactive = false,
+                    modifieddate = CURRENT_TIMESTAMP
+                WHERE purchasecode = @purchasecode
+                  AND tenantcode = @tenantcode;",
+                            new
+                            {
+                                purchasecode,
+                                tenantcode
+                            },
+                            transaction);
 
                         await db.ExecuteAsync(
-                            "DELETE FROM public.purchase_detail WHERE purchasecode = @purchasecode;",
-                            new { purchasecode }, transaction);
+                            @"DELETE FROM public.purchase_detail
+                      WHERE purchasecode = @purchasecode;",
+                            new { purchasecode },
+                            transaction);
 
                         transaction.Commit();
+
                         return masterRows > 0 ? "Success" : "Failed";
                     }
                     catch (Exception ex)
@@ -560,60 +679,68 @@ namespace medico_backend.InventoryClass
                 }
             }
         }
+
         public async Task<IEnumerable<purchase_request>> GetAllPurchases(string tenantcode)
         {
             using IDbConnection db = new NpgsqlConnection(con);
 
             var query = @"
-        SELECT 
-            m.purchasecode,
-            m.billno,
-            CAST(m.billdate AS timestamp) AS billdate,
-            m.invoiceno,
-            CAST(m.invoicedate AS timestamp) AS invoicedate,
-            m.vendorcode,
-            m.grossamount,
-            m.discountamount,
-            m.taxamount,
-            m.netamount,
-            m.paymentmode,
-            m.paymentstatus,
-            m.currencycode,
-            m.remarks,
-            m.isactive,
-            m.deleted,
-            CAST(m.createddate AS timestamp) AS createddate,
-            CAST(m.modifieddate AS timestamp) AS modifieddate,
-            m.usercode,
-            m.tenantcode,
-            m.branchcode,
-            m.companycode,
-            m.grncode,
+    SELECT
+    m.purchasecode,
+    m.billno,
+    m.billdate::timestamp,
+    m.invoiceno,
+    m.invoicedate::timestamp,   -- ← cast nullable date
+    m.vendorcode,
+    m.grossamount,
+    m.discountamount,
+    m.taxamount,
+    m.netamount,
+    m.paymentmode,
+    m.paymentstatus,
+    m.currencycode,
+    m.isactive,
+    m.deleted,
+    m.remarks,
+    m.createddate::timestamp,
+    m.modifieddate::timestamp,
+    m.usercode,
+    m.tenantcode,
+    m.branchcode,
+    m.companycode,
+    m.grncode,
 
-            d.purchasedetailcode,
-            d.purchasecode,
-            d.itemcode,
-            d.quantity,
-            d.freequantity,
-            d.uomcode,
-            d.rate,
-            d.discountpercentage,
-            d.discountamount,
-            d.taxpercentage,
-            d.taxamount,
-            d.amount,
-            d.totalamount,
-            d.batchno,
-            CAST(d.manufacturingdate AS timestamp) AS manufacturingdate,
-            CAST(d.expirydate AS timestamp) AS expirydate,
-            d.tenantcode
+    d.purchasedetailcode,
+    d.purchasecode,
+    d.itemcode,
+    d.quantity,
+    d.freequantity,
+    d.uomcode,
+    d.rate,
+    d.discountpercentage,
+    d.discountamount,
+    d.taxpercentage,
+    d.taxamount,
+    d.amount,
+    d.totalamount,
+    d.batchno,
+    d.manufacturingdate::timestamp,   -- ← cast
+    d.expirydate::timestamp,          -- ← cast
+    d.orderedqty,
+    d.receivedqty,
+    d.rejectedqty,
+    d.warehousecode,
+    d.tenantcode
 
-        FROM public.purchase_master m
-        LEFT JOIN public.purchase_detail d
-            ON m.purchasecode = d.purchasecode
-        WHERE m.deleted = false
-          AND m.tenantcode = @tenantcode
-        ORDER BY m.purchasecode DESC;";
+    FROM public.purchase_master m
+
+    LEFT JOIN public.purchase_detail d
+        ON m.purchasecode = d.purchasecode
+
+    WHERE m.deleted = false
+      AND m.tenantcode = @tenantcode
+
+    ORDER BY m.purchasecode DESC;";
 
             var purchaseDictionary = new Dictionary<long, purchase_request>();
 
@@ -628,11 +755,14 @@ namespace medico_backend.InventoryClass
                             master = master,
                             details = new List<purchase_detail>()
                         };
+
                         purchaseDictionary.Add(master.purchasecode, purchase);
                     }
 
                     if (detail != null && detail.purchasedetailcode != 0)
+                    {
                         purchase.details.Add(detail);
+                    }
 
                     return purchase;
                 },
@@ -643,60 +773,68 @@ namespace medico_backend.InventoryClass
             return purchaseDictionary.Values.ToList();
         }
 
-        public async Task<purchase_request?> GetPurchaseByCode(long purchasecode, string tenantcode)
+        public async Task<purchase_request?> GetPurchaseByCode(
+            long purchasecode,
+            string tenantcode)
         {
             using IDbConnection db = new NpgsqlConnection(con);
 
             var query = @"
-        SELECT 
-            m.purchasecode,
-            m.billno,
-            CAST(m.billdate AS timestamp) AS billdate,
-            m.invoiceno,
-            CAST(m.invoicedate AS timestamp) AS invoicedate,
-            m.vendorcode,
-            m.grossamount,
-            m.discountamount,
-            m.taxamount,
-            m.netamount,
-            m.paymentmode,
-            m.paymentstatus,
-            m.currencycode,
-            m.remarks,
-            m.isactive,
-            m.deleted,
-            CAST(m.createddate AS timestamp) AS createddate,
-            CAST(m.modifieddate AS timestamp) AS modifieddate,
-            m.usercode,
-            m.tenantcode,
-            m.branchcode,
-            m.companycode,
-            m.grncode,
+    SELECT
+        m.purchasecode,
+        m.billno,
+        m.billdate,
+        m.invoiceno,
+        m.invoicedate,
+        m.vendorcode,
+        m.grossamount,
+        m.discountamount,
+        m.taxamount,
+        m.netamount,
+        m.paymentmode,
+        m.paymentstatus,
+        m.currencycode,
+        m.isactive,
+        m.deleted,
+        m.remarks,
+        m.createddate,
+        m.modifieddate,
+        m.usercode,
+        m.tenantcode,
+        m.branchcode,
+        m.companycode,
+        m.grncode,
 
-            d.purchasedetailcode,
-            d.purchasecode,
-            d.itemcode,
-            d.quantity,
-            d.freequantity,
-            d.uomcode,
-            d.rate,
-            d.discountpercentage,
-            d.discountamount,
-            d.taxpercentage,
-            d.taxamount,
-            d.amount,
-            d.totalamount,
-            d.batchno,
-            CAST(d.manufacturingdate AS timestamp) AS manufacturingdate,
-            CAST(d.expirydate AS timestamp) AS expirydate,
-            d.tenantcode
+        d.purchasedetailcode,
+        d.purchasecode,
+        d.itemcode,
+        d.quantity,
+        d.freequantity,
+        d.uomcode,
+        d.rate,
+        d.discountpercentage,
+        d.discountamount,
+        d.taxpercentage,
+        d.taxamount,
+        d.amount,
+        d.totalamount,
+        d.batchno,
+        d.manufacturingdate,
+        d.expirydate,
+        d.orderedqty,
+        d.receivedqty,
+        d.rejectedqty,
+        d.warehousecode,
+        d.tenantcode
 
-        FROM public.purchase_master m
-        LEFT JOIN public.purchase_detail d
-            ON m.purchasecode = d.purchasecode
-        WHERE m.purchasecode = @purchasecode
-          AND m.tenantcode = @tenantcode
-          AND m.deleted = false;";
+    FROM public.purchase_master m
+
+    LEFT JOIN public.purchase_detail d
+        ON m.purchasecode = d.purchasecode
+
+    WHERE m.purchasecode = @purchasecode
+      AND m.tenantcode = @tenantcode
+      AND m.deleted = false;";
 
             purchase_request? response = null;
 
@@ -714,11 +852,17 @@ namespace medico_backend.InventoryClass
                     }
 
                     if (detail != null && detail.purchasedetailcode != 0)
+                    {
                         response.details.Add(detail);
+                    }
 
                     return response;
                 },
-                new { purchasecode, tenantcode },
+                new
+                {
+                    purchasecode,
+                    tenantcode
+                },
                 splitOn: "purchasedetailcode"
             );
 

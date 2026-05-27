@@ -101,23 +101,50 @@
     public class purchase_detail
     {
         public long purchasedetailcode { get; set; }
+
         public long purchasecode { get; set; }
+
         public long itemcode { get; set; }
+
         public decimal quantity { get; set; }
+
         public decimal freequantity { get; set; }
+
         public long? uomcode { get; set; }
+
         public decimal rate { get; set; }
+
         public decimal discountpercentage { get; set; }
+
         public decimal discountamount { get; set; }
+
         public decimal taxpercentage { get; set; }
+
         public decimal taxamount { get; set; }
+
         public decimal amount { get; set; }
+
         public decimal totalamount { get; set; }
+
         public string? batchno { get; set; }
+
         public DateTime? manufacturingdate { get; set; }
+
         public DateTime? expirydate { get; set; }
+
+        // New Fields
+
+        public decimal orderedqty { get; set; }
+
+        public decimal receivedqty { get; set; }
+
+        public decimal rejectedqty { get; set; }
+
+        public long? warehousecode { get; set; }
+
         public string? tenantcode { get; set; }
     }
+
     public class purchase_request
     {
         public purchase_master master { get; set; }
