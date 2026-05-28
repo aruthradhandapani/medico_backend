@@ -140,3 +140,4 @@ D:\Trellisys\medico_backend\medico_backend\obj\Debug\net9.0\refint\medico_backen
 D:\Trellisys\medico_backend\medico_backend\obj\Debug\net9.0\medico_backend.pdb
 D:\Trellisys\medico_backend\medico_backend\obj\Debug\net9.0\medico_backend.genruntimeconfig.cache
 D:\Trellisys\medico_backend\medico_backend\obj\Debug\net9.0\ref\medico_backend.dll
+D:\Trellisys\medico_backend\medico_backend\bin\Debug\net9.0\dotnet-tools.json

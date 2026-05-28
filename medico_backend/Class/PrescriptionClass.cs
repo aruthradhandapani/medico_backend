@@ -1,4 +1,5 @@
-﻿using Dapper.Contrib.Extensions;
+﻿using Dapper;
+using Dapper.Contrib.Extensions;
 using medico_backend.Model;
 using Npgsql;
 
@@ -29,6 +30,14 @@ namespace medico_backend.Class
         {
             using var conn = CreateConnection();
             return await conn.GetAllAsync<PrescriptionModel>();
+        }
+
+        // In your repository / data class
+        public async Task<PrescriptionModel?> GetByFilePathAsync(string filePath)
+        {
+            using var conn = CreateConnection();
+            const string sql = "SELECT * FROM prescriptions WHERE filepath = @FilePath LIMIT 1";
+            return await conn.QueryFirstOrDefaultAsync<PrescriptionModel>(sql, new { FilePath = filePath });
         }
 
         public async Task<PrescriptionModel?> GetByIdAsync(int id)

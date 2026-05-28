@@ -27,10 +27,10 @@ namespace medico_backend.Controllers
         // POST: api/prescription/upload
         [HttpPost("upload")]
         public async Task<IActionResult> Upload(
-    [FromForm] IFormFile file,
-    [FromForm] string bucketName,
-    [FromForm] string clientFolder,
-    [FromForm] string fileName)
+            [FromForm] IFormFile file,
+            [FromForm] string bucketName,
+            [FromForm] string clientFolder,
+            [FromForm] string fileName)
         {
             if (file == null || file.Length == 0)
                 return BadRequest("No file uploaded.");
@@ -44,11 +44,9 @@ namespace medico_backend.Controllers
             if (string.IsNullOrWhiteSpace(bucketName))
                 return BadRequest("bucketName is required.");
 
-            // Build date folder: e.g. "2025-05-27"
-            var dateFolder = DateTime.UtcNow.ToString("yyyy-MM-dd");
-
-            // Final folder path: clientFolder/2025-05-27
-            var folderPath = $"{clientFolder}/{dateFolder}";
+            // Build date folder: clientFolder/yyyy/MM/dd
+            var now = DateTime.UtcNow;
+            var folderPath = $"{clientFolder}/{now:yyyy}/{now:MM}/{now:dd}";
 
             _logger.LogInformation("Upload Request → file: {Name}, size: {Size}, contentType: {CT}, bucket: {Bucket}, folder: {Folder}",
                 file.FileName, file.Length, file.ContentType, bucketName, folderPath);
@@ -62,12 +60,29 @@ namespace medico_backend.Controllers
                     return BadRequest("Upload to storage failed.");
                 }
 
+                var resolvedFilePath = $"{bucketName}/{key}";
+
+                //// ✅ Duplicate check: same file path already in DB?
+                //var existing = await _prescriptionClass.GetByFilePathAsync(resolvedFilePath);
+                //if (existing != null)
+                //{
+                //    _logger.LogWarning("Duplicate upload detected → {FilePath}", resolvedFilePath);
+                //    return Conflict(new
+                //    {
+                //        Message = "File already exists.",
+                //        existing.filename,
+                //        existing.bucketname,
+                //        existing.filepath,
+                //        existing.uploaded_date
+                //    });
+                //}
+
                 var model = new PrescriptionModel
                 {
                     filename = Path.GetFileName(key),
                     bucketname = bucketName,
-                    filepath = $"{bucketName}/{key}",
-                    uploaded_date = DateTime.UtcNow
+                    filepath = resolvedFilePath,
+                    uploaded_date = now
                 };
 
                 _logger.LogInformation("Inserting to DB → {FilePath}", model.filepath);
