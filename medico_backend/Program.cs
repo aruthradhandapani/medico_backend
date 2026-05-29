@@ -47,7 +47,8 @@ builder.Services.AddScoped<DoctorAppointmentSlotTypeController>();
 builder.Services.AddScoped<DoctorAppointmentSlotTypeClass>();
 builder.Services.AddScoped<TenantDirectUrlClass>();
 builder.Services.AddScoped<TenantDirectUrlController>();
-
+builder.Services.AddScoped<OpRegistrationClass>();
+builder.Services.AddScoped<OpRegistrationController>();
 
 
 builder.Services.AddSingleton<IAmazonS3>(sp =>

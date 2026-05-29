@@ -88,14 +88,14 @@ namespace Medico_Backend.Class
             {
                 using IDbConnection db = new NpgsqlConnection(_db_conn);
 
-                // ✅ Validate booking_type
+                // Validate booking_type
                 var allowedTypes = new[] { "WALKIN", "ONLINE" };
                 if (!allowedTypes.Contains(data.booking_type.ToUpper()))
                     return "Invalid booking_type. Allowed: WALKIN, ONLINE";
 
                 data.booking_type = data.booking_type.ToUpper();
 
-                // ✅ Fetch slot and check limits based on booking_type
+                // Fetch slot and check limits based on booking_type
                 string checkSql = @"SELECT slot_status, booked_count, max_patients,
                                            walkin_count, max_walkin,
                                            online_count, max_online
@@ -120,25 +120,26 @@ namespace Medico_Backend.Class
 
                 data.booking_id = Guid.NewGuid();
                 data.token_no = await GetNextToken(data.slot_detail_id, data.tenant_code!);
+                data.booking_no = await GenerateBookingNo(db, data.tenant_code!);
                 data.created_at = DateTime.SpecifyKind(DateTime.UtcNow, DateTimeKind.Utc);
                 data.updated_at = DateTime.SpecifyKind(DateTime.UtcNow, DateTimeKind.Utc);
 
-                // ✅ Only set BOOKED if not already RESCHEDULED
+                // Only set BOOKED if not already RESCHEDULED
                 if (data.booking_status != "RESCHEDULED")
                     data.booking_status = "BOOKED";
 
                 string insertSql = @"INSERT INTO appointment_booking
-                        (booking_id, custid, dcode, slot_detail_id, slot_master_id,
-                         appointment_date, slot_start_time, slot_end_time,
-                         token_no, booking_status, booking_type, notes,
-                         rescheduled_from, reschedule_reason,
-                         tenant_code, isdeleted, created_at, updated_at)
-                       VALUES
-                        (@booking_id, @custid, @dcode, @slot_detail_id, @slot_master_id,
-                         @appointment_date, @slot_start_time, @slot_end_time,
-                         @token_no, @booking_status, @booking_type, @notes,
-                         @rescheduled_from, @reschedule_reason,
-                         @tenant_code, @isdeleted, @created_at, @updated_at)";
+        (booking_id, custid, dcode, slot_detail_id, slot_master_id,
+         appointment_date, slot_start_time, slot_end_time,
+         token_no, booking_no, booking_status, booking_type, notes,    
+         rescheduled_from, reschedule_reason,
+         tenant_code, isdeleted, created_at, updated_at)
+       VALUES
+        (@booking_id, @custid, @dcode, @slot_detail_id, @slot_master_id,
+         @appointment_date, @slot_start_time, @slot_end_time,
+         @token_no, @booking_no, @booking_status, @booking_type, @notes,
+         @rescheduled_from, @reschedule_reason,
+         @tenant_code, @isdeleted, @created_at, @updated_at)";
 
                 await db.ExecuteAsync(insertSql, new
                 {
@@ -151,6 +152,7 @@ namespace Medico_Backend.Class
                     slot_start_time = data.slot_start_time.ToTimeSpan(),
                     slot_end_time = data.slot_end_time.ToTimeSpan(),
                     data.token_no,
+                    data.booking_no,       // ← add this
                     data.booking_status,
                     data.booking_type,
                     data.notes,
@@ -162,7 +164,7 @@ namespace Medico_Backend.Class
                     data.updated_at
                 });
 
-                // ✅ Increment correct counter based on booking_type
+                // Increment correct counter based on booking_type
                 string updateSlotSql = data.booking_type == "WALKIN"
                     ? @"UPDATE doctor_appointment_slot_details
                         SET booked_count = booked_count + 1,
@@ -189,7 +191,22 @@ namespace Medico_Backend.Class
                 await db.ExecuteAsync(updateSlotSql,
                     new { data.slot_detail_id, data.tenant_code });
 
-                return $"Success|Token:{data.token_no}|BookingId:{data.booking_id}";
+                await WriteBookingLog(db, new AppointmentBookingLogModel
+                {
+                    booking_id = data.booking_id,
+                    booking_no = data.booking_no,
+                    custid = data.custid,
+                    dcode = data.dcode,
+                    action = "BOOKED",
+                    action_by = data.custid.ToString(),
+                    new_slot_detail_id = data.slot_detail_id,
+                    new_appointment_date = data.appointment_date,
+                    new_slot_start_time = data.slot_start_time,
+                    remarks = data.notes,
+                    tenant_code = data.tenant_code!
+                });
+
+                return $"Success|Token:{data.token_no}|BookingNo:{data.booking_no}|BookingId:{data.booking_id}";
             }
             catch (Exception ex) { return ex.Message; }
         }
@@ -216,7 +233,7 @@ namespace Medico_Backend.Class
                 if (booking.booking_status == "CANCELLED") return "Already cancelled";
                 if (booking.booking_status == "VISITED") return "Cannot cancel visited appointment";
 
-                // ✅ Mark booking as cancelled
+                // Mark booking as cancelled (hard cancel — visible for audit)
                 string cancelSql = @"UPDATE appointment_booking
                                      SET booking_status = 'CANCELLED',
                                          cancel_reason  = @cancel_reason,
@@ -227,7 +244,7 @@ namespace Medico_Backend.Class
 
                 await db.ExecuteAsync(cancelSql, new { booking_id, cancel_reason, tenant_code });
 
-                // ✅ Decrement correct counter + reopen slot if it was FULL
+                // Decrement correct counter and reopen slot if it was FULL
                 string freeSlotSql = booking.booking_type == "WALKIN"
                     ? @"UPDATE doctor_appointment_slot_details
                         SET booked_count = GREATEST(booked_count - 1, 0),
@@ -260,6 +277,77 @@ namespace Medico_Backend.Class
         }
 
         // ─────────────────────────────────────────
+        // SOFT DELETE OLD BOOKING (reschedule only)
+        // Old booking is hidden via isdeleted = true instead of
+        // being marked CANCELLED, keeping the list clean.
+        // Slot counters are decremented exactly like a cancel.
+        // ─────────────────────────────────────────
+        private async Task<string> SoftDeleteForReschedule(
+            Guid booking_id, string tenant_code)
+        {
+            try
+            {
+                using IDbConnection db = new NpgsqlConnection(_db_conn);
+
+                // Fetch old booking
+                string getSql = @"SELECT * FROM appointment_booking
+                                  WHERE  booking_id  = @booking_id
+                                  AND    tenant_code = @tenant_code
+                                  AND    isdeleted   = false";
+
+                var booking = await db.QueryFirstOrDefaultAsync<AppointmentBookingModel>(
+                    getSql, new { booking_id, tenant_code });
+
+                if (booking == null) return "Booking not found";
+                if (booking.booking_status == "VISITED")
+                    return "Cannot reschedule a visited appointment";
+
+                // Soft delete — set isdeleted = true, no CANCELLED status needed
+                // Mark old booking as CANCELLED and soft delete — hidden from lists, status correct for audit
+                string softDeleteSql = @"UPDATE appointment_booking
+                         SET isdeleted      = true,
+                             booking_status = 'CANCELLED',
+                             cancel_reason  = 'Rescheduled',
+                             cancelled_at   = now(),
+                             updated_at     = now()
+                         WHERE booking_id  = @booking_id
+                         AND   tenant_code = @tenant_code";
+
+                await db.ExecuteAsync(softDeleteSql, new { booking_id, tenant_code });
+
+                // Decrement slot counters and reopen slot if it was FULL
+                string freeSlotSql = booking.booking_type == "WALKIN"
+                    ? @"UPDATE doctor_appointment_slot_details
+                        SET booked_count = GREATEST(booked_count - 1, 0),
+                            walkin_count = GREATEST(walkin_count - 1, 0),
+                            slot_status  = CASE
+                                             WHEN slot_status = 'FULL' THEN 'OPEN'
+                                             ELSE slot_status
+                                           END,
+                            updated_at   = now()
+                        WHERE slot_detail_id = @slot_detail_id
+                        AND   tenant_code    = @tenant_code"
+
+                    : @"UPDATE doctor_appointment_slot_details
+                        SET booked_count = GREATEST(booked_count - 1, 0),
+                            online_count = GREATEST(online_count - 1, 0),
+                            slot_status  = CASE
+                                             WHEN slot_status = 'FULL' THEN 'OPEN'
+                                             ELSE slot_status
+                                           END,
+                            updated_at   = now()
+                        WHERE slot_detail_id = @slot_detail_id
+                        AND   tenant_code    = @tenant_code";
+
+                await db.ExecuteAsync(freeSlotSql,
+                    new { booking.slot_detail_id, tenant_code });
+
+                return "Cancelled Successfully"; // keeps caller checks intact
+            }
+            catch (Exception ex) { return ex.Message; }
+        }
+
+        // ─────────────────────────────────────────
         // RESCHEDULE APPOINTMENT
         // ─────────────────────────────────────────
         public async Task<string> RescheduleAppointment(
@@ -267,14 +355,14 @@ namespace Medico_Backend.Class
         {
             try
             {
-                // ✅ Cancel old booking — this decrements old slot counters correctly
-                var cancelResult = await CancelAppointment(
-                    request.old_booking_id, "Rescheduled", tenant_code);
+                // Soft-delete old booking — keeps list clean, decrements slot counters
+                var cancelResult = await SoftDeleteForReschedule(
+                    request.old_booking_id, tenant_code);
 
                 if (cancelResult != "Cancelled Successfully")
                     return $"Cancel failed: {cancelResult}";
 
-                // ✅ Carry forward booking_type to new booking
+                // Carry forward booking_type and reschedule metadata to new booking
                 request.new_booking.booking_type = request.booking_type;
                 request.new_booking.rescheduled_from = request.old_booking_id;
                 request.new_booking.reschedule_reason = request.reschedule_reason;
@@ -285,7 +373,7 @@ namespace Medico_Backend.Class
             }
             catch (Exception ex) { return ex.Message; }
         }
-       
+
         // ─────────────────────────────────────────
         // UPDATE STATUS
         // ─────────────────────────────────────────
@@ -296,7 +384,7 @@ namespace Medico_Backend.Class
             {
                 using IDbConnection db = new NpgsqlConnection(_db_conn);
 
-                var allowed = new[] { "BOOKED", "CONFIRMED", "VISITED", "CANCELLED", "RESCHEDULE_PENDING" };
+                var allowed = new[] { "BOOKED", "CONFIRMED", "VISITED", "CANCELLED", "RESCHEDULE_PENDING", "NOT VISITED" };
                 if (!allowed.Contains(booking_status.ToUpper()))
                     return $"Invalid status. Allowed: {string.Join(", ", allowed)}";
 
@@ -322,7 +410,7 @@ namespace Medico_Backend.Class
         {
             using IDbConnection db = new NpgsqlConnection(_db_conn);
 
-            string sql = @"SELECT booking_id, custid, dcode,
+            string sql = @"SELECT booking_id,booking_no, custid, dcode,
                                   slot_detail_id, slot_master_id,
                                   appointment_date, slot_start_time, slot_end_time,
                                   token_no, booking_status, booking_type, notes,
@@ -443,6 +531,7 @@ namespace Medico_Backend.Class
             return await db.QueryFirstOrDefaultAsync<CustomerMasterModel>(
                 sql, new { custid, tenant_code });
         }
+
         // ─────────────────────────────────────────
         // RESCHEDULE SLOT ITEM
         // (internal — used by RescheduleWholeSlot)
@@ -454,7 +543,7 @@ namespace Medico_Backend.Class
             {
                 using IDbConnection db = new NpgsqlConnection(_db_conn);
 
-                // ✅ Check old booking is RESCHEDULE_PENDING
+                // Verify old booking exists and is in RESCHEDULE_PENDING state
                 string checkSql = @"
                     SELECT booking_id, booking_status, custid, dcode
                     FROM   appointment_booking
@@ -476,22 +565,20 @@ namespace Medico_Backend.Class
                     return $"Status must be RESCHEDULE_PENDING. " +
                            $"Current: {oldBooking.booking_status}";
 
-                // ✅ Cancel old booking
-                var cancelResult = await CancelAppointment(
-                    request.old_booking_id,
-                    "Rescheduled — whole slot moved",
-                    tenant_code);
+                // Soft-delete old booking — hides it without marking CANCELLED
+                var cancelResult = await SoftDeleteForReschedule(
+                    request.old_booking_id, tenant_code);
 
                 if (cancelResult != "Cancelled Successfully")
                     return $"Cancel failed: {cancelResult}";
 
-                // ✅ Build and book new appointment
+                // Build and book the new appointment
                 var newBooking = new AppointmentBookingModel
                 {
                     custid = oldBooking.custid,
                     dcode = request.new_dcode > 0
-                                            ? request.new_dcode
-                                            : (int)oldBooking.dcode,
+                                           ? request.new_dcode
+                                           : (int)oldBooking.dcode,
                     slot_detail_id = request.new_slot_detail_id,
                     slot_master_id = request.new_slot_master_id,
                     appointment_date = request.new_appointment_date,
@@ -510,8 +597,12 @@ namespace Medico_Backend.Class
             catch (Exception ex) { return ex.Message; }
         }
 
+        // ─────────────────────────────────────────
+        // RESCHEDULE WHOLE SLOT
+        // Moves all active patients from an old slot into a new slot.
+        // ─────────────────────────────────────────
         public async Task<object> RescheduleWholeSlot(
-     RescheduleWholeSlotRequest request, string tenant_code)
+            RescheduleWholeSlotRequest request, string tenant_code)
         {
             var rescheduled = new List<string>();
             var failed = new List<string>();
@@ -520,17 +611,17 @@ namespace Medico_Backend.Class
             {
                 using IDbConnection db = new NpgsqlConnection(_db_conn);
 
-                // ✅ STEP 1 — Validate new slot
+                // STEP 1 — Validate new slot exists and is OPEN
                 string slotCheckSql = @"
-            SELECT slot_status,
-                   booked_count, max_patients,
-                   walkin_count, max_walkin,
-                   online_count, max_online
-            FROM   doctor_appointment_slot_details
-            WHERE  slot_detail_id = @slot_detail_id
-            AND    tenant_code    = @tenant_code
-            AND    isdeleted      = false
-            AND    is_active      = true";
+                    SELECT slot_status,
+                           booked_count, max_patients,
+                           walkin_count, max_walkin,
+                           online_count, max_online
+                    FROM   doctor_appointment_slot_details
+                    WHERE  slot_detail_id = @slot_detail_id
+                    AND    tenant_code    = @tenant_code
+                    AND    isdeleted      = false
+                    AND    is_active      = true";
 
                 var newSlot = await db.QueryFirstOrDefaultAsync(
                     slotCheckSql, new
@@ -545,17 +636,17 @@ namespace Medico_Backend.Class
                 if (newSlot.slot_status != "OPEN")
                     return new { rescheduled, failed = new List<string> { "New slot is not OPEN" } };
 
-                // ✅ STEP 1.5 — Auto mark all active bookings as RESCHEDULE_PENDING
+                // STEP 1.5 — Mark all active bookings in the old slot as RESCHEDULE_PENDING
                 string markPendingSql = @"
-            UPDATE appointment_booking ab
-            SET    booking_status = 'RESCHEDULE_PENDING',
-                   updated_at     = now()
-            FROM   doctor_appointment_slot_details sd
-            WHERE  sd.slot_detail_id = ab.slot_detail_id
-            AND    sd.slot_master_id = @slot_master_id
-            AND    ab.tenant_code    = @tenant_code
-            AND    ab.isdeleted      = false
-            AND    ab.booking_status NOT IN ('CANCELLED', 'VISITED', 'RESCHEDULE_PENDING')";
+                    UPDATE appointment_booking ab
+                    SET    booking_status = 'RESCHEDULE_PENDING',
+                           updated_at     = now()
+                    FROM   doctor_appointment_slot_details sd
+                    WHERE  sd.slot_detail_id = ab.slot_detail_id
+                    AND    sd.slot_master_id = @slot_master_id
+                    AND    ab.tenant_code    = @tenant_code
+                    AND    ab.isdeleted      = false
+                    AND    ab.booking_status NOT IN ('CANCELLED', 'VISITED', 'RESCHEDULE_PENDING')";
 
                 await db.ExecuteAsync(markPendingSql, new
                 {
@@ -563,22 +654,22 @@ namespace Medico_Backend.Class
                     tenant_code
                 });
 
-                // ✅ STEP 2 — Get all RESCHEDULE_PENDING bookings
+                // STEP 2 — Fetch all RESCHEDULE_PENDING bookings for the old slot
                 string getPendingSql = @"
-            SELECT ab.booking_id,
-                   ab.custid,
-                   ab.dcode,
-                   ab.booking_type,
-                   ab.slot_detail_id,
-                   ab.notes
-            FROM   appointment_booking             ab
-            JOIN   doctor_appointment_slot_details sd
-                   ON sd.slot_detail_id = ab.slot_detail_id
-            WHERE  sd.slot_master_id = @slot_master_id
-            AND    ab.tenant_code    = @tenant_code
-            AND    ab.booking_status = 'RESCHEDULE_PENDING'
-            AND    ab.isdeleted      = false
-            ORDER  BY ab.token_no";
+                    SELECT ab.booking_id,
+                           ab.custid,
+                           ab.dcode,
+                           ab.booking_type,
+                           ab.slot_detail_id,
+                           ab.notes
+                    FROM   appointment_booking             ab
+                    JOIN   doctor_appointment_slot_details sd
+                           ON sd.slot_detail_id = ab.slot_detail_id
+                    WHERE  sd.slot_master_id = @slot_master_id
+                    AND    ab.tenant_code    = @tenant_code
+                    AND    ab.booking_status = 'RESCHEDULE_PENDING'
+                    AND    ab.isdeleted      = false
+                    ORDER  BY ab.token_no";
 
                 var pendingBookings = (await db.QueryAsync(
                     getPendingSql, new { request.slot_master_id, tenant_code })).ToList();
@@ -586,7 +677,7 @@ namespace Medico_Backend.Class
                 if (pendingBookings.Count == 0)
                     return new { rescheduled, failed = new List<string> { "No active bookings found for this slot" } };
 
-                // ✅ STEP 3 — Check capacity
+                // STEP 3 — Check new slot has enough capacity
                 int remainingSeats = (int)newSlot.max_patients - (int)newSlot.booked_count;
 
                 if (pendingBookings.Count > remainingSeats)
@@ -594,14 +685,14 @@ namespace Medico_Backend.Class
                     {
                         rescheduled,
                         failed = new List<string>
-                {
-                    $"New slot only has {remainingSeats} seats " +
-                    $"but {pendingBookings.Count} patients need rescheduling. " +
-                    $"Please pick a bigger slot."
-                }
+                        {
+                            $"New slot only has {remainingSeats} seats " +
+                            $"but {pendingBookings.Count} patients need rescheduling. " +
+                            $"Please pick a bigger slot."
+                        }
                     };
 
-                // ✅ STEP 4 — Reschedule each patient
+                // STEP 4 — Reschedule each patient into the new slot
                 foreach (var booking in pendingBookings)
                 {
                     try
@@ -617,8 +708,8 @@ namespace Medico_Backend.Class
                             new_slot_start_time = request.new_slot_start_time,
                             new_slot_end_time = request.new_slot_end_time,
                             new_dcode = request.new_dcode > 0
-                                                    ? request.new_dcode
-                                                    : (int)booking.dcode,
+                                                      ? request.new_dcode
+                                                      : (int)booking.dcode,
                             notes = booking.notes
                         };
 
@@ -677,6 +768,146 @@ namespace Medico_Backend.Class
                 sql, new { tenant_code });
 
             return res.ToList();
+        }
+        // ─────────────────────────────────────────
+        // GENERATE BOOKING NUMBER
+        // Format: YYYY/MM/0001 — resets each month
+        // ─────────────────────────────────────────
+        private async Task<string> GenerateBookingNo(IDbConnection db, string tenant_code)
+        {
+            string sql = @"SELECT COALESCE(MAX(
+                       CAST(SPLIT_PART(booking_no, '/', 3) AS INT)
+                   ), 0) + 1
+                   FROM appointment_booking
+                   WHERE tenant_code = @tenant_code
+                   AND   isdeleted   = false
+                   AND   SPLIT_PART(booking_no, '/', 1) = @year
+                   AND   SPLIT_PART(booking_no, '/', 2) = @month";
+
+            var now = DateTime.UtcNow;
+            string year = now.Year.ToString();
+            string month = now.Month.ToString("D2");
+
+            int next = await db.ExecuteScalarAsync<int>(sql, new { tenant_code, year, month });
+
+            return $"{year}/{month}/{next:D4}";
+        }
+        // ─────────────────────────────────────────
+        // WRITE BOOKING LOG (patient activities only)
+        // ─────────────────────────────────────────
+        private async Task WriteBookingLog(IDbConnection db, AppointmentBookingLogModel log)
+        {
+            string sql = @"INSERT INTO appointment_booking_log
+                   (log_id, booking_id, booking_no, custid, dcode,
+                    action, action_by,
+                    old_slot_detail_id, new_slot_detail_id,
+                    old_appointment_date, new_appointment_date,
+                    old_slot_start_time, new_slot_start_time,
+                    remarks, tenant_code, created_at)
+                   VALUES
+                   (@log_id, @booking_id, @booking_no, @custid, @dcode,
+                    @action, @action_by,
+                    @old_slot_detail_id, @new_slot_detail_id,
+                    @old_appointment_date, @new_appointment_date,
+                    @old_slot_start_time, @new_slot_start_time,
+                    @remarks, @tenant_code, @created_at)";
+
+            await db.ExecuteAsync(sql, new
+            {
+                log.log_id,
+                log.booking_id,
+                log.booking_no,
+                log.custid,
+                log.dcode,
+                log.action,
+                log.action_by,
+                log.old_slot_detail_id,
+                log.new_slot_detail_id,
+                old_appointment_date = log.old_appointment_date?.ToDateTime(TimeOnly.MinValue),
+                new_appointment_date = log.new_appointment_date?.ToDateTime(TimeOnly.MinValue),
+                old_slot_start_time = log.old_slot_start_time?.ToTimeSpan(),
+                new_slot_start_time = log.new_slot_start_time?.ToTimeSpan(),
+                log.remarks,
+                log.tenant_code,
+                log.created_at
+            });
+        }
+
+        // ─────────────────────────────────────────
+        // PATIENT RESCHEDULE
+        // Same as RescheduleAppointment but with log
+        // ─────────────────────────────────────────
+        public async Task<string> PatientReschedule(
+    PatientRescheduleRequest request, string tenant_code)
+        {
+            try
+            {
+                using IDbConnection db = new NpgsqlConnection(_db_conn);
+
+                // Fetch old booking details for log before soft deleting
+                string getOldSql = @"
+            SELECT booking_id, booking_no, custid, dcode,
+                   slot_detail_id, appointment_date, slot_start_time,
+                   booking_status
+            FROM   appointment_booking
+            WHERE  booking_id  = @booking_id
+            AND    tenant_code = @tenant_code
+            AND    isdeleted   = false";
+
+                var oldBooking = await db.QueryFirstOrDefaultAsync<AppointmentBookingModel>(
+                    getOldSql, new { booking_id = request.old_booking_id, tenant_code });
+
+                if (oldBooking == null) return "Booking not found";
+                if (oldBooking.booking_status == "CANCELLED") return "Booking already cancelled";
+                if (oldBooking.booking_status == "VISITED") return "Cannot reschedule a visited appointment";
+
+                // Soft-delete old booking — keeps list clean, decrements slot counters
+                var cancelResult = await SoftDeleteForReschedule(
+                    request.old_booking_id, tenant_code);
+
+                if (cancelResult != "Cancelled Successfully")
+                    return $"Cancel failed: {cancelResult}";
+
+                // Carry forward metadata to new booking
+                request.new_booking.booking_type = request.booking_type;
+                request.new_booking.rescheduled_from = request.old_booking_id;
+                request.new_booking.reschedule_reason = request.reschedule_reason;
+                request.new_booking.booking_status = "RESCHEDULED";
+                request.new_booking.tenant_code = tenant_code;
+
+                var bookResult = await BookAppointment(request.new_booking);
+
+                if (!bookResult.StartsWith("Success"))
+                    return bookResult;
+
+                // Parse new booking_id and booking_no from result string
+                // Format: "Success|Token:1|BookingNo:2026/05/0001|BookingId:uuid"
+                var parts = bookResult.Split('|');
+                var newBookingId = Guid.Parse(parts[3].Replace("BookingId:", ""));
+                var newBookingNo = parts[2].Replace("BookingNo:", "");
+
+                // Write patient reschedule log — no casting needed, model types are correct
+                await WriteBookingLog(db, new AppointmentBookingLogModel
+                {
+                    booking_id = newBookingId,
+                    booking_no = newBookingNo,
+                    custid = oldBooking.custid,
+                    dcode = oldBooking.dcode,
+                    action = "RESCHEDULED",
+                    action_by = oldBooking.custid.ToString(),
+                    old_slot_detail_id = oldBooking.slot_detail_id,
+                    new_slot_detail_id = request.new_booking.slot_detail_id,
+                    old_appointment_date = oldBooking.appointment_date,
+                    new_appointment_date = request.new_booking.appointment_date,
+                    old_slot_start_time = oldBooking.slot_start_time,
+                    new_slot_start_time = request.new_booking.slot_start_time,
+                    remarks = request.reschedule_reason,
+                    tenant_code = tenant_code
+                });
+
+                return bookResult;
+            }
+            catch (Exception ex) { return ex.Message; }
         }
     }
 }

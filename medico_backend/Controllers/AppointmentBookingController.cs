@@ -125,5 +125,13 @@ namespace Medico_Backend.Controllers
                 return StatusCode(500, new { error = ex.Message, inner = ex.InnerException?.Message });
             }
         }
+        [HttpPost("patient-reschedule")]
+        public async Task<IActionResult> PatientReschedule(
+    [FromBody] PatientRescheduleRequest request)
+        {
+            var tenant = Request.Headers["tenant_code"].ToString();
+            var res = await cls.PatientReschedule(request, tenant);
+            return Ok(res);
+        }
     }
 }

@@ -7,6 +7,7 @@ namespace Medico_Backend.Model
     {
         [ExplicitKey]
         public Guid booking_id { get; set; } = Guid.NewGuid();
+        public string? booking_no { get; set; }
         public decimal custid { get; set; }
         public int dcode { get; set; }
         public Guid slot_detail_id { get; set; }
@@ -96,5 +97,32 @@ namespace Medico_Backend.Model
 
         public string? tenant_code { get; set; }
     }
+    public class AppointmentBookingLogModel
+    {
+        public Guid log_id { get; set; } = Guid.NewGuid();
+        public Guid booking_id { get; set; }
+        public string? booking_no { get; set; }
+        public decimal custid { get; set; }
+        public int dcode { get; set; }
+        public string action { get; set; } = string.Empty;   // BOOKED / RESCHEDULED
+        public string? action_by { get; set; }               // custid as string
+        public Guid? old_slot_detail_id { get; set; }
+        public Guid? new_slot_detail_id { get; set; }
+        public DateOnly? old_appointment_date { get; set; }
+        public DateOnly? new_appointment_date { get; set; }
+        public TimeOnly? old_slot_start_time { get; set; }
+        public TimeOnly? new_slot_start_time { get; set; }
+        public string? remarks { get; set; }
+        public string? tenant_code { get; set; }
+        public DateTime created_at { get; set; } =
+            DateTime.SpecifyKind(DateTime.UtcNow, DateTimeKind.Utc);
+    }
 
+    public class PatientRescheduleRequest
+    {
+        public Guid old_booking_id { get; set; }
+        public string booking_type { get; set; } = "ONLINE";
+        public string? reschedule_reason { get; set; }
+        public AppointmentBookingModel new_booking { get; set; } = new();
+    }
 }

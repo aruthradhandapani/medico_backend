@@ -2623,5 +2623,5 @@ namespace medico_backend.InventoryClass
         }
     }
 }
-    }
-}
+    
+

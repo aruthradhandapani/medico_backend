@@ -1291,5 +1291,5 @@ namespace medico_backend.InventoryController
     
         
     
-    }
-}
+    
+
