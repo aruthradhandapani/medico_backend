@@ -1112,5 +1112,184 @@ namespace medico_backend.InventoryController
                 return BadRequest(new { Status = "Failed", Message = ex.Message });
             }
         }
+             [HttpPost("insertledgertype")]
+        public async Task<IActionResult> InsertLedgerType([FromBody] ledger_type_master ledger)
+        {
+            var tenantcode = GetTenantCode();
+
+            if (string.IsNullOrEmpty(tenantcode))
+            {
+                return BadRequest(new
+                {
+                    Status = "Failed",
+                    Message = "Tenant code missing"
+                });
+            }
+
+            // Override tenantcode from header
+            ledger.tenantcode = tenantcode;
+
+            var result = await itemclass.InsertLedgerType(ledger);
+
+            return Ok(new
+            {
+                Status = "Success",
+                Message = result
+            });
+        }
+
+
+        // UPDATE
+        [HttpPost("updateledgertype")]
+        public async Task<IActionResult> UpdateLedgerType([FromBody] ledger_type_master ledger)
+        {
+            var tenantcode = GetTenantCode();
+
+            if (string.IsNullOrEmpty(tenantcode))
+            {
+                return BadRequest(new
+                {
+                    Status = "Failed",
+                    Message = "Tenant code missing"
+                });
+            }
+
+            ledger.tenantcode = tenantcode;
+
+            var result = await itemclass.UpdateLedgerType(ledger);
+
+            return Ok(new
+            {
+                Status = "Success",
+                Message = result
+            });
+        }
+
+
+        // DELETE
+        [HttpDelete("deleteledgertype")]
+        public async Task<IActionResult> DeleteLedgerType(int ledgertypecode)
+        {
+            var tenantcode = GetTenantCode();
+
+            if (string.IsNullOrEmpty(tenantcode))
+            {
+                return BadRequest(new
+                {
+                    Status = "Failed",
+                    Message = "Tenant code missing"
+                });
+            }
+
+            var result = await itemclass.DeleteLedgerType(ledgertypecode, tenantcode);
+
+            if (result)
+            {
+                return Ok(new
+                {
+                    Status = "Success",
+                    Message = "Ledger Type deleted successfully"
+                });
+            }
+
+            return NotFound(new
+            {
+                Status = "Failed",
+                Message = "Ledger Type not found"
+            });
+        }
+
+
+
+        [HttpPost("insertledgergroup")]
+        public async Task<IActionResult> InsertLedgerGroup([FromBody] ledger_group_master ledger)
+        {
+            var tenantcode = GetTenantCode();
+
+            if (string.IsNullOrEmpty(tenantcode))
+            {
+                return BadRequest(new
+                {
+                    Status = "Failed",
+                    Message = "Tenant code missing"
+                });
+            }
+
+            ledger.tenantcode = tenantcode;
+
+            var result = await itemclass.InsertLedgerGroup(ledger);
+
+            return Ok(new
+            {
+                Status = "Success",
+                Message = result
+            });
+        }
+
+
+        // UPDATE
+        [HttpPost("updateledgergroup")]
+        public async Task<IActionResult> UpdateLedgerGroup([FromBody] ledger_group_master ledger)
+        {
+            var tenantcode = GetTenantCode();
+
+            if (string.IsNullOrEmpty(tenantcode))
+            {
+                return BadRequest(new
+                {
+                    Status = "Failed",
+                    Message = "Tenant code missing"
+                });
+            }
+
+            ledger.tenantcode = tenantcode;
+
+            var result = await itemclass.UpdateLedgerGroup(ledger);
+
+            return Ok(new
+            {
+                Status = "Success",
+                Message = result
+            });
+        }
+
+
+        // DELETE
+        [HttpDelete("deleteledgergroup")]
+        public async Task<IActionResult> DeleteLedgerGroup(int ledgergroupcode)
+        {
+            var tenantcode = GetTenantCode();
+
+            if (string.IsNullOrEmpty(tenantcode))
+            {
+                return BadRequest(new
+                {
+                    Status = "Failed",
+                    Message = "Tenant code missing"
+                });
+            }
+
+            var result = await itemclass.DeleteLedgerGroup(ledgergroupcode, tenantcode);
+
+            if (result)
+            {
+                return Ok(new
+                {
+                    Status = "Success",
+                    Message = "Ledger Group deleted successfully"
+                });
+            }
+
+            return NotFound(new
+            {
+                Status = "Failed",
+                Message = "Ledger Group not found"
+            });
+        }
+    }
+}
+    
+        
+    
     }
 }
