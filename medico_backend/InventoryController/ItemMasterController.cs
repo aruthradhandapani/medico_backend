@@ -1286,6 +1286,28 @@ namespace medico_backend.InventoryController
                 Message = "Ledger Group not found"
             });
         }
+         [HttpGet("getledgertype")]
+ public async Task<IActionResult> GetLedgerTypes()
+ {
+     var result = await itemclass.GetLedgerTypes();
+
+     return Ok(new
+     {
+         Status = "Success",
+         Data = result
+     });
+ }
+ [HttpGet("getledgergroup")]
+ public async Task<IActionResult> GetLedgerGroups()
+ {
+     var result = await itemclass.GetLedgerGroups();
+
+     return Ok(new
+     {
+         Status = "Success",
+         Data = result
+     });
+ }
     }
 }
     
