@@ -2353,5 +2353,275 @@ namespace medico_backend.InventoryClass
                 return rows > 0;
             }
         }
+            // INSERT LEDGER TYPE
+        public async Task<string> InsertLedgerType(ledger_type_master ledger)
+        {
+            using (var conn = new NpgsqlConnection(con))
+            {
+                await conn.OpenAsync();
+
+                string query = @"
+        INSERT INTO ledger_type_master
+        (
+            ledgertypecode,
+            ledgertypename,
+            shortname,
+            description,
+            naturetype,
+            isactive,
+            createddate,
+            tenantcode,
+            isgstapplicable,
+            isvatapplicable,
+            sgstpercentage,
+            cgstpercentage,
+            igstpercentage,
+            deleted
+        )
+        VALUES
+        (
+            @ledgertypecode,
+            @ledgertypename,
+            @shortname,
+            @description,
+            @naturetype,
+            @isactive,
+            @createddate,
+            @tenantcode,
+            @isgstapplicable,
+            @isvatapplicable,
+            @sgstpercentage,
+            @cgstpercentage,
+            @igstpercentage,
+            @deleted
+        )";
+
+                using (var cmd = new NpgsqlCommand(query, conn))
+                {
+                    cmd.Parameters.AddWithValue("@ledgertypecode", ledger.ledgertypecode);
+                    cmd.Parameters.AddWithValue("@ledgertypename", ledger.ledgertypename);
+                    cmd.Parameters.AddWithValue("@shortname", ledger.shortname);
+                    cmd.Parameters.AddWithValue("@description", ledger.description ?? "");
+                    cmd.Parameters.AddWithValue("@naturetype", ledger.naturetype);
+                    cmd.Parameters.AddWithValue("@isactive", ledger.isactive);
+                    cmd.Parameters.AddWithValue("@createddate", ledger.createddate);
+                    cmd.Parameters.AddWithValue("@tenantcode", ledger.tenantcode);
+                    cmd.Parameters.AddWithValue("@isgstapplicable", ledger.isgstapplicable);
+                    cmd.Parameters.AddWithValue("@isvatapplicable", ledger.isvatapplicable);
+                    cmd.Parameters.AddWithValue("@sgstpercentage", ledger.sgstpercentage);
+                    cmd.Parameters.AddWithValue("@cgstpercentage", ledger.cgstpercentage);
+                    cmd.Parameters.AddWithValue("@igstpercentage", ledger.igstpercentage);
+                    cmd.Parameters.AddWithValue("@deleted", ledger.deleted);
+
+                    await cmd.ExecuteNonQueryAsync();
+                }
+            }
+
+            return "Inserted Successfully";
+        }
+
+
+        // UPDATE LEDGER TYPE
+        public async Task<string> UpdateLedgerType(ledger_type_master ledger)
+        {
+            using (var conn = new NpgsqlConnection(con))
+            {
+                await conn.OpenAsync();
+
+                string query = @"
+        UPDATE ledger_type_master
+        SET
+            ledgertypename = @ledgertypename,
+            shortname = @shortname,
+            description = @description,
+            naturetype = @naturetype,
+            isactive = @isactive,
+            tenantcode = @tenantcode,
+            isgstapplicable = @isgstapplicable,
+            isvatapplicable = @isvatapplicable,
+            sgstpercentage = @sgstpercentage,
+            cgstpercentage = @cgstpercentage,
+            igstpercentage = @igstpercentage
+        WHERE ledgertypecode = @ledgertypecode
+        AND tenantcode = @tenantcode
+        AND deleted = false";
+
+                using (var cmd = new NpgsqlCommand(query, conn))
+                {
+                    cmd.Parameters.AddWithValue("@ledgertypecode", ledger.ledgertypecode);
+                    cmd.Parameters.AddWithValue("@ledgertypename", ledger.ledgertypename);
+                    cmd.Parameters.AddWithValue("@shortname", ledger.shortname);
+                    cmd.Parameters.AddWithValue("@description", ledger.description ?? "");
+                    cmd.Parameters.AddWithValue("@naturetype", ledger.naturetype);
+                    cmd.Parameters.AddWithValue("@isactive", ledger.isactive);
+                    cmd.Parameters.AddWithValue("@tenantcode", ledger.tenantcode);
+                    cmd.Parameters.AddWithValue("@isgstapplicable", ledger.isgstapplicable);
+                    cmd.Parameters.AddWithValue("@isvatapplicable", ledger.isvatapplicable);
+                    cmd.Parameters.AddWithValue("@sgstpercentage", ledger.sgstpercentage);
+                    cmd.Parameters.AddWithValue("@cgstpercentage", ledger.cgstpercentage);
+                    cmd.Parameters.AddWithValue("@igstpercentage", ledger.igstpercentage);
+
+                    int rows = await cmd.ExecuteNonQueryAsync();
+
+                    if (rows == 0)
+                        return "Ledger Type not found";
+                }
+            }
+
+            return "Updated Successfully";
+        }
+
+
+        // DELETE LEDGER TYPE
+        public async Task<bool> DeleteLedgerType(int ledgertypecode, string tenantcode)
+        {
+            using (var conn = new NpgsqlConnection(con))
+            {
+                await conn.OpenAsync();
+
+                string query = @"
+        UPDATE ledger_type_master
+        SET deleted = true
+        WHERE ledgertypecode = @ledgertypecode
+        AND tenantcode = @tenantcode
+        AND deleted = false";
+
+                using (var cmd = new NpgsqlCommand(query, conn))
+                {
+                    cmd.Parameters.AddWithValue("@ledgertypecode", ledgertypecode);
+                    cmd.Parameters.AddWithValue("@tenantcode", tenantcode);
+
+                    int rows = await cmd.ExecuteNonQueryAsync();
+
+                    return rows > 0;
+                }
+            }
+        }
+
+
+
+        // INSERT LEDGER GROUP
+        public async Task<string> InsertLedgerGroup(ledger_group_master ledger)
+        {
+            using (var conn = new NpgsqlConnection(con))
+            {
+                await conn.OpenAsync();
+
+                string query = @"
+        INSERT INTO ledger_group_master
+        (
+            ledgergroupcode,
+            ledgergroupname,
+            shortname,
+            ledgertypecode,
+            description,
+            isactive,
+            createddate,
+            tenantcode,
+            deleted
+        )
+        VALUES
+        (
+            @ledgergroupcode,
+            @ledgergroupname,
+            @shortname,
+            @ledgertypecode,
+            @description,
+            @isactive,
+            @createddate,
+            @tenantcode,
+            @deleted
+        )";
+
+                using (var cmd = new NpgsqlCommand(query, conn))
+                {
+                    cmd.Parameters.AddWithValue("@ledgergroupcode", ledger.ledgergroupcode);
+                    cmd.Parameters.AddWithValue("@ledgergroupname", ledger.ledgergroupname);
+                    cmd.Parameters.AddWithValue("@shortname", ledger.shortname);
+                    cmd.Parameters.AddWithValue("@ledgertypecode", ledger.ledgertypecode);
+                    cmd.Parameters.AddWithValue("@description", ledger.description ?? "");
+                    cmd.Parameters.AddWithValue("@isactive", ledger.isactive);
+                    cmd.Parameters.AddWithValue("@createddate", ledger.createddate);
+                    cmd.Parameters.AddWithValue("@tenantcode", ledger.tenantcode);
+                    cmd.Parameters.AddWithValue("@deleted", ledger.deleted);
+
+                    await cmd.ExecuteNonQueryAsync();
+                }
+            }
+
+            return "Inserted Successfully";
+        }
+
+
+
+        // UPDATE LEDGER GROUP
+        public async Task<string> UpdateLedgerGroup(ledger_group_master ledger)
+        {
+            using (var conn = new NpgsqlConnection(con))
+            {
+                await conn.OpenAsync();
+
+                string query = @"
+        UPDATE ledger_group_master
+        SET
+            ledgergroupname = @ledgergroupname,
+            shortname = @shortname,
+            ledgertypecode = @ledgertypecode,
+            description = @description,
+            isactive = @isactive,
+            tenantcode = @tenantcode
+        WHERE ledgergroupcode = @ledgergroupcode
+        AND tenantcode = @tenantcode
+        AND deleted = false";
+
+                using (var cmd = new NpgsqlCommand(query, conn))
+                {
+                    cmd.Parameters.AddWithValue("@ledgergroupcode", ledger.ledgergroupcode);
+                    cmd.Parameters.AddWithValue("@ledgergroupname", ledger.ledgergroupname);
+                    cmd.Parameters.AddWithValue("@shortname", ledger.shortname);
+                    cmd.Parameters.AddWithValue("@ledgertypecode", ledger.ledgertypecode);
+                    cmd.Parameters.AddWithValue("@description", ledger.description ?? "");
+                    cmd.Parameters.AddWithValue("@isactive", ledger.isactive);
+                    cmd.Parameters.AddWithValue("@tenantcode", ledger.tenantcode);
+
+                    int rows = await cmd.ExecuteNonQueryAsync();
+
+                    if (rows == 0)
+                        return "Ledger Group not found";
+                }
+            }
+
+            return "Updated Successfully";
+        }
+
+
+
+        // DELETE LEDGER GROUP
+        public async Task<bool> DeleteLedgerGroup(int ledgergroupcode, string tenantcode)
+        {
+            using (var conn = new NpgsqlConnection(con))
+            {
+                await conn.OpenAsync();
+
+                string query = @"
+        UPDATE ledger_group_master
+        SET deleted = true
+        WHERE ledgergroupcode = @ledgergroupcode
+        AND tenantcode = @tenantcode
+        AND deleted = false";
+
+                using (var cmd = new NpgsqlCommand(query, conn))
+                {
+                    cmd.Parameters.AddWithValue("@ledgergroupcode", ledgergroupcode);
+                    cmd.Parameters.AddWithValue("@tenantcode", tenantcode);
+
+                    int rows = await cmd.ExecuteNonQueryAsync();
+
+                    return rows > 0;
+                }
+            }
+        }
+    }
+}
     }
 }
