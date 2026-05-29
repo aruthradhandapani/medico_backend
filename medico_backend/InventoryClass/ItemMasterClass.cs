@@ -2621,6 +2621,83 @@ namespace medico_backend.InventoryClass
                 }
             }
         }
+        public async Task<List<ledger_type_master>> GetLedgerTypes()
+{
+    List<ledger_type_master> list = new List<ledger_type_master>();
+
+    using (var conn = new NpgsqlConnection(con))
+    {
+        await conn.OpenAsync();
+
+        string query = @"SELECT * FROM ledger_type_master 
+                         WHERE deleted = false
+                         ORDER BY ledgertypecode";
+
+        using (var cmd = new NpgsqlCommand(query, conn))
+        using (var reader = await cmd.ExecuteReaderAsync())
+        {
+            while (await reader.ReadAsync())
+            {
+                list.Add(new ledger_type_master
+                {
+                    ledgertypecode = Convert.ToInt32(reader["ledgertypecode"]),
+                    ledgertypename = reader["ledgertypename"].ToString(),
+                    shortname = reader["shortname"].ToString(),
+                    description = reader["description"].ToString(),
+                    naturetype = Convert.ToInt32(reader["naturetype"]),
+                    isactive = Convert.ToBoolean(reader["isactive"]),
+                    createddate = Convert.ToDateTime(reader["createddate"]),
+                    tenantcode = reader["tenantcode"].ToString(),
+                    isgstapplicable = Convert.ToBoolean(reader["isgstapplicable"]),
+                    isvatapplicable = Convert.ToBoolean(reader["isvatapplicable"]),
+                    sgstpercentage = Convert.ToDecimal(reader["sgstpercentage"]),
+                    cgstpercentage = Convert.ToDecimal(reader["cgstpercentage"]),
+                    igstpercentage = Convert.ToDecimal(reader["igstpercentage"]),
+                    deleted = Convert.ToBoolean(reader["deleted"])
+                });
+            }
+        }
+    }
+
+    return list;
+}
+
+// GET ALL
+public async Task<List<ledger_group_master>> GetLedgerGroups()
+{
+    List<ledger_group_master> list = new List<ledger_group_master>();
+
+    using (var conn = new NpgsqlConnection(con))
+    {
+        await conn.OpenAsync();
+
+        string query = @"SELECT * FROM ledger_group_master 
+                         WHERE deleted = false
+                         ORDER BY ledgergroupcode";
+
+        using (var cmd = new NpgsqlCommand(query, conn))
+        using (var reader = await cmd.ExecuteReaderAsync())
+        {
+            while (await reader.ReadAsync())
+            {
+                list.Add(new ledger_group_master
+                {
+                    ledgergroupcode = Convert.ToInt32(reader["ledgergroupcode"]),
+                    ledgergroupname = reader["ledgergroupname"].ToString(),
+                    shortname = reader["shortname"].ToString(),
+                    ledgertypecode = Convert.ToInt32(reader["ledgertypecode"]),
+                    description = reader["description"].ToString(),
+                    isactive = Convert.ToBoolean(reader["isactive"]),
+                    createddate = Convert.ToDateTime(reader["createddate"]),
+                    tenantcode = reader["tenantcode"].ToString(),
+                    deleted = Convert.ToBoolean(reader["deleted"])
+                });
+            }
+        }
+    }
+
+    return list;
+}
     }
 }
     
