@@ -54,125 +54,55 @@ namespace medico_backend.Class
                     return "Invalid reg_type. Allowed: WALKIN, ONLINE";
                 data.reg_type = data.reg_type.ToUpper();
 
-                // ── 3. Booking flow (ONLINE patient arriving at reception)
-                if (data.booking_id.HasValue && data.booking_id != Guid.Empty)
-                {
-                    string checkBookingSql = @"SELECT booking_status, token_no, 
-                                              slot_detail_id, booking_type
-                                       FROM   appointment_booking
-                                       WHERE  booking_id  = @booking_id
-                                       AND    tenant_code = @tenant_code
-                                       AND    isdeleted   = false";
+                // ── 3. Both WALKIN and ONLINE use booking flow ──────────
+                //       because WALKIN is now booked via /book endpoint
+                //       so both always have a booking_id
+                if (!data.booking_id.HasValue || data.booking_id == Guid.Empty)
+                    return "booking_id is required. Both WALKIN and ONLINE must be pre-booked.";
 
-                    var booking = await db.QueryFirstOrDefaultAsync(
-                        checkBookingSql, new { data.booking_id, data.tenant_code });
+                string checkBookingSql = @"SELECT booking_status, token_no,
+                                          slot_detail_id, booking_type,
+                                          booking_no
+                                   FROM   appointment_booking
+                                   WHERE  booking_id  = @booking_id
+                                   AND    tenant_code = @tenant_code
+                                   AND    isdeleted   = false";
 
-                    if (booking == null) return "Booking not found";
+                var booking = await db.QueryFirstOrDefaultAsync(
+                    checkBookingSql, new { data.booking_id, data.tenant_code });
 
-                    if (booking.booking_status == "CANCELLED")
-                        return "Cannot register a cancelled booking";
+                if (booking == null)
+                    return "Booking not found";
 
-                    if (booking.booking_status == "VISITED")
-                        return "Patient already registered for this booking";
+                if (booking.booking_status == "CANCELLED")
+                    return "Cannot register a cancelled booking";
 
-                    // ✅ Carry token from booking — token was already assigned at booking time
-                    data.token_no = (int)booking.token_no;
+                if (booking.booking_status == "VISITED")
+                    return "Patient already registered for this booking";
 
-                    // ✅ Carry reg_type from booking_type (ONLINE/WALKIN)
-                    data.reg_type = ((string)booking.booking_type).ToUpper();
+                // ✅ Carry token from booking — assigned at booking time
+                data.token_no = (int)booking.token_no;
 
-                    // ✅ Carry slot from booking
-                    if (data.slot_detail_id == null || data.slot_detail_id == Guid.Empty)
-                        data.slot_detail_id = (Guid?)booking.slot_detail_id;
+                // ✅ Carry reg_type from booking_type (WALKIN/ONLINE)
+                data.reg_type = ((string)booking.booking_type).ToUpper();
 
-                    // ✅ Mark booking as VISITED
-                    string markVisitedSql = @"UPDATE appointment_booking
-                                      SET    booking_status = 'VISITED',
-                                             updated_at     = now()
-                                      WHERE  booking_id     = @booking_id
-                                      AND    tenant_code    = @tenant_code";
+                // ✅ Carry booking_no from booking
+                data.booking_no = (string)booking.booking_no;
 
-                    await db.ExecuteAsync(markVisitedSql,
-                        new { data.booking_id, data.tenant_code });
-                }
-                else
-                {
-                    // ── 4. WALKIN flow — no booking, generate token slot-wise ──
-                    if (data.slot_detail_id.HasValue && data.slot_detail_id != Guid.Empty)
-                    {
-                        string slotSql = @"SELECT slot_status,
-                                          max_walkin,  walkin_count,
-                                          max_online,  online_count,
-                                          max_patients, booked_count
-                                   FROM   doctor_appointment_slot_details
-                                   WHERE  slot_detail_id = @slot_detail_id
-                                   AND    dcode          = @dcode
-                                   AND    tenant_code    = @tenant_code
-                                   AND    isdeleted      = false
-                                   AND    is_active      = true";
+                // ✅ Carry slot from booking if not provided
+                if (data.slot_detail_id == null || data.slot_detail_id == Guid.Empty)
+                    data.slot_detail_id = (Guid?)booking.slot_detail_id;
 
-                        var slot = await db.QueryFirstOrDefaultAsync(
-                            slotSql, new { data.slot_detail_id, data.dcode, data.tenant_code });
+                // ✅ Mark booking as VISITED
+                await db.ExecuteAsync(
+                    @"UPDATE appointment_booking
+              SET    booking_status = 'VISITED',
+                     updated_at     = now()
+              WHERE  booking_id     = @booking_id
+              AND    tenant_code    = @tenant_code",
+                    new { data.booking_id, data.tenant_code });
 
-                        if (slot == null) return "Slot not found or inactive";
-                        if (slot.slot_status == "CANCELLED") return "Slot is cancelled";
-                        if (slot.slot_status == "CLOSED") return "Slot is closed";
-                        if (slot.slot_status == "FULL") return "Slot is full";
-
-                        if (data.reg_type == "WALKIN")
-                        {
-                            if ((int)slot.walkin_count >= (int)slot.max_walkin)
-                                return $"Walk-in slot full. Max allowed: {slot.max_walkin}";
-
-                            data.token_no = (int)slot.walkin_count + 1;
-
-                            await db.ExecuteAsync(@"UPDATE doctor_appointment_slot_details
-                                           SET    walkin_count = walkin_count + 1,
-                                                  booked_count = booked_count + 1,
-                                                  slot_status  = CASE
-                                                      WHEN (booked_count + 1) >= max_patients
-                                                      THEN 'FULL' ELSE slot_status
-                                                  END,
-                                                  updated_at   = now()
-                                           WHERE  slot_detail_id = @slot_detail_id
-                                           AND    tenant_code    = @tenant_code",
-                                new { data.slot_detail_id, data.tenant_code });
-                        }
-                        else // ONLINE walkin without booking — rare but handled
-                        {
-                            if ((int)slot.online_count >= (int)slot.max_online)
-                                return $"Online slot full. Max allowed: {slot.max_online}";
-
-                            data.token_no = (int)slot.online_count + 1;
-
-                            await db.ExecuteAsync(@"UPDATE doctor_appointment_slot_details
-                                           SET    online_count = online_count + 1,
-                                                  booked_count = booked_count + 1,
-                                                  slot_status  = CASE
-                                                      WHEN (booked_count + 1) >= max_patients
-                                                      THEN 'FULL' ELSE slot_status
-                                                  END,
-                                                  updated_at   = now()
-                                           WHERE  slot_detail_id = @slot_detail_id
-                                           AND    tenant_code    = @tenant_code",
-                                new { data.slot_detail_id, data.tenant_code });
-                        }
-                    }
-                    else
-                    {
-                        // ── 5. No slot, no booking — daily token fallback ──────
-                        data.token_no = await db.ExecuteScalarAsync<int>(
-                            @"SELECT COALESCE(MAX(token_no), 0) + 1
-                      FROM   op_registration
-                      WHERE  dcode       = @dcode
-                      AND    tenant_code = @tenant_code
-                      AND    isdeleted   = false
-                      AND    visit_date  = CURRENT_DATE",
-                            new { data.dcode, data.tenant_code });
-                    }
-                }
-
-                // ── 6. Set defaults & insert ────────────────────────────
+                // ── 4. Set defaults & insert ────────────────────────────
                 data.op_id = Guid.NewGuid();
                 data.op_no = await GenerateOpNo(db, data.tenant_code!);
                 data.visit_date = DateOnly.FromDateTime(DateTime.UtcNow);
@@ -181,15 +111,15 @@ namespace medico_backend.Class
                 data.updated_at = DateTime.SpecifyKind(DateTime.UtcNow, DateTimeKind.Utc);
 
                 await db.ExecuteAsync(@"INSERT INTO op_registration
-            (op_id, op_no, booking_id, booking_no, slot_detail_id, custid, dcode,
-             department_code, visit_type, reg_type, visit_date,
-             token_no, queue_no, visit_status, notes,
-             tenant_code, isdeleted, created_at, updated_at)
-           VALUES
-            (@op_id, @op_no, @booking_id, @booking_no, @slot_detail_id, @custid, @dcode,
-             @department_code, @visit_type, @reg_type, @visit_date,
-             @token_no, @queue_no, @visit_status, @notes,
-             @tenant_code, @isdeleted, @created_at, @updated_at)", new
+    (op_id, op_no, booking_id, booking_no, slot_detail_id, custid, dcode,
+     department_code, visit_type, reg_type, visit_date,
+     token_no, queue_no, visit_status, notes,
+     tenant_code, isdeleted, created_at, updated_at)
+   VALUES
+    (@op_id, @op_no, @booking_id, @booking_no, @slot_detail_id, @custid, @dcode,
+     @department_code, @visit_type, @reg_type, @visit_date,
+     @token_no, @queue_no, @visit_status, @notes,
+     @tenant_code, @isdeleted, @created_at, @updated_at)", new
                 {
                     data.op_id,
                     data.op_no,

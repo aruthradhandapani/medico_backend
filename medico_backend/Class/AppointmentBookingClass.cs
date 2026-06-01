@@ -97,13 +97,13 @@ namespace Medico_Backend.Class
 
                 // Fetch slot and check limits based on booking_type
                 string checkSql = @"SELECT slot_status, booked_count, max_patients,
-                                           walkin_count, max_walkin,
-                                           online_count, max_online
-                                    FROM   doctor_appointment_slot_details  
-                                    WHERE  slot_detail_id = @slot_detail_id
-                                    AND    tenant_code    = @tenant_code
-                                    AND    isdeleted      = false
-                                    AND    is_active      = true";
+                                   walkin_count, max_walkin,
+                                   online_count, max_online
+                            FROM   doctor_appointment_slot_details  
+                            WHERE  slot_detail_id = @slot_detail_id
+                            AND    tenant_code    = @tenant_code
+                            AND    isdeleted      = false
+                            AND    is_active      = true";
 
                 var slot = await db.QueryFirstOrDefaultAsync(
                     checkSql, new { data.slot_detail_id, data.tenant_code });
@@ -129,17 +129,17 @@ namespace Medico_Backend.Class
                     data.booking_status = "BOOKED";
 
                 string insertSql = @"INSERT INTO appointment_booking
-        (booking_id, custid, dcode, slot_detail_id, slot_master_id,
-         appointment_date, slot_start_time, slot_end_time,
-         token_no, booking_no, booking_status, booking_type, notes,    
-         rescheduled_from, reschedule_reason,
-         tenant_code, isdeleted, created_at, updated_at)
-       VALUES
-        (@booking_id, @custid, @dcode, @slot_detail_id, @slot_master_id,
-         @appointment_date, @slot_start_time, @slot_end_time,
-         @token_no, @booking_no, @booking_status, @booking_type, @notes,
-         @rescheduled_from, @reschedule_reason,
-         @tenant_code, @isdeleted, @created_at, @updated_at)";
+(booking_id, custid, dcode, slot_detail_id, slot_master_id,
+ appointment_date, slot_start_time, slot_end_time,
+ token_no, booking_no, booking_status, booking_type, notes,    
+ rescheduled_from, reschedule_reason,
+ tenant_code, isdeleted, usercode, created_at, updated_at)
+VALUES
+(@booking_id, @custid, @dcode, @slot_detail_id, @slot_master_id,
+ @appointment_date, @slot_start_time, @slot_end_time,
+ @token_no, @booking_no, @booking_status, @booking_type, @notes,
+ @rescheduled_from, @reschedule_reason,
+ @tenant_code, @isdeleted, @usercode, @created_at, @updated_at)";
 
                 await db.ExecuteAsync(insertSql, new
                 {
@@ -152,7 +152,7 @@ namespace Medico_Backend.Class
                     slot_start_time = data.slot_start_time.ToTimeSpan(),
                     slot_end_time = data.slot_end_time.ToTimeSpan(),
                     data.token_no,
-                    data.booking_no,       // ← add this
+                    data.booking_no,
                     data.booking_status,
                     data.booking_type,
                     data.notes,
@@ -160,6 +160,7 @@ namespace Medico_Backend.Class
                     data.reschedule_reason,
                     data.tenant_code,
                     data.isdeleted,
+                    data.usercode,
                     data.created_at,
                     data.updated_at
                 });
@@ -167,29 +168,34 @@ namespace Medico_Backend.Class
                 // Increment correct counter based on booking_type
                 string updateSlotSql = data.booking_type == "WALKIN"
                     ? @"UPDATE doctor_appointment_slot_details
-                        SET booked_count = booked_count + 1,
-                            walkin_count = walkin_count + 1,
-                            slot_status  = CASE
-                                             WHEN booked_count + 1 >= max_patients THEN 'FULL'
-                                             ELSE 'OPEN'
-                                           END,
-                            updated_at   = now()
-                        WHERE slot_detail_id = @slot_detail_id
-                        AND   tenant_code    = @tenant_code"
+                SET booked_count = booked_count + 1,
+                    walkin_count = walkin_count + 1,
+                    slot_status  = CASE
+                                     WHEN booked_count + 1 >= max_patients THEN 'FULL'
+                                     ELSE 'OPEN'
+                                   END,
+                    updated_at   = now()
+                WHERE slot_detail_id = @slot_detail_id
+                AND   tenant_code    = @tenant_code"
 
                     : @"UPDATE doctor_appointment_slot_details
-                        SET booked_count = booked_count + 1,
-                            online_count = online_count + 1,
-                            slot_status  = CASE
-                                             WHEN booked_count + 1 >= max_patients THEN 'FULL'
-                                             ELSE 'OPEN'
-                                           END,
-                            updated_at   = now()
-                        WHERE slot_detail_id = @slot_detail_id
-                        AND   tenant_code    = @tenant_code";
+                SET booked_count = booked_count + 1,
+                    online_count = online_count + 1,
+                    slot_status  = CASE
+                                     WHEN booked_count + 1 >= max_patients THEN 'FULL'
+                                     ELSE 'OPEN'
+                                   END,
+                    updated_at   = now()
+                WHERE slot_detail_id = @slot_detail_id
+                AND   tenant_code    = @tenant_code";
 
                 await db.ExecuteAsync(updateSlotSql,
                     new { data.slot_detail_id, data.tenant_code });
+
+                // ✅ WALKIN → store usercode | ONLINE → store custid
+                string actionBy = data.booking_type == "WALKIN"
+                    ? data.usercode.ToString()
+                    : data.custid.ToString();
 
                 await WriteBookingLog(db, new AppointmentBookingLogModel
                 {
@@ -198,7 +204,7 @@ namespace Medico_Backend.Class
                     custid = data.custid,
                     dcode = data.dcode,
                     action = "BOOKED",
-                    action_by = data.custid.ToString(),
+                    action_by = actionBy,   // ✅ WALKIN = usercode, ONLINE = custid
                     new_slot_detail_id = data.slot_detail_id,
                     new_appointment_date = data.appointment_date,
                     new_slot_start_time = data.slot_start_time,

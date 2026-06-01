@@ -25,6 +25,7 @@ namespace Medico_Backend.Model
         public string? notes { get; set; }
         public string? tenant_code { get; set; }
         public bool isdeleted { get; set; } = false;
+        public int usercode { get; set; } = 0;
         public DateTime created_at { get; set; } =
             DateTime.SpecifyKind(DateTime.UtcNow, DateTimeKind.Utc);
         public DateTime updated_at { get; set; } =
