@@ -1,4 +1,5 @@
 ﻿using Dapper;
+using Medico_Backend.Model;
 using Npgsql;
 using System.Data;
 using static medico_backend.Model.OPRegistrationModel;
@@ -186,11 +187,10 @@ namespace medico_backend.Class
             {
                 using IDbConnection db = new NpgsqlConnection(_db_conn);
 
-                // Validate op exists
                 string checkSql = @"SELECT op_id FROM op_registration
-                                WHERE  op_id       = @op_id
-                                AND    tenant_code = @tenant_code
-                                AND    isdeleted   = false";
+                            WHERE  op_id       = @op_id
+                            AND    tenant_code = @tenant_code
+                            AND    isdeleted   = false";
 
                 var op = await db.QueryFirstOrDefaultAsync(
                     checkSql, new { data.op_id, data.tenant_code });
@@ -209,21 +209,27 @@ namespace medico_backend.Class
                 data.updated_at = DateTime.SpecifyKind(DateTime.UtcNow, DateTimeKind.Utc);
 
                 string insertSql = @"INSERT INTO patient_vitals
-                (vital_id, op_id, op_no, custid, dcode,
-                 height_cm, weight_kg, bmi, temperature_f,
-                 pulse_rate, respiratory_rate,
-                 bp_systolic, bp_diastolic, spo2,
-                 sugar_level, pain_scale, allergy_notes,
-                 hba1c, ecg_notes, head_circumference_cm,
-                 entered_by, tenant_code, isdeleted, created_at, updated_at)
-               VALUES
-                (@vital_id, @op_id, @op_no, @custid, @dcode,
-                 @height_cm, @weight_kg, @bmi, @temperature_f,
-                 @pulse_rate, @respiratory_rate,
-                 @bp_systolic, @bp_diastolic, @spo2,
-                 @sugar_level, @pain_scale, @allergy_notes,
-                 @hba1c, @ecg_notes, @head_circumference_cm,
-                 @entered_by, @tenant_code, @isdeleted, @created_at, @updated_at)";
+            (vital_id, op_id, op_no, custid, dcode,
+             height_cm, weight_kg, bmi, temperature_f,
+             pulse_rate, respiratory_rate,
+             bp_systolic, bp_diastolic, spo2,
+             sugar_level, pain_scale,
+             waist_cm, hip_cm,
+             pedal_oedema, jvp, cvs, rs, cns, abdomen,
+             cardiac_monitor, cd_echo, blood_chemistry,
+             allergy_notes, hba1c, ecg_notes, head_circumference_cm,
+             entered_by, tenant_code, isdeleted, created_at, updated_at)
+           VALUES
+            (@vital_id, @op_id, @op_no, @custid, @dcode,
+             @height_cm, @weight_kg, @bmi, @temperature_f,
+             @pulse_rate, @respiratory_rate,
+             @bp_systolic, @bp_diastolic, @spo2,
+             @sugar_level, @pain_scale,
+             @waist_cm, @hip_cm,
+             @pedal_oedema, @jvp, @cvs, @rs, @cns, @abdomen,
+             @cardiac_monitor, @cd_echo, @blood_chemistry,
+             @allergy_notes, @hba1c, @ecg_notes, @head_circumference_cm,
+             @entered_by, @tenant_code, @isdeleted, @created_at, @updated_at)";
 
                 await db.ExecuteAsync(insertSql, data);
 
@@ -231,6 +237,8 @@ namespace medico_backend.Class
             }
             catch (Exception ex) { return ex.Message; }
         }
+
+
 
         // ─────────────────────────────────────────
         // GET TODAY'S OP LIST BY DOCTOR
@@ -290,7 +298,6 @@ namespace medico_backend.Class
             {
                 using IDbConnection db = new NpgsqlConnection(_db_conn);
 
-                // Check vital exists
                 string checkSql = @"SELECT vital_id FROM patient_vitals
                             WHERE vital_id    = @vital_id
                             AND   tenant_code = @tenant_code
@@ -311,26 +318,37 @@ namespace medico_backend.Class
                 data.updated_at = DateTime.SpecifyKind(DateTime.UtcNow, DateTimeKind.Utc);
 
                 string sql = @"UPDATE patient_vitals SET
-                        height_cm             = @height_cm,
-                        weight_kg             = @weight_kg,
-                        bmi                   = @bmi,
-                        temperature_f         = @temperature_f,
-                        pulse_rate            = @pulse_rate,
-                        respiratory_rate      = @respiratory_rate,
-                        bp_systolic           = @bp_systolic,
-                        bp_diastolic          = @bp_diastolic,
-                        spo2                  = @spo2,
-                        sugar_level           = @sugar_level,
-                        pain_scale            = @pain_scale,
-                        allergy_notes         = @allergy_notes,
-                        hba1c                 = @hba1c,
-                        ecg_notes             = @ecg_notes,
-                        head_circumference_cm = @head_circumference_cm,
-                        entered_by            = @entered_by,
-                        updated_at            = @updated_at
-                       WHERE vital_id    = @vital_id
-                       AND   tenant_code = @tenant_code
-                       AND   isdeleted   = false";
+                height_cm             = @height_cm,
+                weight_kg             = @weight_kg,
+                bmi                   = @bmi,
+                temperature_f         = @temperature_f,
+                pulse_rate            = @pulse_rate,
+                respiratory_rate      = @respiratory_rate,
+                bp_systolic           = @bp_systolic,
+                bp_diastolic          = @bp_diastolic,
+                spo2                  = @spo2,
+                sugar_level           = @sugar_level,
+                pain_scale            = @pain_scale,
+                waist_cm              = @waist_cm,
+                hip_cm                = @hip_cm,
+                pedal_oedema          = @pedal_oedema,
+                jvp                   = @jvp,
+                cvs                   = @cvs,
+                rs                    = @rs,
+                cns                   = @cns,
+                abdomen               = @abdomen,
+                cardiac_monitor       = @cardiac_monitor,
+                cd_echo               = @cd_echo,
+                blood_chemistry       = @blood_chemistry,
+                allergy_notes         = @allergy_notes,
+                hba1c                 = @hba1c,
+                ecg_notes             = @ecg_notes,
+                head_circumference_cm = @head_circumference_cm,
+                entered_by            = @entered_by,
+                updated_at            = @updated_at
+               WHERE vital_id    = @vital_id
+               AND   tenant_code = @tenant_code
+               AND   isdeleted   = false";
 
                 int rows = await db.ExecuteAsync(sql, data);
                 return rows > 0 ? "Success" : "Update failed";
@@ -372,6 +390,467 @@ namespace medico_backend.Class
 
             return await db.QueryFirstOrDefaultAsync<PatientVitalsModel>(
                 sql, new { vital_id, tenant_code });
+        }
+        // ─────────────────────────────────────────
+        // DIRECT WALK-IN REGISTRATION
+        // Flow 1: Patient knows doctor → pass dcode
+        // Flow 2: Patient doesn't know → pass duty_dcode (assigned at reception)
+        // ─────────────────────────────────────────
+        public async Task<string> DirectWalkinRegistration(
+     DirectWalkinRequest req,
+     string tenant_code)
+        {
+            try
+            {
+                using IDbConnection db = new NpgsqlConnection(_db_conn);
+
+                // Determine doctor
+                int assignedDcode = req.dcode.HasValue && req.dcode > 0
+                    ? req.dcode.Value
+                    : (req.duty_dcode.HasValue && req.duty_dcode > 0
+                        ? req.duty_dcode.Value
+                        : 0);
+
+                if (assignedDcode == 0)
+                    return "Either dcode or duty_dcode is required";
+
+                // Validate slot
+                var slot = await db.QueryFirstOrDefaultAsync<DoctorAppointmentSlotDetailsModel>(
+                @"SELECT *
+          FROM doctor_appointment_slot_details
+          WHERE slot_detail_id = @slot_detail_id
+            AND tenant_code = @tenant_code
+            AND isdeleted = false
+            AND is_active = true",
+                new
+                {
+                    req.slot_detail_id,
+                    tenant_code
+                });
+
+                if (slot == null)
+                    return "Slot not found";
+
+                // Validate doctor belongs to slot
+                if (slot.dcode != assignedDcode)
+                    return "Selected slot does not belong to selected doctor";
+
+                // Slot status check
+                if (slot.slot_status == "FULL")
+                    return "Slot is full";
+
+                if (slot.slot_status == "CANCELLED")
+                    return "Slot is cancelled";
+
+                if (slot.slot_status == "CLOSED")
+                    return "Slot is closed";
+
+                // Walk-in quota validation
+                if (slot.walkin_count >= slot.max_walkin)
+                    return "Walk-in quota full for this slot";
+
+                // Total capacity validation
+                if (slot.booked_count >= slot.max_patients)
+                    return "Slot capacity reached";
+
+                // Generate token
+                int token = slot.booked_count + 1;
+
+                var data = new OpRegistrationModel
+                {
+                    op_id = Guid.NewGuid(),
+                    op_no = await GenerateOpNo(db, tenant_code),
+
+                    custid = req.custid,
+                    dcode = assignedDcode,
+                    department_code = req.department_code,
+
+                    slot_detail_id = slot.slot_detail_id,
+
+                    visit_type = string.IsNullOrWhiteSpace(req.visit_type)
+                        ? "NEWVISIT"
+                        : req.visit_type.ToUpper(),
+
+                    reg_type = "WALKIN",
+
+                    visit_date = slot.appointment_date,
+
+                    token_no = token,
+                    queue_no = token,
+
+                    visit_status = "WAITING",
+
+                    notes = req.notes,
+
+                    is_direct_walkin = true,
+                    duty_dcode = req.duty_dcode,
+
+                    tenant_code = tenant_code,
+                    isdeleted = false,
+
+                    created_at = DateTime.SpecifyKind(
+                        DateTime.UtcNow,
+                        DateTimeKind.Utc),
+
+                    updated_at = DateTime.SpecifyKind(
+                        DateTime.UtcNow,
+                        DateTimeKind.Utc)
+                };
+
+                // Insert OP Registration
+                await db.ExecuteAsync(@"
+        INSERT INTO op_registration
+        (
+            op_id,
+            op_no,
+            custid,
+            dcode,
+            department_code,
+            slot_detail_id,
+            visit_type,
+            reg_type,
+            visit_date,
+            token_no,
+            queue_no,
+            visit_status,
+            notes,
+            is_direct_walkin,
+            duty_dcode,
+            tenant_code,
+            isdeleted,
+            created_at,
+            updated_at
+        )
+        VALUES
+        (
+            @op_id,
+            @op_no,
+            @custid,
+            @dcode,
+            @department_code,
+            @slot_detail_id,
+            @visit_type,
+            @reg_type,
+            @visit_date,
+            @token_no,
+            @queue_no,
+            @visit_status,
+            @notes,
+            @is_direct_walkin,
+            @duty_dcode,
+            @tenant_code,
+            @isdeleted,
+            @created_at,
+            @updated_at
+        )",
+                new
+                {
+                    data.op_id,
+                    data.op_no,
+                    data.custid,
+                    data.dcode,
+                    data.department_code,
+                    data.slot_detail_id,
+                    data.visit_type,
+                    data.reg_type,
+
+                    visit_date = data.visit_date.ToDateTime(TimeOnly.MinValue),
+
+                    data.token_no,
+                    data.queue_no,
+                    data.visit_status,
+                    data.notes,
+                    data.is_direct_walkin,
+                    data.duty_dcode,
+                    data.tenant_code,
+                    data.isdeleted,
+                    data.created_at,
+                    data.updated_at
+                });
+
+                // Update slot counters
+                await db.ExecuteAsync(@"
+        UPDATE doctor_appointment_slot_details
+        SET
+            booked_count = booked_count + 1,
+            walkin_count = walkin_count + 1,
+            updated_at = now()
+        WHERE slot_detail_id = @slot_detail_id
+          AND tenant_code = @tenant_code",
+                new
+                {
+                    slot_detail_id = slot.slot_detail_id,
+                    tenant_code
+                });
+
+                // Mark slot FULL if reached capacity
+                await db.ExecuteAsync(@"
+        UPDATE doctor_appointment_slot_details
+        SET slot_status = 'FULL'
+        WHERE slot_detail_id = @slot_detail_id
+          AND booked_count >= max_patients
+          AND tenant_code = @tenant_code",
+                new
+                {
+                    slot_detail_id = slot.slot_detail_id,
+                    tenant_code
+                });
+
+                return $"Success|OpNo:{data.op_no}|OpId:{data.op_id}|Token:{token}";
+            }
+            catch (Exception ex)
+            {
+                return ex.Message;
+            }
+        }
+
+        // ─────────────────────────────────────────
+        // TRANSFER TO ANOTHER DOCTOR
+        // Called after duty doctor sees patient and decides to refer to specialist.
+        // Old OP → TRANSFERRED, new OP created for specialist with WAITING status.
+        // ─────────────────────────────────────────
+        public async Task<string> TransferDoctor(
+    TransferDoctorRequest req, string tenant_code)
+        {
+            try
+            {
+                using IDbConnection db = new NpgsqlConnection(_db_conn);
+
+                var op = await db.QueryFirstOrDefaultAsync<OpRegistrationModel>(
+                    @"SELECT * FROM op_registration
+              WHERE op_id = @op_id
+              AND tenant_code = @tenant_code
+              AND isdeleted = false",
+                    new { req.op_id, tenant_code });
+
+                if (op == null)
+                    return "OP Registration not found";
+
+                if (op.visit_status == "COMPLETED")
+                    return "Cannot transfer a completed visit";
+
+                if (op.visit_status == "CANCELLED")
+                    return "Cannot transfer a cancelled visit";
+
+                if (op.visit_status == "TRANSFERRED")
+                    return "Already transferred";
+
+                DoctorAppointmentSlotDetailsModel? slot = null;
+
+                if (req.slot_detail_id.HasValue)
+                {
+                    slot = await db.QueryFirstOrDefaultAsync<DoctorAppointmentSlotDetailsModel>(
+                        @"SELECT *
+                  FROM doctor_appointment_slot_details
+                  WHERE slot_detail_id = @slot_detail_id
+                  AND tenant_code = @tenant_code
+                  AND isdeleted = false
+                  AND is_active = true",
+                        new
+                        {
+                            slot_detail_id = req.slot_detail_id,
+                            tenant_code
+                        });
+
+                    if (slot == null)
+                        return "Slot not found";
+
+                    if (slot.dcode != req.transfer_to_dcode)
+                        return "Selected slot does not belong to selected doctor";
+
+                    if (slot.slot_status == "FULL")
+                        return "Slot is full";
+
+                    if (slot.slot_status == "CANCELLED")
+                        return "Slot is cancelled";
+
+                    if (slot.slot_status == "CLOSED")
+                        return "Slot is closed";
+
+                    if (slot.booked_count >= slot.max_patients)
+                        return "Slot capacity reached";
+                }
+
+                // Generate token
+                int newToken;
+
+                if (slot != null)
+                {
+                    newToken = slot.booked_count + 1;
+                }
+                else
+                {
+                    newToken = await db.ExecuteScalarAsync<int>(
+                        @"SELECT COALESCE(MAX(token_no),0) + 1
+                  FROM op_registration
+                  WHERE dcode = @dcode
+                  AND tenant_code = @tenant_code
+                  AND isdeleted = false
+                  AND visit_date = (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata')::date",
+                        new
+                        {
+                            dcode = req.transfer_to_dcode,
+                            tenant_code
+                        });
+                }
+
+                // Mark old OP as transferred
+                await db.ExecuteAsync(
+                    @"UPDATE op_registration
+              SET visit_status = 'TRANSFERRED',
+                  transferred_to_dcode = @transfer_to_dcode,
+                  transfer_reason = @transfer_reason,
+                  updated_at = now()
+              WHERE op_id = @op_id
+              AND tenant_code = @tenant_code",
+                    new
+                    {
+                        req.op_id,
+                        req.transfer_to_dcode,
+                        req.transfer_reason,
+                        tenant_code
+                    });
+
+                var newOp = new OpRegistrationModel
+                {
+                    op_id = Guid.NewGuid(),
+                    op_no = await GenerateOpNo(db, tenant_code),
+
+                    custid = op.custid,
+                    dcode = req.transfer_to_dcode,
+                    department_code = op.department_code,
+
+                    slot_detail_id = req.slot_detail_id,
+
+                    visit_type = "FOLLOWUP",
+                    reg_type = op.reg_type,
+
+                    visit_date = slot != null
+                        ? slot.appointment_date
+                        : DateOnly.FromDateTime(
+                            TimeZoneInfo.ConvertTimeFromUtc(
+                                DateTime.UtcNow,
+                                TimeZoneInfo.FindSystemTimeZoneById("Asia/Kolkata"))),
+
+                    token_no = newToken,
+                    queue_no = newToken,
+
+                    visit_status = "WAITING",
+
+                    notes = $"Transferred from OP# {op.op_no}. Reason: {req.transfer_reason}",
+
+                    is_direct_walkin = op.is_direct_walkin,
+                    duty_dcode = op.duty_dcode,
+
+                    tenant_code = tenant_code,
+                    isdeleted = false,
+
+                    created_at = DateTime.SpecifyKind(DateTime.UtcNow, DateTimeKind.Utc),
+                    updated_at = DateTime.SpecifyKind(DateTime.UtcNow, DateTimeKind.Utc)
+                };
+
+                await db.ExecuteAsync(@"
+            INSERT INTO op_registration
+            (
+                op_id,
+                op_no,
+                custid,
+                dcode,
+                department_code,
+                slot_detail_id,
+                visit_type,
+                reg_type,
+                visit_date,
+                token_no,
+                queue_no,
+                visit_status,
+                notes,
+                is_direct_walkin,
+                duty_dcode,
+                tenant_code,
+                isdeleted,
+                created_at,
+                updated_at
+            )
+            VALUES
+            (
+                @op_id,
+                @op_no,
+                @custid,
+                @dcode,
+                @department_code,
+                @slot_detail_id,
+                @visit_type,
+                @reg_type,
+                @visit_date,
+                @token_no,
+                @queue_no,
+                @visit_status,
+                @notes,
+                @is_direct_walkin,
+                @duty_dcode,
+                @tenant_code,
+                @isdeleted,
+                @created_at,
+                @updated_at
+            )",
+                    new
+                    {
+                        newOp.op_id,
+                        newOp.op_no,
+                        newOp.custid,
+                        newOp.dcode,
+                        newOp.department_code,
+                        newOp.slot_detail_id,
+                        newOp.visit_type,
+                        newOp.reg_type,
+                        visit_date = newOp.visit_date.ToDateTime(TimeOnly.MinValue),
+                        newOp.token_no,
+                        newOp.queue_no,
+                        newOp.visit_status,
+                        newOp.notes,
+                        newOp.is_direct_walkin,
+                        newOp.duty_dcode,
+                        newOp.tenant_code,
+                        newOp.isdeleted,
+                        newOp.created_at,
+                        newOp.updated_at
+                    });
+
+                // Update slot counters
+                if (slot != null)
+                {
+                    await db.ExecuteAsync(
+                        @"UPDATE doctor_appointment_slot_details
+                  SET booked_count = booked_count + 1,
+                      updated_at = now()
+                  WHERE slot_detail_id = @slot_detail_id
+                  AND tenant_code = @tenant_code",
+                        new
+                        {
+                            slot_detail_id = slot.slot_detail_id,
+                            tenant_code
+                        });
+
+                    await db.ExecuteAsync(
+                        @"UPDATE doctor_appointment_slot_details
+                  SET slot_status = 'FULL'
+                  WHERE slot_detail_id = @slot_detail_id
+                  AND booked_count >= max_patients
+                  AND tenant_code = @tenant_code",
+                        new
+                        {
+                            slot_detail_id = slot.slot_detail_id,
+                            tenant_code
+                        });
+                }
+
+                return $"Success|NewOpNo:{newOp.op_no}|NewOpId:{newOp.op_id}|Token:{newToken}|TransferredTo:{req.transfer_to_dcode}";
+            }
+            catch (Exception ex)
+            {
+                return ex.Message;
+            }
         }
     }
 }

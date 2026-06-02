@@ -96,5 +96,25 @@ namespace medico_backend.Controllers
             if (data == null) return NotFound("Vital record not found");
             return Ok(data);
         }
+        // POST api/OpRegistration/direct-walkin
+        // Option 1: Pass dcode  → patient knows which doctor
+        // Option 2: Pass duty_dcode only → assigned to duty doctor at reception
+        [HttpPost("direct-walkin")]
+        public async Task<IActionResult> DirectWalkin([FromBody] DirectWalkinRequest req)
+        {
+            var tenant = Request.Headers["tenant_code"].ToString();
+            var res = await cls.DirectWalkinRegistration(req, tenant);
+            return Ok(res);
+        }
+
+        // POST api/OpRegistration/transfer-doctor
+        // After duty doctor consultation, transfer patient to specialist if needed
+        [HttpPost("transfer-doctor")]
+        public async Task<IActionResult> TransferDoctor([FromBody] TransferDoctorRequest req)
+        {
+            var tenant = Request.Headers["tenant_code"].ToString();
+            var res = await cls.TransferDoctor(req, tenant);
+            return Ok(res);
+        }
     }
 }

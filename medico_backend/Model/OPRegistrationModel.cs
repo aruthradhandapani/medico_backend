@@ -29,6 +29,10 @@ namespace medico_backend.Model
                 DateTime.SpecifyKind(DateTime.UtcNow, DateTimeKind.Utc);
             public DateTime updated_at { get; set; } =
                 DateTime.SpecifyKind(DateTime.UtcNow, DateTimeKind.Utc);
+            public bool is_direct_walkin { get; set; } = false;
+            public int? duty_dcode { get; set; }
+            public int? transferred_to_dcode { get; set; }
+            public string? transfer_reason { get; set; }
         }
 
         [Table("patient_vitals")]
@@ -41,7 +45,7 @@ namespace medico_backend.Model
             public decimal custid { get; set; }
             public int dcode { get; set; }
 
-            // Basic Vitals
+            // ── Basic Vitals ─────────────────────────────
             public decimal? height_cm { get; set; }
             public decimal? weight_kg { get; set; }
             public decimal? bmi { get; set; }               // auto calculated
@@ -52,12 +56,27 @@ namespace medico_backend.Model
             public int? bp_diastolic { get; set; }
             public decimal? spo2 { get; set; }
 
-            // Additional
+            // ── Additional Measurements ───────────────────
             public decimal? sugar_level { get; set; }
             public int? pain_scale { get; set; }
+            public decimal? waist_cm { get; set; }          // ✅ NEW — from old table
+            public decimal? hip_cm { get; set; }            // ✅ NEW — from old table
+
+            // ── Clinical Examination ──────────────────────
+            public string? pedal_oedema { get; set; }       // ✅ NEW — from old table
+            public string? jvp { get; set; }                // ✅ NEW — from old table
+            public string? cvs { get; set; }                // ✅ NEW — cardiovascular system
+            public string? rs { get; set; }                 // ✅ NEW — respiratory system
+            public string? cns { get; set; }                // ✅ NEW — central nervous system
+            public string? abdomen { get; set; }            // ✅ NEW — from old table
+
+            // ── Investigations ────────────────────────────
+            public string? cardiac_monitor { get; set; }    // ✅ NEW — from old table
+            public string? cd_echo { get; set; }            // ✅ NEW — from old table
+            public string? blood_chemistry { get; set; }    // ✅ NEW — from old table
             public string? allergy_notes { get; set; }
 
-            // Special dept
+            // ── Special Dept ──────────────────────────────
             public decimal? hba1c { get; set; }
             public string? ecg_notes { get; set; }
             public decimal? head_circumference_cm { get; set; }
@@ -75,6 +94,26 @@ namespace medico_backend.Model
         {
             public Guid op_id { get; set; }
             public string visit_status { get; set; } = string.Empty;
+        }
+        // Direct walk-in — no booking needed
+        public class DirectWalkinRequest
+        {
+            public decimal custid { get; set; }
+            public int? dcode { get; set; }           // null if patient doesn't know which doctor
+            public int? duty_dcode { get; set; }      // assigned at reception if no dcode
+            public int? department_code { get; set; }
+            public Guid? slot_detail_id { get; set; }
+            public string visit_type { get; set; } = "NEWVISIT";
+            public string? notes { get; set; }
+        }
+
+        // Transfer to another doctor after duty doctor consultation
+        public class TransferDoctorRequest
+        {
+            public Guid op_id { get; set; }
+            public int transfer_to_dcode { get; set; }
+            public string? transfer_reason { get; set; }
+            public Guid? slot_detail_id { get; set; }
         }
     }
 }
