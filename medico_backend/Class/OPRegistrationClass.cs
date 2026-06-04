@@ -697,12 +697,12 @@ namespace medico_backend.Class
                 // Mark old OP as transferred
                 await db.ExecuteAsync(
                     @"UPDATE op_registration
-              SET visit_status = 'TRANSFERRED',
+                    SET visit_status = 'TRANSFERRED',
                   transferred_to_dcode = @transfer_to_dcode,
                   transfer_reason = @transfer_reason,
                   updated_at = now()
-              WHERE op_id = @op_id
-              AND tenant_code = @tenant_code",
+                  WHERE op_id = @op_id
+                  AND tenant_code = @tenant_code",
                     new
                     {
                         req.op_id,
@@ -851,6 +851,40 @@ namespace medico_backend.Class
             {
                 return ex.Message;
             }
+        }
+        public async Task<List<DoctorBookingListModel>> GetDoctorBookings(
+    int dcode,
+    DateOnly appointment_date,
+    string tenant_code)
+        {
+            using IDbConnection db = new NpgsqlConnection(_db_conn);
+
+            string sql = @"
+        SELECT
+    b.booking_id,
+    b.booking_no,
+    b.custid,
+    b.dcode,
+    b.appointment_date,
+    b.token_no,
+    b.booking_status
+FROM appointment_booking b
+WHERE b.dcode = @dcode
+AND b.appointment_date = @appointment_date
+AND b.tenant_code = @tenant_code
+          AND b.isdeleted = false
+        ORDER BY b.token_no";
+
+            var result = await db.QueryAsync<DoctorBookingListModel>(
+                sql,
+                new
+                {
+                    dcode,
+                    appointment_date = appointment_date.ToDateTime(TimeOnly.MinValue),
+                    tenant_code
+                });
+
+            return result.ToList();
         }
     }
 }

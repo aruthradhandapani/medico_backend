@@ -116,5 +116,19 @@ namespace medico_backend.Controllers
             var res = await cls.TransferDoctor(req, tenant);
             return Ok(res);
         }
+        [HttpGet("doctor-bookings")]
+        public async Task<IActionResult> GetDoctorBookings(
+     int dcode,
+     DateOnly appointment_date)
+        {
+            var tenant = Request.Headers["tenant_code"].ToString();
+
+            var data = await cls.GetDoctorBookings(
+                dcode,
+                appointment_date,
+                tenant);
+
+            return Ok(data);
+        }
     }
 }

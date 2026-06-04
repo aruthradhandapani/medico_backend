@@ -49,7 +49,10 @@ builder.Services.AddScoped<TenantDirectUrlClass>();
 builder.Services.AddScoped<TenantDirectUrlController>();
 builder.Services.AddScoped<OpRegistrationClass>();
 builder.Services.AddScoped<OpRegistrationController>();
-
+builder.Services.AddScoped<PatientEMRClass>();
+builder.Services.AddScoped<PatientEMRController>();
+builder.Services.AddScoped<NewOPCaseSheetClass>();
+builder.Services.AddScoped<CaseSheetController>();
 
 builder.Services.AddSingleton<IAmazonS3>(sp =>
 {

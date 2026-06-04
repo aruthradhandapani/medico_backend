@@ -115,5 +115,27 @@ namespace medico_backend.Model
             public string? transfer_reason { get; set; }
             public Guid? slot_detail_id { get; set; }
         }
+        public class DoctorBookingListModel
+        {
+            public Guid booking_id { get; set; }
+            public string? booking_no { get; set; }
+            public decimal custid { get; set; }
+
+            public string? patient_name { get; set; }
+
+            public int dcode { get; set; }
+
+            public DateOnly appointment_date { get; set; }
+
+            public TimeOnly slot_start_time { get; set; }
+            public TimeOnly slot_end_time { get; set; }
+
+            public int token_no { get; set; }
+
+            public string? booking_status { get; set; }
+            public string? booking_type { get; set; }
+
+            public string? notes { get; set; }
+        }
     }
 }
