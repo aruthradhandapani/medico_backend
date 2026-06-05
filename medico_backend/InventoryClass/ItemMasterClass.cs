@@ -17,111 +17,110 @@ namespace medico_backend.InventoryClass
 
         // ─── ITEM MASTER ──────────────────────────────────────────────────────────────
 
-        public async Task<long> InsertItem(item_master item)
+ public async Task<string> InsertItem(item_master item)
+{
+    try
+    {
+        using (IDbConnection db = new NpgsqlConnection(con))
         {
-            try
-            {
-                using (IDbConnection db = new NpgsqlConnection(con))
-                {
-                    db.Open();
+            string query = @"
+            INSERT INTO item_master
+            (
+                itemname, shortname, description,
+                categorycode, subcategorycode, hsncode,
+                itemtype, gstpercentage, uomcode,
+                purchaserate, salesrate, mrp,
+                currentstock, minstock, reorderlevel,
+                packsize, isexpiry, expiryalertdays,
+                batchrequired, expiryrequired, serialrequired,
+                brandcode, manufacturercode, taxcode,
+                naturetype, manufacturername, ledgergroupcode,
+                drugname, packaging,
+                isactive, deleted, createddate,
+                usercode, tenantcode
+            )
+            VALUES
+            (
+                @itemname, @shortname, @description,
+                @categorycode, @subcategorycode, @hsnCode,
+                @itemtype, @gstpercentage, @uomcode,
+                @purchaserate, @salesrate, @mrp,
+                @currentstock, @minstock, @reorderlevel,
+                @packsize, @isexpiry, @expiryalertdays,
+                @batchrequired, @expiryrequired, @serialrequired,
+                @brandcode, @manufacturercode, @taxcode,
+                @naturetype, @manufacturername, @ledgergroupcode,
+                @drugname, @packaging,
+                @isactive, @deleted, @createddate,
+                @usercode, @tenantcode
+            );";
 
-                    string query;
+            await db.ExecuteAsync(query, item);
 
-                    if (item.itemcode == 0)
-                    {
-                        query = @"
-                            INSERT INTO item_master
-                            (
-                                itemname, shortname, description,
-                                categorycode, subcategorycode, itemtype,
-                                uomcode, purchaserate, salesrate,
-                                isactive, deleted, createddate,
-                                usercode, tenantcode,hsncode,gstpercentage,noofdays
-                            )
-                            VALUES
-                            (
-                                @itemname, @shortname, @description,
-                                @categorycode, @subcategorycode, @itemtype,
-                                @uomcode, @purchaserate, @salesrate,
-                                @isactive, @deleted, CURRENT_TIMESTAMP,
-                                @usercode, @tenantcode,@hsncode,@gstpercentage,@noofdays
-                            )
-                            RETURNING itemcode;";
-                    }
-                    else
-                    {
-                        query = @"
-                            UPDATE item_master
-                            SET
-                                itemname        = @itemname,
-                                shortname       = @shortname,
-                                description     = @description,
-                                categorycode    = @categorycode,
-                                subcategorycode = @subcategorycode,
-                                itemtype        = @itemtype,
-                                uomcode         = @uomcode,
-                                purchaserate    = @purchaserate,
-                                salesrate       = @salesrate,
-                                isactive        = @isactive,
-                                deleted         = @deleted,
-                                usercode        = @usercode,
-                                tenantcode      = @tenantcode,
-                                hsncode         = @hsncode,
-                                gstpercentage   = @gstpercentage,
-                                noofdays        = @noofdays
-                            WHERE itemcode = @itemcode
-                            RETURNING itemcode;";
-                    }
-
-                    return await db.ExecuteScalarAsync<long>(query, item);
-                }
-            }
-            catch (Exception ex)
-            {
-                throw new Exception("Upsert failed: " + ex.Message);
-            }
+            return "Item Inserted Successfully";
         }
-
-        public async Task<string> UpdateItem(item_master item)
+    }
+    catch (Exception ex)
+    {
+        return ex.Message;
+    }
+}
+     public async Task<string> UpdateItem(item_master item)
+{
+    try
+    {
+        using (IDbConnection db = new NpgsqlConnection(con))
         {
-            try
-            {
-                using (IDbConnection db = new NpgsqlConnection(con))
-                {
-                    db.Open();
+            string query = @"
+            UPDATE item_master
+            SET
+                itemname = @itemname,
+                shortname = @shortname,
+                description = @description,
+                categorycode = @categorycode,
+                subcategorycode = @subcategorycode,
+                hsncode = @hsnCode,
+                itemtype = @itemtype,
+                gstpercentage = @gstpercentage,
+                uomcode = @uomcode,
+                purchaserate = @purchaserate,
+                salesrate = @salesrate,
+                mrp = @mrp,
+                currentstock = @currentstock,
+                minstock = @minstock,
+                reorderlevel = @reorderlevel,
+                packsize = @packsize,
+                isexpiry = @isexpiry,
+                expiryalertdays = @expiryalertdays,
+                batchrequired = @batchrequired,
+                expiryrequired = @expiryrequired,
+                serialrequired = @serialrequired,
+                brandcode = @brandcode,
+                manufacturercode = @manufacturercode,
+                taxcode = @taxcode,
+                naturetype = @naturetype,
+                manufacturername = @manufacturername,
+                ledgergroupcode = @ledgergroupcode,
+                drugname = @drugname,
+                packaging = @packaging,
+                isactive = @isactive,
+                deleted = @deleted,
+                usercode = @usercode,
+                tenantcode = @tenantcode
+            WHERE itemcode = @itemcode;";
 
-                    string query = @"
-                        UPDATE public.item_master
-                        SET
-                            itemname        = @itemname,
-                            shortname       = @shortname,
-                            description     = @description,
-                            categorycode    = @categorycode,
-                            subcategorycode = @subcategorycode,
-                            itemtype        = @itemtype,
-                            uomcode         = @uomcode,
-                            purchaserate    = @purchaserate,
-                            salesrate       = @salesrate,
-                            isactive        = @isactive,
-                            deleted         = @deleted,
-                            usercode        = @usercode,
-                            tenantcode      = @tenantcode,
-                            hsncode         = @hsncode,
-                            gstpercentage   = @gstpercentage,
-                            noofdays        = @noofdays
-                        WHERE itemcode = @itemcode
-                          AND tenantcode = @tenantcode;";
+            int rows = await db.ExecuteAsync(query, item);
 
-                    int rows = await db.ExecuteAsync(query, item);
-                    return rows > 0 ? "Success" : "Failed";
-                }
-            }
-            catch (Exception ex)
-            {
-                throw new Exception("Item update failed: " + ex.Message);
-            }
+            return rows > 0
+                ? "Item Updated Successfully"
+                : "Item Not Found";
         }
-
+    }
+    catch (Exception ex)
+    {
+        return ex.Message;
+    }
+}
         public async Task<string> DeleteItem(long itemcode, string tenantcode)
         {
             try
