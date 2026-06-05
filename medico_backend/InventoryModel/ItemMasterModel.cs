@@ -69,45 +69,89 @@
      public string tenantcode { get; set; }
  }
     public class vendor_master
-    {
-        public long vendorcode { get; set; }
-        public string vendorname { get; set; }
-        public string shortname { get; set; }
-        public string vendortype { get; set; }
-        public string contactperson { get; set; }
-        public string phonenumber { get; set; }
-        public string alternatephonenumber { get; set; }
-        public string emailid { get; set; }
-        public string website { get; set; }
-        public string gstnumber { get; set; }
-        public string pannumber { get; set; }
-        public string taxid { get; set; }
-        public string registrationnumber { get; set; }
-        public string addressline1 { get; set; }
-        public string addressline2 { get; set; }
-        public string landmark { get; set; }
-        public string city { get; set; }
-        public string district { get; set; }
-        public string state { get; set; }
-        public string postalcode { get; set; }
-        public string countrycode { get; set; }
-        public string countryname { get; set; }
-        public string currencycode { get; set; }
-        public string paymentterms { get; set; }
-        public string creditperiod { get; set; }
-        public string bankname { get; set; }
-        public string accountnumber { get; set; }
-        public string ifsccode { get; set; }
-        public string swiftcode { get; set; }
-        public string ibannumber { get; set; }
-        public bool isactive { get; set; }
-        public bool deleted { get; set; }
-        public DateTime createddate { get; set; }
-        public DateTime? modifieddate { get; set; }
-        public long usercode { get; set; }
-        public string? tenantcode { get; set; }
-        public string branchcode { get; set; }
-    }
+ {
+     public long vendorcode { get; set; }
+
+     public string vendorname { get; set; }
+
+     public string shortname { get; set; }
+
+     public string vendortype { get; set; }
+
+     public string contactperson { get; set; }
+
+     public string phonenumber { get; set; }
+
+     public string alternatephonenumber { get; set; }
+
+     public string emailid { get; set; }
+
+     public string website { get; set; }
+
+     public string gstnumber { get; set; }
+
+     public string pannumber { get; set; }
+
+     public string taxid { get; set; }
+
+     public string registrationnumber { get; set; }
+
+     // New Fields
+
+     public string? druglicenseno { get; set; }
+
+     public string? fssaino { get; set; }
+
+     public decimal? vendorrating { get; set; }
+
+     public string addressline1 { get; set; }
+
+     public string addressline2 { get; set; }
+
+     public string landmark { get; set; }
+
+     public string city { get; set; }
+
+     public string district { get; set; }
+
+     public string state { get; set; }
+
+     public string postalcode { get; set; }
+
+     public string countrycode { get; set; }
+
+     public string countryname { get; set; }
+
+     public string currencycode { get; set; }
+
+     public string paymentterms { get; set; }
+
+     public string creditperiod { get; set; }
+
+     public string bankname { get; set; }
+
+     public string accountnumber { get; set; }
+
+     public string ifsccode { get; set; }
+
+     public string swiftcode { get; set; }
+
+     public string ibannumber { get; set; }
+
+     public bool isactive { get; set; }
+
+     public bool deleted { get; set; }
+
+     public DateTime createddate { get; set; }
+
+     public DateTime? modifieddate { get; set; }
+
+     public long usercode { get; set; }
+
+     public string tenantcode { get; set; }
+
+     public string branchcode { get; set; }
+ }
     public class purchase_master
     {
         public long purchasecode { get; set; }
