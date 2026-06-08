@@ -2696,6 +2696,267 @@ public async Task<List<ledger_group_master>> GetLedgerGroups()
 
     return list;
 }
+            public async Task<string> InsertSales(sales_request request)
+    {
+        using (var conn = new NpgsqlConnection(con))
+        {
+            await conn.OpenAsync();
+
+            using (var trans = await conn.BeginTransactionAsync())
+            {
+                try
+                {
+                    string masterQuery = @"
+            INSERT INTO sales_master
+            (
+                salescode,
+                billno,
+                billdate,
+                invoiceno,
+                invoicedate,
+                customercode,
+                grossamount,
+                discountamount,
+                taxamount,
+                netamount,
+                paymentmode,
+                paymentstatus,
+                currencycode,
+                isactive,
+                deleted,
+                remarks,
+                createddate,
+                modifieddate,
+                usercode,
+                tenantcode,
+                branchcode,
+                companycode,
+                ordercode
+            )
+            VALUES
+            (
+                @salescode,
+                @billno,
+                @billdate,
+                @invoiceno,
+                @invoicedate,
+                @customercode,
+                @grossamount,
+                @discountamount,
+                @taxamount,
+                @netamount,
+                @paymentmode,
+                @paymentstatus,
+                @currencycode,
+                @isactive,
+                @deleted,
+                @remarks,
+                @createddate,
+                @modifieddate,
+                @usercode,
+                @tenantcode,
+                @branchcode,
+                @companycode,
+                @ordercode
+            );";
+
+                    await conn.ExecuteAsync(
+                        masterQuery,
+                        request.master,
+                        trans
+                    );
+
+                    string detailQuery = @"
+            INSERT INTO sales_detail
+            (
+                salesdetailcode,
+                salescode,
+                itemcode,
+                quantity,
+                freequantity,
+                uomcode,
+                rate,
+                discountpercentage,
+                discountamount,
+                taxpercentage,
+                taxamount,
+                amount,
+                totalamount,
+                batchno,
+                manufacturingdate,
+                expirydate,
+                orderedqty,
+                deliveredqty,
+                returnedqty,
+                warehousecode,
+                tenantcode
+            )
+            VALUES
+            (
+                @salesdetailcode,
+                @salescode,
+                @itemcode,
+                @quantity,
+                @freequantity,
+                @uomcode,
+                @rate,
+                @discountpercentage,
+                @discountamount,
+                @taxpercentage,
+                @taxamount,
+                @amount,
+                @totalamount,
+                @batchno,
+                @manufacturingdate,
+                @expirydate,
+                @orderedqty,
+                @deliveredqty,
+                @returnedqty,
+                @warehousecode,
+                @tenantcode
+            );";
+
+                    foreach (var item in request.details)
+                    {
+                        item.salescode = request.master.salescode;
+
+                        await conn.ExecuteAsync(
+                            detailQuery,
+                            item,
+                            trans
+                        );
+                    }
+
+                    await trans.CommitAsync();
+
+                    return "Sales Inserted Successfully";
+                }
+                catch (Exception ex)
+                {
+                    await trans.RollbackAsync();
+
+                    return $"Error : {ex.Message}";
+                }
+            }
+        }
+    
+}
+    
+    public async Task<string> UpdateSales(sales_request request)
+    {
+        using (var conn = new NpgsqlConnection(con))
+        {
+            await conn.OpenAsync();
+
+            using (var trans = await conn.BeginTransactionAsync())
+            {
+                try
+                {
+                    string updateMaster = @"
+            UPDATE sales_master SET
+                billno=@billno,
+                billdate=@billdate,
+                invoiceno=@invoiceno,
+                invoicedate=@invoicedate,
+                customercode=@customercode,
+                grossamount=@grossamount,
+                discountamount=@discountamount,
+                taxamount=@taxamount,
+                netamount=@netamount,
+                paymentmode=@paymentmode,
+                paymentstatus=@paymentstatus,
+                currencycode=@currencycode,
+                remarks=@remarks,
+                modifieddate=NOW(),
+                usercode=@usercode,
+                tenantcode=@tenantcode,
+                branchcode=@branchcode,
+                companycode=@companycode,
+                ordercode=@ordercode
+            WHERE salescode=@salescode";
+
+                    await conn.ExecuteAsync(updateMaster, request.master, trans);
+
+                    await conn.ExecuteAsync(
+                        "DELETE FROM sales_detail WHERE salescode=@salescode",
+                        new { request.master.salescode },
+                        trans);
+
+                    string detailQuery = @"
+            INSERT INTO sales_detail
+            (
+                salesdetailcode,salescode,itemcode,quantity,
+                freequantity,uomcode,rate,
+                discountpercentage,discountamount,
+                taxpercentage,taxamount,
+                amount,totalamount,batchno,
+                manufacturingdate,expirydate,
+                orderedqty,deliveredqty,
+                returnedqty,warehousecode,
+                tenantcode
+            )
+            VALUES
+            (
+                @salesdetailcode,@salescode,@itemcode,@quantity,
+                @freequantity,@uomcode,@rate,
+                @discountpercentage,@discountamount,
+                @taxpercentage,@taxamount,
+                @amount,@totalamount,@batchno,
+                @manufacturingdate,@expirydate,
+                @orderedqty,@deliveredqty,
+                @returnedqty,@warehousecode,
+                @tenantcode
+            )";
+
+                    foreach (var item in request.details)
+                    {
+                        item.salescode = request.master.salescode;
+                        await conn.ExecuteAsync(detailQuery, item, trans);
+                    }
+
+                    await trans.CommitAsync();
+
+                    return "Sales Updated Successfully";
+                }
+                catch
+                {
+                    await trans.RollbackAsync();
+                    throw;
+                }
+            }
+        }
+    }
+    public async Task<IEnumerable<sales_master>> GetSales()
+    {
+        using (var conn = new NpgsqlConnection(con))
+        {
+            string query = @"
+    SELECT *
+    FROM sales_master
+    WHERE deleted = false
+    ORDER BY salescode DESC";
+
+            return await conn.QueryAsync<sales_master>(query);
+        }
+    }
+    public async Task<string> DeleteSales(long salescode)
+    {
+        using (var conn = new NpgsqlConnection(con))
+        {
+            await conn.OpenAsync();
+
+            string query = @"
+    UPDATE sales_master
+    SET deleted = true,
+        isactive = false,
+        modifieddate = NOW()
+    WHERE salescode = @salescode";
+
+            await conn.ExecuteAsync(query, new { salescode });
+
+            return "Sales Deleted Successfully";
+        }
+    }
     }
 }
     
