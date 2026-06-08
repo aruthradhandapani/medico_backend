@@ -1167,7 +1167,7 @@ namespace medico_backend.InventoryController
 
 
         // DELETE
-        [HttpDelete("deleteledgertype")]
+        [HttpGet("deleteledgertype")]
         public async Task<IActionResult> DeleteLedgerType(int ledgertypecode)
         {
             var tenantcode = GetTenantCode();
