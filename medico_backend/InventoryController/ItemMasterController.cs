@@ -60,7 +60,7 @@ namespace medico_backend.InventoryController
                 item.tenantcode = tenantcode;
 
                 var res = await itemclass.UpdateItem(item);
-                return res == "Success"
+                return res == "Item Updated Successfully"
                     ? Ok(new { Status = "Success", Message = "Item updated successfully" })
                     : BadRequest(new { Status = "Failed", Message = "Unable to update item" });
             }

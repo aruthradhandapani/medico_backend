@@ -65,13 +65,13 @@ namespace medico_backend.InventoryClass
         return ex.Message;
     }
 }
-     public async Task<string> UpdateItem(item_master item)
-{
-    try
-    {
-        using (IDbConnection db = new NpgsqlConnection(con))
+        public async Task<string> UpdateItem(item_master item)
         {
-            string query = @"
+            try
+            {
+                using (IDbConnection db = new NpgsqlConnection(con))
+                {
+                    string query = @"
             UPDATE item_master
             SET
                 itemname = @itemname,
@@ -99,7 +99,6 @@ namespace medico_backend.InventoryClass
                 manufacturercode = @manufacturercode,
                 taxcode = @taxcode,
                 naturetype = @naturetype,
-                manufacturername = @manufacturername,
                 ledgergroupcode = @ledgergroupcode,
                 drugname = @drugname,
                 packaging = @packaging,
@@ -109,18 +108,18 @@ namespace medico_backend.InventoryClass
                 tenantcode = @tenantcode
             WHERE itemcode = @itemcode;";
 
-            int rows = await db.ExecuteAsync(query, item);
+                    int rows = await db.ExecuteAsync(query, item);
 
-            return rows > 0
-                ? "Item Updated Successfully"
-                : "Item Not Found";
+                    return rows > 0
+                        ? "Item Updated Successfully"
+                        : "Item Not Found";
+                }
+            }
+            catch (Exception ex)
+            {
+                return ex.Message;
+            }
         }
-    }
-    catch (Exception ex)
-    {
-        return ex.Message;
-    }
-}
         public async Task<string> DeleteItem(long itemcode, string tenantcode)
         {
             try
