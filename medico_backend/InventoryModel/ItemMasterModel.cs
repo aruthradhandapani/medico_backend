@@ -1,4 +1,6 @@
-﻿namespace medico_backend.InventoryModel
+﻿using Dapper.Contrib.Extensions;
+
+namespace medico_backend.InventoryModel
 { public class item_master
  {
      public int itemcode { get; set; }
@@ -503,38 +505,23 @@ public class purchase_detail
         public DateTime createddate { get; set; }
         public string? tenantcode { get; set; }
     }
+    [Table("ledger_type_master")]
     public class ledger_type_master
     {
-
-        public int ledgertypecode { get; set; }
+        [Key]
+        public int? ledgertypecode { get; set; }
         public string ledgertypename { get; set; }
         public string shortname { get; set; }
         public string description { get; set; }
-
-        // Nature Type
-        // 1 = Asset
-        // 2 = Liability
-        // 3 = Expense
-        // 4 = Income
         public int naturetype { get; set; }
-
         public bool isactive { get; set; } = true;
-
-        public DateTime createddate { get; set; } = DateTime.Now;
-
+        public DateTime createddate { get; set; } = DateTime.UtcNow;
         public string tenantcode { get; set; }
-
-        // GST Details
         public bool isgstapplicable { get; set; } = false;
-
         public bool isvatapplicable { get; set; } = false;
-
         public decimal sgstpercentage { get; set; } = 0;
-
         public decimal cgstpercentage { get; set; } = 0;
-
         public decimal igstpercentage { get; set; } = 0;
-
         public bool deleted { get; set; } = false;
     }
     public class ledger_group_master
@@ -659,4 +646,4 @@ public class purchase_detail
     }
 }
 
-}
+

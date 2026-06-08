@@ -1,8 +1,9 @@
-﻿using medico_backend.InventoryModel;
+﻿using Dapper;
+using Dapper.Contrib.Extensions;
+using medico_backend.InventoryModel;
 using Npgsql;
-using System.Data;
 using OfficeOpenXml;
-using Dapper;
+using System.Data;
 
 namespace medico_backend.InventoryClass
 {
@@ -2351,71 +2352,25 @@ namespace medico_backend.InventoryClass
                 return rows > 0;
             }
         }
-            // INSERT LEDGER TYPE
+        // INSERT LEDGER TYPE
         public async Task<string> InsertLedgerType(ledger_type_master ledger)
         {
-            using (var conn = new NpgsqlConnection(con))
+            try
             {
-                await conn.OpenAsync();
+                using IDbConnection db = new NpgsqlConnection(con);
+                ledger.ledgertypecode = null;
+                ledger.createddate = DateTime.UtcNow;
+                ledger.deleted = false;
+                ledger.isactive = true;
 
-                string query = @"
-        INSERT INTO ledger_type_master
-        (
-            ledgertypecode,
-            ledgertypename,
-            shortname,
-            description,
-            naturetype,
-            isactive,
-            createddate,
-            tenantcode,
-            isgstapplicable,
-            isvatapplicable,
-            sgstpercentage,
-            cgstpercentage,
-            igstpercentage,
-            deleted
-        )
-        VALUES
-        (
-            @ledgertypecode,
-            @ledgertypename,
-            @shortname,
-            @description,
-            @naturetype,
-            @isactive,
-            @createddate,
-            @tenantcode,
-            @isgstapplicable,
-            @isvatapplicable,
-            @sgstpercentage,
-            @cgstpercentage,
-            @igstpercentage,
-            @deleted
-        )";
-
-                using (var cmd = new NpgsqlCommand(query, conn))
-                {
-                    cmd.Parameters.AddWithValue("@ledgertypecode", ledger.ledgertypecode);
-                    cmd.Parameters.AddWithValue("@ledgertypename", ledger.ledgertypename);
-                    cmd.Parameters.AddWithValue("@shortname", ledger.shortname);
-                    cmd.Parameters.AddWithValue("@description", ledger.description ?? "");
-                    cmd.Parameters.AddWithValue("@naturetype", ledger.naturetype);
-                    cmd.Parameters.AddWithValue("@isactive", ledger.isactive);
-                    cmd.Parameters.AddWithValue("@createddate", ledger.createddate);
-                    cmd.Parameters.AddWithValue("@tenantcode", ledger.tenantcode);
-                    cmd.Parameters.AddWithValue("@isgstapplicable", ledger.isgstapplicable);
-                    cmd.Parameters.AddWithValue("@isvatapplicable", ledger.isvatapplicable);
-                    cmd.Parameters.AddWithValue("@sgstpercentage", ledger.sgstpercentage);
-                    cmd.Parameters.AddWithValue("@cgstpercentage", ledger.cgstpercentage);
-                    cmd.Parameters.AddWithValue("@igstpercentage", ledger.igstpercentage);
-                    cmd.Parameters.AddWithValue("@deleted", ledger.deleted);
-
-                    await cmd.ExecuteNonQueryAsync();
-                }
+                await db.InsertAsync(ledger);
+                return "Inserted Successfully";
             }
-
-            return "Inserted Successfully";
+            catch (Exception ex)
+            {
+                Console.WriteLine("InsertLedgerType ERROR: " + ex.Message);
+                return ex.Message;
+            }
         }
 
 

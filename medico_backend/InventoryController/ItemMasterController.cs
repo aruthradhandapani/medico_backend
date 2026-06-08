@@ -1112,30 +1112,27 @@ namespace medico_backend.InventoryController
                 return BadRequest(new { Status = "Failed", Message = ex.Message });
             }
         }
-             [HttpPost("insertledgertype")]
+        [HttpPost("insertledgertype")]
         public async Task<IActionResult> InsertLedgerType([FromBody] ledger_type_master ledger)
         {
-            var tenantcode = GetTenantCode();
-
-            if (string.IsNullOrEmpty(tenantcode))
+            try
             {
-                return BadRequest(new
-                {
-                    Status = "Failed",
-                    Message = "Tenant code missing"
-                });
+                var tenantcode = GetTenantCode();
+                if (string.IsNullOrEmpty(tenantcode))
+                    return BadRequest(new { Status = "Failed", Message = "Tenant code missing" });
+
+                ledger.tenantcode = tenantcode;
+
+                var result = await itemclass.InsertLedgerType(ledger);
+
+                return result == "Inserted Successfully"
+                    ? Ok(new { Status = "Success", Message = result })
+                    : BadRequest(new { Status = "Failed", Message = result });
             }
-
-            // Override tenantcode from header
-            ledger.tenantcode = tenantcode;
-
-            var result = await itemclass.InsertLedgerType(ledger);
-
-            return Ok(new
+            catch (Exception ex)
             {
-                Status = "Success",
-                Message = result
-            });
+                return BadRequest(new { Status = "Failed", Message = ex.Message });
+            }
         }
 
 
