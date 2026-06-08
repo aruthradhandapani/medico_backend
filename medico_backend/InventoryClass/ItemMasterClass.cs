@@ -34,7 +34,7 @@ namespace medico_backend.InventoryClass
                 packsize, isexpiry, expiryalertdays,
                 batchrequired, expiryrequired, serialrequired,
                 brandcode, manufacturercode, taxcode,
-                naturetype, manufacturername, ledgergroupcode,
+                naturetype, ledgergroupcode,
                 drugname, packaging,
                 isactive, deleted, createddate,
                 usercode, tenantcode
@@ -49,7 +49,7 @@ namespace medico_backend.InventoryClass
                 @packsize, @isexpiry, @expiryalertdays,
                 @batchrequired, @expiryrequired, @serialrequired,
                 @brandcode, @manufacturercode, @taxcode,
-                @naturetype, @manufacturername, @ledgergroupcode,
+                @naturetype, @ledgergroupcode,
                 @drugname, @packaging,
                 @isactive, @deleted, @createddate,
                 @usercode, @tenantcode

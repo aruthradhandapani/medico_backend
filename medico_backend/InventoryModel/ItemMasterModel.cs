@@ -29,7 +29,8 @@
 
      public decimal reorderlevel { get; set; }
      public decimal packsize { get; set; }
-
+     public bool isexpiry { get; set; }          // Missing
+     public int expiryalertdays { get; set; }    // Missing
      public bool batchrequired { get; set; }
 
      public bool expiryrequired { get; set; }
