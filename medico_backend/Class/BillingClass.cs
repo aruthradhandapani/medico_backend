@@ -42,6 +42,7 @@ namespace medico_backend.Class
 
         private async Task<(string status, HmsBillResponse? data)> CreateBill(CreateHmsBillRequest req, string tenantCode)
         {
+            _logger.LogInformation(">>>>>> RESOLVED TENANT CODE: [{tenant}]", tenantCode);
             using var db = GetConnection();
             db.Open();
             using var tx = db.BeginTransaction();

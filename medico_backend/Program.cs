@@ -1,6 +1,7 @@
 using Amazon.S3;
 using Dapper;
 using medico_backend.Class;
+using medico_backend.Controller;
 using medico_backend.Controllers;
 using medico_backend.InventoryClass;
 using medico_backend.InventoryController;
@@ -53,6 +54,8 @@ builder.Services.AddScoped<PatientEMRClass>();
 builder.Services.AddScoped<PatientEMRController>();
 builder.Services.AddScoped<NewOPCaseSheetClass>();
 builder.Services.AddScoped<CaseSheetController>();
+builder.Services.AddScoped<HmsBillingClass>();
+builder.Services.AddScoped<HmsBillingController>();
 
 builder.Services.AddSingleton<IAmazonS3>(sp =>
 {

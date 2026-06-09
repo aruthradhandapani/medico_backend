@@ -9,7 +9,6 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace medico_backend.Controller
 {
-    [Authorize]
     [ApiController]
     [Route("api/[controller]")]
     public class HmsBillingController : ControllerBase
@@ -24,9 +23,18 @@ namespace medico_backend.Controller
         // Helper framework parsing tenant claims identifiers safely
         private string GetTenantCode()
         {
-            return User.FindFirst("tenant_code")?.Value
-                   ?? User.FindFirst("TenantCode")?.Value
-                   ?? "SYSTEM"; // Base fallback context token parameter mapping
+            // 1. Try JWT claim first
+            var fromClaim = User.FindFirst("tenant_code")?.Value
+                         ?? User.FindFirst("TenantCode")?.Value;
+            if (!string.IsNullOrEmpty(fromClaim)) return fromClaim;
+
+            // 2. Read from request header
+            if (Request.Headers.TryGetValue("tenant_code", out var headerVal)
+                && !string.IsNullOrEmpty(headerVal))
+                return headerVal.ToString();
+
+            // 3. Last fallback
+            return "SYSTEM";
         }
 
         [HttpPost("save-bill")]

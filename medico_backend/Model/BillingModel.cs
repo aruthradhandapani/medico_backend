@@ -249,7 +249,7 @@ namespace medico_backend.Model
     [Table("billno_sequence")]
     public class HmsBillNoSequence
     {
-        [ExplicitKey] public long seq_id { get; set; }
+        [Key] public long seq_id { get; set; }
         public decimal? bncode { get; set; }
         public int? bhcode { get; set; }
         public decimal? cntcode { get; set; }
@@ -506,4 +506,66 @@ namespace medico_backend.Model
         public string barcode { get; set; } = string.Empty;
         public string snoprint { get; set; } = string.Empty;
     }
+    [Table("branch_master")]
+    public class BranchMasterRow
+    {
+        [ExplicitKey] public int bhcode { get; set; }
+        public int orderno { get; set; }
+        public string? shortname { get; set; }
+        public string? name { get; set; }
+        public string? address { get; set; }
+        public string? city { get; set; }
+        public string? pincode { get; set; }
+        public string? state { get; set; }
+        public string? country { get; set; }
+        public string? phone { get; set; }
+        public string? mobile { get; set; }
+        public string? fax { get; set; }
+        public string? email { get; set; }
+        public string? website { get; set; }
+        public string? description { get; set; }
+        public int? areacode { get; set; }
+        public bool deleted { get; set; }
+        public int usercode { get; set; }
+        public int computercode { get; set; }
+        public DateTime entereddate { get; set; }
+        public DateTime ibsdate { get; set; }
+        public bool? ismainbranch { get; set; }
+        public bool? isbranch { get; set; }
+        public bool? iscollectioncentre { get; set; }
+        public string? pharmacyname { get; set; }
+        public string? labname { get; set; }
+    }
+
+    [Table("counter_master")]
+    public class CounterMasterRow
+    {
+        [ExplicitKey] public decimal cntcode { get; set; }
+        public int orderno { get; set; }
+        public string? shortname { get; set; }
+        public string? name { get; set; }
+        public string? description { get; set; }
+        public int? bhcode { get; set; }
+        public string? cashlcode { get; set; }
+        public int? patientbilllcode { get; set; }
+        public int? referabillllcode { get; set; }
+        public int? patientsaleslcode { get; set; }
+        public int? referalsaleslcode { get; set; }
+        public int? commissionbilllcode { get; set; }
+        public int? commissionsaleslcode { get; set; }
+        public bool? timingcurrent { get; set; }
+        public bool? timingvariable { get; set; }
+        public DateTime? timingfrom { get; set; }
+        public DateTime? timingto { get; set; }
+        public bool deleted { get; set; }
+        public int usercode { get; set; }
+        public int computercode { get; set; }
+        public DateTime entereddate { get; set; }
+        public DateTime ibsdate { get; set; }
+        public string? expenselcode { get; set; }
+        public int? hdcode { get; set; }
+        public bool? timingfixed { get; set; }
+        public bool? isinsurance { get; set; }
+    }
+
 }
