@@ -2456,53 +2456,20 @@ namespace medico_backend.InventoryClass
         // INSERT LEDGER GROUP
         public async Task<string> InsertLedgerGroup(ledger_group_master ledger)
         {
-            using (var conn = new NpgsqlConnection(con))
+            try
             {
-                await conn.OpenAsync();
-
-                string query = @"
-        INSERT INTO ledger_group_master
-        (
-            ledgergroupcode,
-            ledgergroupname,
-            shortname,
-            ledgertypecode,
-            description,
-            isactive,
-            createddate,
-            tenantcode,
-            deleted
-        )
-        VALUES
-        (
-            @ledgergroupcode,
-            @ledgergroupname,
-            @shortname,
-            @ledgertypecode,
-            @description,
-            @isactive,
-            @createddate,
-            @tenantcode,
-            @deleted
-        )";
-
-                using (var cmd = new NpgsqlCommand(query, conn))
+                using (var conn = new NpgsqlConnection(con))
                 {
-                    cmd.Parameters.AddWithValue("@ledgergroupcode", ledger.ledgergroupcode);
-                    cmd.Parameters.AddWithValue("@ledgergroupname", ledger.ledgergroupname);
-                    cmd.Parameters.AddWithValue("@shortname", ledger.shortname);
-                    cmd.Parameters.AddWithValue("@ledgertypecode", ledger.ledgertypecode);
-                    cmd.Parameters.AddWithValue("@description", ledger.description ?? "");
-                    cmd.Parameters.AddWithValue("@isactive", ledger.isactive);
-                    cmd.Parameters.AddWithValue("@createddate", ledger.createddate);
-                    cmd.Parameters.AddWithValue("@tenantcode", ledger.tenantcode);
-                    cmd.Parameters.AddWithValue("@deleted", ledger.deleted);
+                    await conn.OpenAsync();
+                    ledger.ledgergroupcode = null;
+                    await conn.InsertAsync(ledger);
 
-                    await cmd.ExecuteNonQueryAsync();
+                    return "Inserted Successfully";
                 }
+            }catch(Exception ex)
+            {
+                return ex.Message.ToString();
             }
-
-            return "Inserted Successfully";
         }
 
 

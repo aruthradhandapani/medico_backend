@@ -524,15 +524,16 @@ public class purchase_detail
         public decimal igstpercentage { get; set; } = 0;
         public bool deleted { get; set; } = false;
     }
+    [Table("ledger_group_master")]
     public class ledger_group_master
     {
-        public int ledgergroupcode { get; set; }
+        [Key]
+        public int? ledgergroupcode { get; set; }
 
         public string ledgergroupname { get; set; }
 
         public string shortname { get; set; }
 
-        // FK -> LedgerTypeMaster
         public int ledgertypecode { get; set; }
 
         public string description { get; set; }
@@ -545,7 +546,7 @@ public class purchase_detail
 
         public bool deleted { get; set; } = false;
     }
-     public class sales_master
+    public class sales_master
     {
         public long salescode { get; set; }
 
