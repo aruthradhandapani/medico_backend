@@ -37,7 +37,7 @@ namespace medico_backend.InventoryClass
                 brandcode, manufacturercode, taxcode,
                 naturetype, ledgergroupcode,
                 drugname, packaging,
-                isactive, deleted, createddate,
+                isactive, deleted, createddate,schedule,isnarcoticdrug,
                 usercode, tenantcode
             )
             VALUES
@@ -52,7 +52,7 @@ namespace medico_backend.InventoryClass
                 @brandcode, @manufacturercode, @taxcode,
                 @naturetype, @ledgergroupcode,
                 @drugname, @packaging,
-                @isactive, @deleted, @createddate,
+                @isactive, @deleted, @createddate,@schedule,@isnarcoticdrug
                 @usercode, @tenantcode
             );";
 
