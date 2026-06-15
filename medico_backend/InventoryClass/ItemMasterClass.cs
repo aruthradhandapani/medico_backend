@@ -106,6 +106,8 @@ namespace medico_backend.InventoryClass
                 isactive = @isactive,
                 deleted = @deleted,
                 usercode = @usercode,
+                 schedule = @schedule,
+ isnarcoticdrug = @isnarcoticdrug,
                 tenantcode = @tenantcode
             WHERE itemcode = @itemcode;";
 
