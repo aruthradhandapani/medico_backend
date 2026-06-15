@@ -1382,6 +1382,53 @@ namespace medico_backend.InventoryController
          });
      }
  }
+  [HttpPost("upsertwarehouse")]
+ public async Task<IActionResult> Upsert([FromBody] warehouse_master warehouse)
+ {
+     try
+     {
+         var result = await itemclass.UpsertWarehouse(warehouse);
+         return Ok(new
+         {
+             status = true,
+             message = result
+         });
+     }
+     catch (Exception ex)
+     {
+         return BadRequest(new
+         {
+             status = false,
+             message = ex.Message
+         });
+     }
+ }
+ [HttpGet("getallwarehouse")]
+ public async Task<IActionResult> GetAllS()
+ {
+     try
+     {
+         var result = await itemclass.GetWarehouseList();
+         return Ok(result);
+     }
+     catch (Exception ex)
+     {
+         return BadRequest(ex.Message);
+     }
+ }
+ [HttpDelete("deletewarehouse")]
+ public async Task<IActionResult> Delete(int warehousecode)
+ {
+     try
+     {
+         var result = await itemclass.DeleteWarehouse(warehousecode);
+         return Ok(result);
+     }
+     catch (Exception ex)
+     {
+         return BadRequest(ex.Message);
+     }
+ }
     }
 }
     
