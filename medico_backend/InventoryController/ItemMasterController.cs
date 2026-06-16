@@ -1387,7 +1387,7 @@ namespace medico_backend.InventoryController
  {
      try
      {
-         var result = await itemclass.UpsertWarehouse(warehouse);
+         var result = await itemclass.InsertOrUpdateWarehouse(warehouse);
          return Ok(new
          {
              status = true,

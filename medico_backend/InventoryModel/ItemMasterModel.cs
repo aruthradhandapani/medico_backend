@@ -649,7 +649,7 @@ public class purchase_detail
     public class warehouse_master
  {
         [Key]
-     public int warehousecode { get; set; }
+     public int? warehousecode { get; set; }
      public int orderno { get; set; }
 
      public string warehousename { get; set; }
