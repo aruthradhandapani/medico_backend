@@ -2881,7 +2881,7 @@ public async Task<List<ledger_group_master>> GetLedgerGroups()
             return "Sales Deleted Successfully";
         }
     }
-  public async Task<string> UpsertWarehouse(warehouse_master warehouse)
+   public async Task<string> UpsertWarehouse(warehouse_master warehouse)
   {
       try
       {
@@ -2891,19 +2891,39 @@ public async Task<List<ledger_group_master>> GetLedgerGroups()
       INSERT INTO warehouse_master
       (
           warehousecode,
+          orderno,
           warehousename,
-          shortname
+          shortname,
+          description,
+          location,
+          tenantcode,
+          isactive,
+          isdeleted,
+          createddate
       )
       VALUES
       (
           @warehousecode,
+          @orderno,
           @warehousename,
-          @shortname
+          @shortname,
+          @description,
+          @location,
+          @tenantcode,
+          @isactive,
+          @isdeleted,
+          @createddate
       )
       ON CONFLICT (warehousecode)
       DO UPDATE SET
           warehousename = EXCLUDED.warehousename,
-          shortname = EXCLUDED.shortname;";
+         
+          shortname = EXCLUDED.shortname,
+          description = EXCLUDED.description,
+          location = EXCLUDED.location,
+          tenantcode = EXCLUDED.tenantcode,
+          isactive = EXCLUDED.isactive,
+          isdeleted = EXCLUDED.isdeleted;";
 
               await db.ExecuteAsync(query, warehouse);
 
@@ -2915,6 +2935,7 @@ public async Task<List<ledger_group_master>> GetLedgerGroups()
           return ex.Message;
       }
   }
+  public async Task<string> DeleteWarehouse(int warehousecode)
   public async Task<string> DeleteWarehouse(int warehousecode)
   {
       try
