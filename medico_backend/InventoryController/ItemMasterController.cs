@@ -1429,6 +1429,45 @@ namespace medico_backend.InventoryController
          return BadRequest(ex.Message);
      }
  }
+ [HttpPost("upsertmanufacturer")]
+public async Task<IActionResult> UpsertManufacturer([FromBody] manufacturer_master manufacturer)
+{
+    try
+    {
+        var result = await itemclass.UpsertManufacturer(manufacturer);
+        return Ok(result);
+    }
+    catch (Exception ex)
+    {
+        return BadRequest(ex.Message);
+    }
+}
+[HttpGet("getlistmanufacturer")]
+public async Task<IActionResult> GetList()
+{
+    try
+    {
+        var result = await itemclass.GetManufacturerList();
+        return Ok(result);
+    }
+    catch (Exception ex)
+    {
+        return BadRequest(ex.Message);
+    }
+}
+[HttpDelete("deletemanufacturer")]
+public async Task<IActionResult> Deletemanufacturer(long manufacturercode)
+{
+    try
+    {
+        var result = await itemclass.DeleteManufacturer(manufacturercode);
+        return Ok(result);
+    }
+    catch (Exception ex)
+    {
+        return BadRequest(ex.Message);
+    }
+}
     }
 }
     
