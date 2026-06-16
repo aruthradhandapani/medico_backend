@@ -645,8 +645,10 @@ public class purchase_detail
         public sales_master master { get; set; }
         public List<sales_detail> details { get; set; }
     }
-  public class warehouse_master
+    [Table("warehouse_master")]
+    public class warehouse_master
  {
+        [Key]
      public int warehousecode { get; set; }
      public int orderno { get; set; }
 

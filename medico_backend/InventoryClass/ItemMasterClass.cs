@@ -2879,18 +2879,17 @@ public async Task<List<ledger_group_master>> GetLedgerGroups()
             await conn.ExecuteAsync(query, new { salescode });
 
             return "Sales Deleted Successfully";
+            }
         }
-    }
-   public async Task<string> UpsertWarehouse(warehouse_master warehouse)
-  {
-      try
-      {
-          using (IDbConnection db = new NpgsqlConnection(con))
-          {
-              string query = @"
+        public async Task<string> UpsertWarehouse(warehouse_master warehouse)
+        {
+            try
+            {
+                using (IDbConnection db = new NpgsqlConnection(con))
+                {
+                    string query = @"
       INSERT INTO warehouse_master
       (
-          warehousecode,
           orderno,
           warehousename,
           shortname,
@@ -2903,7 +2902,6 @@ public async Task<List<ledger_group_master>> GetLedgerGroups()
       )
       VALUES
       (
-          @warehousecode,
           @orderno,
           @warehousename,
           @shortname,
@@ -2925,18 +2923,43 @@ public async Task<List<ledger_group_master>> GetLedgerGroups()
           isactive = EXCLUDED.isactive,
           isdeleted = EXCLUDED.isdeleted;";
 
-              await db.ExecuteAsync(query, warehouse);
+                    await db.ExecuteAsync(query, warehouse);
 
-              return "Warehouse Upserted Successfully";
-          }
-      }
-      catch (Exception ex)
-      {
-          return ex.Message;
-      }
-  }
-  public async Task<string> DeleteWarehouse(int warehousecode)
-  public async Task<string> DeleteWarehouse(int warehousecode)
+                    return "Warehouse Upserted Successfully";
+                }
+            }
+            catch (Exception ex)
+            {
+                return ex.Message;
+            }
+        }
+
+        public async Task<string> InsertOrUpdateWarehouse(warehouse_master warehouse)
+        {
+            try
+            {
+                using IDbConnection db = new NpgsqlConnection(con);
+
+                var existing = await db.GetAsync<warehouse_master>(warehouse.warehousecode);
+
+                if (existing == null)
+                {
+                    await db.InsertAsync(warehouse);
+                    return "Warehouse Inserted Successfully";
+                }
+                else
+                {
+                    await db.UpdateAsync(warehouse);
+                    return "Warehouse Updated Successfully";
+                }
+            }
+            catch (Exception ex)
+            {
+                return ex.Message;
+            }
+        }
+
+        public async Task<string> DeleteWarehouse(int warehousecode)
   {
       try
       {
