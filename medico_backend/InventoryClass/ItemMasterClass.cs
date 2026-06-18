@@ -24,39 +24,7 @@ namespace medico_backend.InventoryClass
     {
         using (IDbConnection db = new NpgsqlConnection(con))
         {
-            string query = @"
-            INSERT INTO item_master
-            (
-                itemname, shortname, description,
-                categorycode, subcategorycode, hsncode,
-                itemtype, gstpercentage, uomcode,
-                purchaserate, salesrate, mrp,
-                currentstock, minstock, reorderlevel,
-                packsize, isexpiry, expiryalertdays,
-                batchrequired, expiryrequired, serialrequired,
-                brandcode, manufacturercode, taxcode,
-                naturetype, ledgergroupcode,
-                drugname, packaging,
-                isactive, deleted, createddate,schedule,isnarcoticdrug,
-                usercode, tenantcode
-            )
-            VALUES
-            (
-                @itemname, @shortname, @description,
-                @categorycode, @subcategorycode, @hsnCode,
-                @itemtype, @gstpercentage, @uomcode,
-                @purchaserate, @salesrate, @mrp,
-                @currentstock, @minstock, @reorderlevel,
-                @packsize, @isexpiry, @expiryalertdays,
-                @batchrequired, @expiryrequired, @serialrequired,
-                @brandcode, @manufacturercode, @taxcode,
-                @naturetype, @ledgergroupcode,
-                @drugname, @packaging,
-                @isactive, @deleted, @createddate,@schedule,@isnarcoticdrug
-                @usercode, @tenantcode
-            );";
-
-            await db.ExecuteAsync(query, item);
+            await db.InsertAsync(item);
 
             return "Item Inserted Successfully";
         }
@@ -72,48 +40,9 @@ namespace medico_backend.InventoryClass
             {
                 using (IDbConnection db = new NpgsqlConnection(con))
                 {
-                    string query = @"
-            UPDATE item_master
-            SET
-                itemname = @itemname,
-                shortname = @shortname,
-                description = @description,
-                categorycode = @categorycode,
-                subcategorycode = @subcategorycode,
-                hsncode = @hsnCode,
-                itemtype = @itemtype,
-                gstpercentage = @gstpercentage,
-                uomcode = @uomcode,
-                purchaserate = @purchaserate,
-                salesrate = @salesrate,
-                mrp = @mrp,
-                currentstock = @currentstock,
-                minstock = @minstock,
-                reorderlevel = @reorderlevel,
-                packsize = @packsize,
-                isexpiry = @isexpiry,
-                expiryalertdays = @expiryalertdays,
-                batchrequired = @batchrequired,
-                expiryrequired = @expiryrequired,
-                serialrequired = @serialrequired,
-                brandcode = @brandcode,
-                manufacturercode = @manufacturercode,
-                taxcode = @taxcode,
-                naturetype = @naturetype,
-                ledgergroupcode = @ledgergroupcode,
-                drugname = @drugname,
-                packaging = @packaging,
-                isactive = @isactive,
-                deleted = @deleted,
-                usercode = @usercode,
-                 schedule = @schedule,
- isnarcoticdrug = @isnarcoticdrug,
-                tenantcode = @tenantcode
-            WHERE itemcode = @itemcode;";
+                    bool result = await db.UpdateAsync(item);
 
-                    int rows = await db.ExecuteAsync(query, item);
-
-                    return rows > 0
+                    return result
                         ? "Item Updated Successfully"
                         : "Item Not Found";
                 }
@@ -179,87 +108,22 @@ namespace medico_backend.InventoryClass
                 {
                     db.Open();
 
-                    string query;
-
                     if (vendor.vendorcode == 0)
                     {
-                        query = @"
-                            INSERT INTO vendor_master
-                            (
-                                vendorname, shortname, vendortype,
-                                contactperson, phonenumber, alternatephonenumber,
-                                emailid, website, gstnumber, pannumber,
-                                taxid, registrationnumber,
-                                addressline1, addressline2, landmark,
-                                city, district, state, postalcode,
-                                countrycode, countryname, currencycode,
-                                paymentterms, creditperiod,
-                                bankname, accountnumber, ifsccode, swiftcode, ibannumber,
-                                isactive, deleted, createddate,
-                                usercode, tenantcode, branchcode
-                            )
-                            VALUES
-                            (
-                                @vendorname, @shortname, @vendortype,
-                                @contactperson, @phonenumber, @alternatephonenumber,
-                                @emailid, @website, @gstnumber, @pannumber,
-                                @taxid, @registrationnumber,
-                                @addressline1, @addressline2, @landmark,
-                                @city, @district, @state, @postalcode,
-                                @countrycode, @countryname, @currencycode,
-                                @paymentterms, @creditperiod,
-                                @bankname, @accountnumber, @ifsccode, @swiftcode, @ibannumber,
-                                @isactive, @deleted, CURRENT_TIMESTAMP,
-                                @usercode, @tenantcode, @branchcode
-                            )
-                            RETURNING vendorcode;";
+                        // Insert
+                        long id = await db.InsertAsync(vendor);
+                        return id;
                     }
                     else
                     {
-                        query = @"
-                            UPDATE vendor_master
-                            SET
-                                vendorname            = @vendorname,
-                                shortname             = @shortname,
-                                vendortype            = @vendortype,
-                                contactperson         = @contactperson,
-                                phonenumber           = @phonenumber,
-                                alternatephonenumber  = @alternatephonenumber,
-                                emailid               = @emailid,
-                                website               = @website,
-                                gstnumber             = @gstnumber,
-                                pannumber             = @pannumber,
-                                taxid                 = @taxid,
-                                registrationnumber    = @registrationnumber,
-                                addressline1          = @addressline1,
-                                addressline2          = @addressline2,
-                                landmark              = @landmark,
-                                city                  = @city,
-                                district              = @district,
-                                state                 = @state,
-                                postalcode            = @postalcode,
-                                countrycode           = @countrycode,
-                                countryname           = @countryname,
-                                currencycode          = @currencycode,
-                                paymentterms          = @paymentterms,
-                                creditperiod          = @creditperiod,
-                                bankname              = @bankname,
-                                accountnumber         = @accountnumber,
-                                ifsccode              = @ifsccode,
-                                swiftcode             = @swiftcode,
-                                ibannumber            = @ibannumber,
-                                isactive              = @isactive,
-                                deleted               = @deleted,
-                                modifieddate          = CURRENT_TIMESTAMP,
-                                usercode              = @usercode,
-                                tenantcode            = @tenantcode,
-                                branchcode            = @branchcode
-                            WHERE vendorcode = @vendorcode
-                              AND tenantcode = @tenantcode
-                            RETURNING vendorcode;";
-                    }
+                        // Update
+                        bool updated = await db.UpdateAsync(vendor);
 
-                    return await db.ExecuteScalarAsync<long>(query, vendor);
+                        if (updated)
+                            return vendor.vendorcode;
+                        else
+                            throw new Exception("Vendor not found");
+                    }
                 }
             }
             catch (Exception ex)

@@ -24,10 +24,12 @@ namespace medico_backend.Controllers
     public class CaseSheetController : ControllerBase
     {
         private readonly NewOPCaseSheetClass cls;
+        private readonly HmsBillingClass billingCls;
 
-        public CaseSheetController(NewOPCaseSheetClass _cls)
+        public CaseSheetController(NewOPCaseSheetClass _cls, HmsBillingClass _billingCls)
         {
             cls = _cls;
+            billingCls = _billingCls;
         }
 
         // ─────────────────────────────────────────────────────────
@@ -293,5 +295,16 @@ namespace medico_backend.Controllers
             var res = await cls.DeleteInvestigation(inv_id, tenant);
             return Ok(res);
         }
+        [HttpGet("getall")]
+        public async Task<IActionResult> GetAll()
+        {
+            var result = await cls.GetAllIcd();
+
+            if (result == null || result.Count == 0)
+                return NotFound("No ICD records found");
+
+            return Ok(result);
+        }
+
     }
 }

@@ -987,5 +987,31 @@ namespace medico_backend.Class
 
             return results.Cast<dynamic>().ToList();
         }
+        public async Task<List<IcdMasterModel>> GetAllIcd()
+        {
+            try
+            {
+                using IDbConnection db = new NpgsqlConnection(_db_conn);
+
+                var result = await db.QueryAsync<IcdMasterModel>(
+                    @"SELECT 
+                        icd_id,
+                        icd_code,
+                        icd_description,
+                        icd_category,
+                        icd_chapter,
+                        is_active
+                      FROM icd_master
+                      WHERE is_active = true
+                      ORDER BY icd_code");
+
+                return result.ToList();
+            }
+            catch
+            {
+                return new List<IcdMasterModel>();
+            }
+        }
+
     }
 }

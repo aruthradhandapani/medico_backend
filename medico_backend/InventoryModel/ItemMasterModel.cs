@@ -1,78 +1,85 @@
 ﻿using Dapper.Contrib.Extensions;
 
 namespace medico_backend.InventoryModel
-{ public class item_master
- {
-     public int itemcode { get; set; }
-     public string itemname { get; set; }
-     public string shortname { get; set; }
-     public string description { get; set; }
+{
+    [Table("item_master")]
+    public class item_master
 
-     public int categorycode { get; set; }
-     public int subcategorycode { get; set; }
+    {
+        [Key]
+        public long itemcode { get; set; }
+        public string itemname { get; set; }
+        public string shortname { get; set; }
+        public string description { get; set; }
 
-     public int hsnCode { get; set; }
+        public int categorycode { get; set; }
+        public int subcategorycode { get; set; }
 
-     public string itemtype { get; set; }
+        public int hsncode { get; set; }
 
-     public decimal gstpercentage { get; set; }
+        public string itemtype { get; set; }
 
-     public int uomcode { get; set; }
+        public decimal gstpercentage { get; set; }
 
-     public decimal purchaserate { get; set; }
+        public int uomcode { get; set; }
 
-     public decimal salesrate { get; set; }
+        public decimal purchaserate { get; set; }
 
-     public decimal mrp { get; set; }
+        public decimal salesrate { get; set; }
 
-     public decimal currentstock { get; set; }
+        public decimal mrp { get; set; }
 
-     public decimal minstock { get; set; }
+        public decimal currentstock { get; set; }
 
-     public decimal reorderlevel { get; set; }
-     public decimal packsize { get; set; }
-     public bool isexpiry { get; set; }          // Missing
-     public int expiryalertdays { get; set; }    // Missing
-     public bool batchrequired { get; set; }
+        public decimal minstock { get; set; }
 
-     public bool expiryrequired { get; set; }
+        public decimal reorderlevel { get; set; }
+        public decimal packsize { get; set; }
+        public bool isexpiry { get; set; }          // Missing
+        public int expiryalertdays { get; set; }    // Missing
+        public bool batchrequired { get; set; }
 
-     public bool serialrequired { get; set; }
+        public bool expiryrequired { get; set; }
 
-     public int brandcode { get; set; }
+        public bool serialrequired { get; set; }
 
-     public int manufacturercode { get; set; }
+        public int brandcode { get; set; }
 
-     public int taxcode { get; set; }
+        public int manufacturercode { get; set; }
 
-     // New Fields
+        public int taxcode { get; set; }
 
-     public int naturetype { get; set; }
+        // New Fields
 
-     // Asset = 1
-     // Liability = 2
-     // Expense = 3
-     // Income = 4
+        public int naturetype { get; set; }
 
-     public string? manufacturername { get; set; }
-     public int ledgergroupcode { get; set; }
+        // Asset = 1
+        // Liability = 2
+        // Expense = 3
+        // Income = 4
 
-     public string? drugname { get; set; }
+        public string? manufacturername { get; set; }
+        public int ledgergroupcode { get; set; }
 
-     public string? packaging { get; set; }
+        public string? drugname { get; set; }
 
-     public bool isactive { get; set; }
+        public string? packaging { get; set; }
 
-     public bool deleted { get; set; }
+        public bool isactive { get; set; }
 
-     public DateTime createddate { get; set; }
+        public bool deleted { get; set; }
 
-     public int usercode { get; set; }
+        public DateTime createddate { get; set; }
 
-     public string tenantcode { get; set; }
- }
+        public int usercode { get; set; }
+
+        public string tenantcode { get; set; }
+    }
+    [Table("vendor_master")]
+
     public class vendor_master
  {
+        [Key]
      public long vendorcode { get; set; }
 
      public string vendorname { get; set; }

@@ -451,4 +451,32 @@ namespace medico_backend.Model
         public string? status { get; set; }
         public List<OpInvestigationDetailModel> tests { get; set; } = new();
     }
+    [Table("icd_master")]
+    public class IcdMasterModel
+    {
+        [Key]
+        public int icd_id { get; set; }
+
+        public string icd_code { get; set; } = string.Empty;
+
+        public string icd_description { get; set; } = string.Empty;
+
+        public string? icd_category { get; set; }
+
+        public string? icd_chapter { get; set; }
+
+        public bool is_active { get; set; } = true;
+    }
+    [Table("doctor_patient_visit_track")]
+    public class DoctorPatientVisitTrack
+    {
+        [ExplicitKey] public string? visittrackid { get; set; }
+        public int? dcode { get; set; }
+        public decimal? custid { get; set; }
+        public DateTime? episode_start_date { get; set; }
+        public int visit_count_used { get; set; }
+        public DateTime? last_visit_date { get; set; }
+        public string? tenant_code { get; set; }
+    }
+
 }

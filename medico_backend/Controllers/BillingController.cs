@@ -145,5 +145,6 @@ namespace medico_backend.Controller
             var metricsData = await _billingService.ExtractDailyCollectionSummaryReport(branchCode, date, tenantToken);
             return Ok(metricsData);
         }
+
     }
 }
