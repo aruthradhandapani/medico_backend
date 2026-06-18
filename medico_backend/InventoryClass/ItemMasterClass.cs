@@ -261,6 +261,8 @@ namespace medico_backend.InventoryClass
                     discountamount,
                     taxamount,
                     netamount,
+                    transportationcharges,
+                    roundoff,
                     paymentmode,
                     paymentstatus,
                     currencycode,
@@ -285,6 +287,8 @@ namespace medico_backend.InventoryClass
                     @discountamount,
                     @taxamount,
                     @netamount,
+                    @transportationcharges,
+                    @roundoff,
                     @paymentmode,
                     @paymentstatus,
                     @currencycode,
@@ -327,6 +331,8 @@ namespace medico_backend.InventoryClass
                     receivedqty,
                     rejectedqty,
                     warehousecode,
+                    packaging,
+                    manufacturercode,
                     tenantcode
                 )
                 VALUES
@@ -350,6 +356,8 @@ namespace medico_backend.InventoryClass
                     @receivedqty,
                     @rejectedqty,
                     @warehousecode,
+                    @packaging,
+                    @manufacturercode,
                     @tenantcode
                 );";
 
@@ -370,7 +378,7 @@ namespace medico_backend.InventoryClass
                     catch (Exception ex)
                     {
                         transaction.Rollback();
-                        throw new Exception("Purchase insert failed: " + ex.Message);
+                        throw new Exception($"Purchase insert failed: {ex.Message}");
                     }
                 }
             }
@@ -389,27 +397,29 @@ namespace medico_backend.InventoryClass
                         string masterQuery = @"
                 UPDATE public.purchase_master
                 SET
-                    billno         = @billno,
-                    billdate       = @billdate,
-                    invoiceno      = @invoiceno,
-                    invoicedate    = @invoicedate,
-                    vendorcode     = @vendorcode,
-                    grossamount    = @grossamount,
-                    discountamount = @discountamount,
-                    taxamount      = @taxamount,
-                    netamount      = @netamount,
-                    paymentmode    = @paymentmode,
-                    paymentstatus  = @paymentstatus,
-                    currencycode   = @currencycode,
-                    isactive       = @isactive,
-                    deleted        = @deleted,
-                    remarks        = @remarks,
-                    modifieddate   = CURRENT_TIMESTAMP,
-                    usercode       = @usercode,
-                    tenantcode     = @tenantcode,
-                    branchcode     = @branchcode,
-                    companycode    = @companycode,
-                    grncode        = @grncode
+                    billno                 = @billno,
+                    billdate               = @billdate,
+                    invoiceno              = @invoiceno,
+                    invoicedate            = @invoicedate,
+                    vendorcode             = @vendorcode,
+                    grossamount            = @grossamount,
+                    discountamount         = @discountamount,
+                    taxamount              = @taxamount,
+                    netamount              = @netamount,
+                    transportationcharges  = @transportationcharges,
+                    roundoff               = @roundoff,
+                    paymentmode            = @paymentmode,
+                    paymentstatus          = @paymentstatus,
+                    currencycode           = @currencycode,
+                    isactive               = @isactive,
+                    deleted                = @deleted,
+                    remarks                = @remarks,
+                    modifieddate           = CURRENT_TIMESTAMP,
+                    usercode               = @usercode,
+                    tenantcode             = @tenantcode,
+                    branchcode             = @branchcode,
+                    companycode            = @companycode,
+                    grncode                = @grncode
                 WHERE purchasecode = @purchasecode
                   AND tenantcode = @tenantcode;";
 
@@ -419,7 +429,7 @@ namespace medico_backend.InventoryClass
                             transaction);
 
                         if (masterRows == 0)
-                            throw new Exception("Purchase record not found");
+                            throw new Exception("Purchase record not found.");
 
                         await db.ExecuteAsync(
                             @"DELETE FROM public.purchase_detail
@@ -452,6 +462,8 @@ namespace medico_backend.InventoryClass
                     receivedqty,
                     rejectedqty,
                     warehousecode,
+                    packaging,
+                    manufacturercode,
                     tenantcode
                 )
                 VALUES
@@ -475,6 +487,8 @@ namespace medico_backend.InventoryClass
                     @receivedqty,
                     @rejectedqty,
                     @warehousecode,
+                    @packaging,
+                    @manufacturercode,
                     @tenantcode
                 );";
 
@@ -495,7 +509,7 @@ namespace medico_backend.InventoryClass
                     catch (Exception ex)
                     {
                         transaction.Rollback();
-                        throw new Exception("Purchase update failed: " + ex.Message);
+                        throw new Exception($"Purchase update failed: {ex.Message}");
                     }
                 }
             }
@@ -574,7 +588,10 @@ namespace medico_backend.InventoryClass
     m.branchcode,
     m.companycode,
     m.grncode,
-
+    m.transportationcharges,
+    m.roundoff,
+    d.packaging,
+    d.manufacturercode,
     d.purchasedetailcode,
     d.purchasecode,
     d.itemcode,
