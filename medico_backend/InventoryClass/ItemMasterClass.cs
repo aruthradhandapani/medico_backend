@@ -2862,71 +2862,83 @@ public async Task<List<ledger_group_master>> GetLedgerGroups()
           throw;
       }
   }
-         public async Task<string> UpsertManufacturer(manufacturer_master manufacturer)
- {
-     try
-     {
-         using (IDbConnection db = new NpgsqlConnection(con))
-         {
-             string query = @"
-     INSERT INTO manufacturer_master
-     (
-         manufacturercode,
-         manufacturername,
-         shortname,
-         description,
-         contactperson,
-         phoneno,
-         email,
-         address,
-         gstno,
-         isactive,
-         deleted,
-         createddate,
-         usercode,
-         tenantcode
-     )
-     VALUES
-     (
-         @manufacturercode,
-         @manufacturername,
-         @shortname,
-         @description,
-         @contactperson,
-         @phoneno,
-         @email,
-         @address,
-         @gstno,
-         @isactive,
-         @deleted,
-         @createddate,
-         @usercode,
-         @tenantcode
-     )
-     ON CONFLICT (manufacturercode)
-     DO UPDATE SET
-         manufacturername = EXCLUDED.manufacturername,
-         shortname = EXCLUDED.shortname,
-         description = EXCLUDED.description,
-         contactperson = EXCLUDED.contactperson,
-         phoneno = EXCLUDED.phoneno,
-         email = EXCLUDED.email,
-         address = EXCLUDED.address,
-         gstno = EXCLUDED.gstno,
-         isactive = EXCLUDED.isactive,
-         usercode = EXCLUDED.usercode,
-         tenantcode = EXCLUDED.tenantcode;";
+        public async Task<string> UpsertManufacturer(manufacturer_master manufacturer)
+   {
+       try
+       {
+           using (IDbConnection db = new NpgsqlConnection(con))
+           {
+               string query;
 
-             await db.ExecuteAsync(query, manufacturer);
+               if (manufacturer.manufacturercode == 0)
+               {
+                   query = @"
+           INSERT INTO manufacturer_master
+           (
+               manufacturername,
+               shortname,
+               description,
+               contactperson,
+               phoneno,
+               email,
+               address,
+               gstno,
+               isactive,
+               deleted,
+               createddate,
+               usercode,
+               tenantcode
+           )
+           VALUES
+           (
+               @manufacturername,
+               @shortname,
+               @description,
+               @contactperson,
+               @phoneno,
+               @email,
+               @address,
+               @gstno,
+               @isactive,
+               @deleted,
+               @createddate,
+               @usercode,
+               @tenantcode
+           );";
 
-             return "Manufacturer Upserted Successfully";
-         }
-     }
-     catch (Exception ex)
-     {
-         return ex.Message;
-     }
- }
+                   await db.ExecuteAsync(query, manufacturer);
+
+                   return "Manufacturer Created Successfully";
+               }
+               else
+               {
+                   query = @"
+           UPDATE manufacturer_master
+           SET
+               manufacturername = @manufacturername,
+               shortname = @shortname,
+               description = @description,
+               contactperson = @contactperson,
+               phoneno = @phoneno,
+               email = @email,
+               address = @address,
+               gstno = @gstno,
+               isactive = @isactive,
+               usercode = @usercode,
+               tenantcode = @tenantcode
+           WHERE manufacturercode = @manufacturercode;";
+
+                   await db.ExecuteAsync(query, manufacturer);
+
+                   return "Manufacturer Updated Successfully";
+               }
+           }
+       }
+       catch (Exception ex)
+       {
+           return ex.Message;
+       }
+   }
  public async Task<IEnumerable<manufacturer_master>> GetManufacturerList()
  {
      try
