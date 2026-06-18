@@ -258,13 +258,13 @@ public class purchase_detail
     public decimal rejectedqty { get; set; }
 
     // Warehouse / Store
-    public string warehousecode { get; set; }
+    public long warehousecode { get; set; }
 
     // Packaging
     public string? packaging { get; set; }
 
     // Manufacturer
-    public string manufacturercode { get; set; }
+    public long manufacturercode { get; set; }
 
     public string? tenantcode { get; set; }
 }
