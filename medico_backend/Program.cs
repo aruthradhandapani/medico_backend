@@ -56,6 +56,8 @@ builder.Services.AddScoped<NewOPCaseSheetClass>();
 builder.Services.AddScoped<CaseSheetController>();
 builder.Services.AddScoped<HmsBillingClass>();
 builder.Services.AddScoped<HmsBillingController>();
+builder.Services.AddScoped<HmsDueCollectionClass>();
+builder.Services.AddScoped<HmsDueCollectionController>();
 
 builder.Services.AddSingleton<IAmazonS3>(sp =>
 {

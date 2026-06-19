@@ -732,9 +732,12 @@ namespace medico_backend.Class
         {
             // Lock row sequentially via SELECT FOR UPDATE to eliminate racing criteria conditions 
             var sequentialRecord = await db.QueryFirstOrDefaultAsync<HmsBillNoSequence>(
-                @"SELECT * FROM billno_sequence 
-                  WHERE bncode = @engineCode AND bhcode = @branchReference AND cntcode = @counterReference AND tenant_code = @tenantCode 
-                  FOR UPDATE", new { engineCode, branchReference, counterReference, tenantCode }, tx);
+    @"SELECT seq_id, bncode, bhcode, cntcode, orderno,
+             last_used_date::timestamp AS last_used_date,
+             tenant_code, snoprint
+      FROM billno_sequence
+      WHERE bncode = @engineCode AND bhcode = @branchReference AND cntcode = @counterReference AND tenant_code = @tenantCode
+      FOR UPDATE", new { engineCode, branchReference, counterReference, tenantCode }, tx);
 
             int targetedProgressiveOrder = 1;
 

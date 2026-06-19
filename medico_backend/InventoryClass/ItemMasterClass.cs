@@ -590,8 +590,7 @@ namespace medico_backend.InventoryClass
     m.grncode,
     m.transportationcharges,
     m.roundoff,
-    d.packaging,
-    d.manufacturercode,
+    
     d.purchasedetailcode,
     d.purchasecode,
     d.itemcode,
@@ -612,7 +611,9 @@ namespace medico_backend.InventoryClass
     d.receivedqty,
     d.rejectedqty,
     d.warehousecode,
-    d.tenantcode
+    d.tenantcode,
+    d.packaging,
+    d.manufacturercode
 
     FROM public.purchase_master m
 

@@ -915,6 +915,98 @@ VALUES
             }
             catch (Exception ex) { return ex.Message; }
         }
+        // ─────────────────────────────────────────
+        // GET APPOINTMENT LOG
+        // Supports 3 query modes:
+        //   1. by booking_id  → full history of one booking
+        //   2. by custid      → all activity for a patient (for chat app)
+        //   3. by dcode + date → doctor's day log
+        // ─────────────────────────────────────────
+        public async Task<List<AppointmentBookingLogViewModel>> GetAppointmentLog(
+            string tenant_code,
+            Guid? booking_id = null,
+            decimal? custid = null,
+            int? dcode = null,
+            DateOnly? from_date = null,
+            DateOnly? to_date = null,
+            string? action_filter = null)   // BOOKED / RESCHEDULED / CANCELLED / ALL
+        {
+            using IDbConnection db = new NpgsqlConnection(_db_conn);
 
+            var where = new List<string> { "l.tenant_code = @tenant_code" };
+            var param = new DynamicParameters();
+            param.Add("tenant_code", tenant_code);
+
+            if (booking_id.HasValue)
+            {
+                where.Add("l.booking_id = @booking_id");
+                param.Add("booking_id", booking_id.Value);
+            }
+            if (custid.HasValue)
+            {
+                where.Add("l.custid = @custid");
+                param.Add("custid", custid.Value);
+            }
+            if (dcode.HasValue)
+            {
+                where.Add("l.dcode = @dcode");
+                param.Add("dcode", dcode.Value);
+            }
+            if (from_date.HasValue)
+            {
+                where.Add("l.created_at >= @from_date");
+                param.Add("from_date", from_date.Value.ToDateTime(TimeOnly.MinValue));
+            }
+            if (to_date.HasValue)
+            {
+                where.Add("l.created_at <= @to_date");
+                param.Add("to_date", to_date.Value.ToDateTime(TimeOnly.MinValue).AddDays(1).AddSeconds(-1));
+            }
+            if (!string.IsNullOrWhiteSpace(action_filter)
+                && action_filter.ToUpper() != "ALL")
+            {
+                where.Add("l.action = @action");
+                param.Add("action", action_filter.ToUpper());
+            }
+
+            string sql = $@"
+    SELECT
+        l.log_id,
+        l.booking_id,
+        l.booking_no,
+        l.custid,
+        l.dcode,
+        l.action,
+        l.action_by,
+        l.old_slot_detail_id,
+        l.new_slot_detail_id,
+        l.old_appointment_date,
+        l.new_appointment_date,
+        l.old_slot_start_time,
+        l.new_slot_start_time,
+        l.remarks,
+        l.tenant_code,                              -- ✅ added
+        l.created_at AT TIME ZONE 'UTC' AS created_at,
+        ab.booking_status,
+        ab.booking_type,
+        ab.token_no,
+        ab.cancel_reason,
+        ab.cancelled_at,
+        ab.rescheduled_from,
+        NULL::text AS customer_name,
+        NULL::text AS mobile,
+        dm.name    AS doctor_name
+    FROM appointment_booking_log l
+    LEFT JOIN appointment_booking ab
+           ON ab.booking_id  = l.booking_id
+    LEFT JOIN doctor_master dm
+           ON dm.dcode       = l.dcode
+          AND dm.tenant_code = l.tenant_code
+    WHERE {string.Join(" AND ", where)}
+    ORDER BY l.created_at DESC";
+
+            var rows = await db.QueryAsync<AppointmentBookingLogViewModel>(sql, param);
+            return rows.ToList();
+        }
     }
 }

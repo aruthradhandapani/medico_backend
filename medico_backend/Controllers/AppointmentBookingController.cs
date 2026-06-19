@@ -133,5 +133,40 @@ namespace Medico_Backend.Controllers
             var res = await cls.PatientReschedule(request, tenant);
             return Ok(res);
         }
+        // ─────────────────────────────────────────────────────────────────
+        //  GET APPOINTMENT LOG
+        //
+        //  Modes:
+        //    by booking_id  → full trail of one booking (booked → rescheduled → cancelled)
+        //    by custid      → all activity for a patient (used by chat app to show context)
+        //    by dcode+date  → doctor's action log for a day
+        //
+        //  All query params are optional — combine freely.
+        //
+        //  GET /api/AppointmentBooking/log?custid=1001
+        //  GET /api/AppointmentBooking/log?booking_id=guid-here
+        //  GET /api/AppointmentBooking/log?dcode=5&from_date=2026-06-01&to_date=2026-06-19
+        //  GET /api/AppointmentBooking/log?custid=1001&action_filter=RESCHEDULED
+        // ─────────────────────────────────────────────────────────────────
+        [HttpGet("log")]
+        public async Task<IActionResult> GetLog(
+            [FromQuery] Guid? booking_id = null,
+            [FromQuery] decimal? custid = null,
+            [FromQuery] int? dcode = null,
+            [FromQuery] DateOnly? from_date = null,
+            [FromQuery] DateOnly? to_date = null,
+            [FromQuery] string? action_filter = null)
+        {
+            var tenant = Request.Headers["tenant_code"].ToString();
+
+            var data = await cls.GetAppointmentLog(
+                tenant, booking_id, custid, dcode, from_date, to_date, action_filter);
+
+            return Ok(new
+            {
+                count = data.Count,
+                data
+            });
+        }
     }
 }
