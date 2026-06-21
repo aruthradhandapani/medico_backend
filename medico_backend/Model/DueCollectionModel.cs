@@ -7,16 +7,15 @@ namespace medico_backend.Model
     // ═══════════════════════════════════════════════════════════════════════════
     //  HMS DUE COLLECTION — MODELS & DTOs
     //
-    //  All table models are mapped to the confirmed PostgreSQL DDL.
-    //  balancecollectionby has duplicate legacy/new columns — both sets are
-    //  written so existing reports and LIMS queries continue to work.
-    //
     //  receipt_advances conventions:
     //    Deposit row : requestguid = NULL          → unallocated advance credit
     //    Usage row   : requestguid = bill guid      → advance used against a bill
     //    Refund row  : requestguid = refund receipt guid → advance refunded to patient
     //
-    //  receipt_master.receipttype values used here:
+    //  Available advance balance = SUM(deposit rows) − SUM(usage + refund rows)
+    //  Cancel: soft-delete usage rows → balance auto-restored (no manual math needed)
+    //
+    //  receipt_master.receipttype values:
     //    'DUE'            → due payment (cash / card / UPI / cheque / bank)
     //    'ADVANCE'        → advance deposit from patient
     //    'ADVANCE_REFUND' → excess advance refunded back at discharge
@@ -26,10 +25,6 @@ namespace medico_backend.Model
     //  TABLE MODELS
     // ─────────────────────────────────────────────────────────────────────────
 
-    /// <summary>
-    /// Maps to: public.receipt_master (confirmed DDL)
-    /// One row per payment event — due collection, advance deposit, or refund.
-    /// </summary>
     [Table("receipt_master")]
     public class HmsDueReceiptMaster
     {
@@ -46,7 +41,7 @@ namespace medico_backend.Model
         public decimal? ctcode { get; set; }
         public long? payledgercode { get; set; }
         public string? bankname { get; set; }
-        public string? paymentreference { get; set; }  // cheque no / UPI ref / card ref
+        public string? paymentreference { get; set; }
         public DateTime? chequedate { get; set; }
         public string? cardno { get; set; }
         public DateTime? carddate { get; set; }
@@ -60,7 +55,7 @@ namespace medico_backend.Model
         public int? computercode { get; set; }
         public DateTime? entereddate { get; set; }
         public DateTime? ibsdate { get; set; }
-        public string? receipttype { get; set; }  // DUE / ADVANCE / ADVANCE_REFUND
+        public string? receipttype { get; set; }
         public int? custid { get; set; }
         public string? opvisitid { get; set; }
         public string? tenant_code { get; set; }
@@ -71,10 +66,6 @@ namespace medico_backend.Model
         public bool? ismonthly { get; set; }
     }
 
-    /// <summary>
-    /// Maps to: public.receipt_details (confirmed DDL)
-    /// Links a receipt to the bill it covers.
-    /// </summary>
     [Table("receipt_details")]
     public class HmsDueReceiptDetail
     {
@@ -93,29 +84,22 @@ namespace medico_backend.Model
     }
 
     /// <summary>
-    /// Maps to: public.receipt_advances (confirmed DDL + migration columns)
+    /// Maps to: public.receipt_advances
     ///
     /// DEPOSIT : requestguid IS NULL        → credit (advance in)
     /// USAGE   : requestguid = bill guid    → debit  (advance applied to bill)
     /// REFUND  : requestguid = refund guid  → debit  (advance returned to patient)
     ///
-    /// Available balance per patient = SUM(deposits) − SUM(usage + refund rows)
-    /// FIFO order is maintained by receiptadvanceid sort (UUID monotonic).
-    ///
-    /// Migration required before deploy — run receipt_advances_migration.sql:
-    ///   ALTER TABLE receipt_advances ADD COLUMN deleted boolean DEFAULT false,
-    ///     ADD COLUMN tenant_code varchar(50), ADD COLUMN usercode int,
-    ///     ADD COLUMN computercode int, ADD COLUMN entereddate timestamp,
-    ///     ADD COLUMN ibsdate timestamp;
+    /// Available balance = SUM(deposits) − SUM(usage + refund rows)
+    /// Cancelling a collection soft-deletes usage rows → balance auto-restores.
     /// </summary>
     [Table("receipt_advances")]
     public class HmsDueReceiptAdvance
     {
         [ExplicitKey] public string? receiptadvanceid { get; set; }
-        public string? receiptguid { get; set; }  // advance deposit receipt
-        public string? requestguid { get; set; }  // NULL / bill guid / refund guid
+        public string? receiptguid { get; set; }
+        public string? requestguid { get; set; }
         public double? receiptamount { get; set; }
-        // Migration columns (added via receipt_advances_migration.sql)
         public bool? deleted { get; set; }
         public string? tenant_code { get; set; }
         public int? usercode { get; set; }
@@ -124,35 +108,22 @@ namespace medico_backend.Model
         public DateTime? ibsdate { get; set; }
     }
 
-    /// <summary>
-    /// Maps to: public.balancecollectionby (confirmed DDL)
-    ///
-    /// Cash-flow ledger — one row per collection event.
-    /// Both legacy and new-style columns are written for backward compatibility.
-    ///
-    ///   Legacy columns  : collecteddate, collectiontype, receiptguid, requestguid
-    ///   New columns     : collected_date, collection_type, receipt_guid, request_guid
-    ///
-    /// collection_type / collectiontype values:
-    ///   CASH / CARD / UPI / CHEQUE / BANK → real money collected
-    ///   ADVANCE                            → advance adjustment (no new cash, ledger only)
-    /// </summary>
     [Table("balancecollectionby")]
     public class HmsDueBalanceCollectionBy
     {
         [ExplicitKey] public string? balancecollectionbyid { get; set; }
         public int? bhcode { get; set; }
-        // Legacy columns (write both for backward compat)
+        // Legacy columns
         public DateTime? collecteddate { get; set; }
         public string? collectiontype { get; set; }
         public string? receiptguid { get; set; }
         public string? requestguid { get; set; }
-        // New-style columns (preferred)
+        // New-style columns
         public DateTime? collected_date { get; set; }
         public string? collection_type { get; set; }
         public string? receipt_guid { get; set; }
         public string? request_guid { get; set; }
-        // Common columns
+        // Common
         public double? collectedamount { get; set; }
         public bool? deleted { get; set; }
         public int? usercode { get; set; }
@@ -167,13 +138,6 @@ namespace medico_backend.Model
         public string? tenant_code { get; set; }
     }
 
-    /// <summary>
-    /// Maps to: public.balancecollectionbytest (confirmed DDL)
-    /// Test-level settlement flag per tcode.
-    /// requeststatus = true  → this tcode is fully paid.
-    /// requeststatus = false → this tcode still has pending due.
-    /// Set to true when bill becomes fully settled; reverted to false on cancel.
-    /// </summary>
     [Table("balancecollectionbytest")]
     public class HmsDueBalanceCollectionByTest
     {
@@ -181,7 +145,7 @@ namespace medico_backend.Model
         public decimal? tcode { get; set; }
         public string? balancecollectionbyid { get; set; }
         public double? collectedamount { get; set; }
-        public bool? requeststatus { get; set; }  // true = settled
+        public bool? requeststatus { get; set; }
         public string? tenant_code { get; set; }
         public int? usercode { get; set; }
         public int? computercode { get; set; }
@@ -194,39 +158,21 @@ namespace medico_backend.Model
     // ─────────────────────────────────────────────────────────────────────────
 
     /// <summary>
-    /// Due collection request — three scenarios all use this single DTO.
-    ///
-    ///   Scenario 1 — Cash only         : advance_to_use = 0, cash_collected > 0
-    ///   Scenario 2 — Advance only       : advance_to_use > 0, cash_collected = 0
-    ///   Scenario 3 — Advance + Cash     : advance_to_use > 0, cash_collected > 0
-    ///
-    /// Partial payment is allowed — remaining balance stays as due on the bill.
-    /// advance_to_use is clamped server-side to min(available, current_due).
+    /// Single due collection request.
+    ///   Scenario 1 — Cash only     : advance_to_use=0,    cash_collected>0
+    ///   Scenario 2 — Advance only  : advance_to_use>0,    cash_collected=0
+    ///   Scenario 3 — Both          : advance_to_use>0,    cash_collected>0
     /// </summary>
     public class HmsDueCollectionRequest
     {
-        /// <summary>Bill to collect against (lab_request_master.requestguid).</summary>
         public string requestguid { get; set; } = string.Empty;
-
-        /// <summary>
-        /// Advance to adjust from patient's advance wallet (FIFO, oldest first).
-        /// 0 = do not use advance. Cannot exceed available balance or current due.
-        /// </summary>
         public double advance_to_use { get; set; } = 0;
-
-        /// <summary>New cash / card / UPI collected right now (new money).</summary>
         public double cash_collected { get; set; } = 0;
-
-        // ── Payment mode ─────────────────────────────────────────────────────
-        /// <summary>CASH / CARD / UPI / CHEQUE / BANK</summary>
         public string collection_type { get; set; } = "CASH";
-        /// <summary>Mandatory for CARD / UPI / CHEQUE / BANK.</summary>
         public string? reference_no { get; set; }
         public string? bank_name { get; set; }
         public string? card_no { get; set; }
         public DateTime? cheque_date { get; set; }
-
-        // ── Session / location ───────────────────────────────────────────────
         public int? enteredbhcode { get; set; }
         public int? cntcode { get; set; }
         public string? cnttid { get; set; }
@@ -239,9 +185,67 @@ namespace medico_backend.Model
     }
 
     /// <summary>
-    /// Advance deposit request — patient pays in bulk upfront.
-    /// Creates receipt_master (receipttype='ADVANCE') + receipt_advances deposit row.
+    /// Per-bill line item inside a bulk collection request.
+    /// Mirrors HmsDueCollectionRequest field-for-field so each bill can be
+    /// settled with its own payment mode, reference, and ledger codes.
+    /// Any field left null falls back to the batch-level value on
+    /// HmsBulkDueCollectionRequest.
     /// </summary>
+    public class HmsBulkDueCollectionItem
+    {
+        /// <summary>Bill to settle (lab_request_master.requestguid).</summary>
+        public string requestguid { get; set; } = string.Empty;
+
+        /// <summary>Advance to use for this bill specifically (FIFO from patient wallet).</summary>
+        public double advance_to_use { get; set; } = 0;
+
+        /// <summary>Cash / card / UPI amount for this bill.</summary>
+        public double cash_collected { get; set; } = 0;
+
+        // ── Per-item payment mode overrides (fallback: batch-level value) ──────
+        public string? collection_type { get; set; }
+        public string? reference_no { get; set; }
+        public string? bank_name { get; set; }
+        public string? card_no { get; set; }
+        public DateTime? cheque_date { get; set; }
+
+        // ── Per-item ledger code overrides (fallback: batch-level, then bill) ──
+        public decimal? pmcode { get; set; }
+        public decimal? ctcode { get; set; }
+        public decimal? tmcode { get; set; }
+
+        // ── Per-item remarks ─────────────────────────────────────────────────
+        public string? remarks { get; set; }
+    }
+
+    /// <summary>
+    /// Bulk due collection request — settles multiple bills in one atomic transaction.
+    /// One shared receipt_master is created for the batch.
+    /// Every field here acts as the DEFAULT for items that don't override it,
+    /// so a simple single-mode batch can omit per-item fields entirely.
+    ///
+    /// POST /api/HmsDueCollection/collect/bulk
+    /// </summary>
+    public class HmsBulkDueCollectionRequest
+    {
+        public List<HmsBulkDueCollectionItem> items { get; set; } = new();
+
+        public string collection_type { get; set; } = "CASH";
+        public string? reference_no { get; set; }
+        public string? bank_name { get; set; }
+        public string? card_no { get; set; }
+        public DateTime? cheque_date { get; set; }
+        public int? enteredbhcode { get; set; }
+        public int? cntcode { get; set; }
+        public string? cnttid { get; set; }
+        public int? usercode { get; set; }
+        public int? computercode { get; set; }
+        public decimal? pmcode { get; set; }
+        public decimal? ctcode { get; set; }
+        public decimal? tmcode { get; set; }
+        public string? remarks { get; set; }
+    }
+
     public class HmsAdvanceDepositRequest
     {
         public decimal custid { get; set; }
@@ -264,11 +268,6 @@ namespace medico_backend.Model
         public string? remarks { get; set; }
     }
 
-    /// <summary>
-    /// Advance refund request — leftover advance returned to patient at IP discharge.
-    /// FIFO: oldest deposits consumed first.
-    /// Creates receipt_master (receipttype='ADVANCE_REFUND', isrefund=true).
-    /// </summary>
     public class HmsAdvanceRefundRequest
     {
         public decimal custid { get; set; }
@@ -282,18 +281,15 @@ namespace medico_backend.Model
         public string? remarks { get; set; }
     }
 
-    /// <summary>Filter for paginated due collection history list.</summary>
     public class HmsDueCollectionFilterRequest
     {
         public decimal? custid { get; set; }
-        public string? requestguid { get; set; }  // filter by specific bill
+        public string? requestguid { get; set; }
         public int? bhcode { get; set; }
         public int? cntcode { get; set; }
         public DateTime? fromdate { get; set; }
         public DateTime? todate { get; set; }
-        /// <summary>Searches: patient name / mobile / receipt no / bill no.</summary>
         public string? search { get; set; }
-        /// <summary>If true, only returns bills that still have due > 0.</summary>
         public bool? pending_only { get; set; }
         public int page { get; set; } = 1;
         public int pagesize { get; set; } = 20;
@@ -304,67 +300,43 @@ namespace medico_backend.Model
     // ─────────────────────────────────────────────────────────────────────────
 
     /// <summary>
-    /// Dry-run preview — shown to staff BEFORE confirming collection.
-    /// No DB writes. Call GET /due-collection/preview/{requestguid}?advanceToUse=2000.
-    ///
-    /// UI should show:
-    ///   current_due       → what the patient owes now
-    ///   advance_available → how much advance wallet has
-    ///   advance_to_use    → server-clamped value (can't exceed min(available, due))
-    ///   amount_to_collect → cash the staff needs to collect from patient
-    ///   due_after         → what will remain if confirmed
+    /// Dry-run preview — shown before confirming collection. No DB writes.
+    /// UI shows: current_due, advance_available, advance_to_use (clamped),
+    ///           amount_to_collect (cash needed), due_after.
     /// </summary>
     public class HmsDuePreviewResponse
     {
-        // Bill info
         public string requestguid { get; set; } = string.Empty;
         public string? bill_no { get; set; }
         public DateTime? bill_date { get; set; }
-        public string? bill_type { get; set; }  // OP / IP / Lab / Pharmacy
-
-        // Patient info
+        public string? bill_type { get; set; }
         public decimal? custid { get; set; }
         public string? patient_name { get; set; }
         public string? mobileno { get; set; }
         public string? opvisitid { get; set; }
-
-        // Doctor / Department
         public string? doctor_name { get; set; }
         public int? dcode { get; set; }
-
-        // Amount breakdown
         public double total_bill_amount { get; set; }
         public double previous_paid { get; set; }
         public double current_due { get; set; }
-
-        // Advance wallet
         public double advance_available { get; set; }
         /// <summary>Server-clamped: min(requested, min(available, current_due)).</summary>
         public double advance_to_use { get; set; }
-
-        // Collection summary
-        public double amount_to_collect { get; set; }  // cash still needed
-        public double due_after { get; set; }  // remaining after confirmation
+        public double amount_to_collect { get; set; }
+        public double due_after { get; set; }
     }
 
-    /// <summary>Returned after a successful due collection (CollectDue).</summary>
+    /// <summary>Returned after a successful single due collection.</summary>
     public class HmsDueCollectionResponse
     {
-        // Receipt info (only populated when cash_collected > 0)
         public string? receipt_guid { get; set; }
         public string? receipt_no { get; set; }
         public string? receipt_barcode { get; set; }
-
-        // Advance receipt used (first advance receipt guid, if advance was applied)
         public string? advance_receipt_guid { get; set; }
-
-        // Bill reference
         public string requestguid { get; set; } = string.Empty;
         public string? bill_no { get; set; }
         public string? patient_name { get; set; }
         public string? mobileno { get; set; }
-
-        // Amount breakdown
         public double total_bill_amount { get; set; }
         public double due_before { get; set; }
         public double advance_used { get; set; }
@@ -372,22 +344,66 @@ namespace medico_backend.Model
         public double total_settled { get; set; }
         public double due_after { get; set; }
         public bool is_fully_settled { get; set; }
-
-        // Payment info
         public string collection_type { get; set; } = string.Empty;
         public string? reference_no { get; set; }
         public DateTime collected_date { get; set; }
-        public string? collected_by { get; set; }  // username resolved at service level
+        public string? collected_by { get; set; }
         public string? remarks { get; set; }
     }
 
-    /// <summary>Returned after advance deposit or refund.</summary>
+    /// <summary>Result for a single bill inside a bulk collection response.</summary>
+    public class HmsBulkDueItemResult
+    {
+        public string requestguid { get; set; } = string.Empty;
+        public string? bill_no { get; set; }
+        public string? patient_name { get; set; }
+        public double advance_used { get; set; }
+        public double cash_collected { get; set; }
+        public double total_settled { get; set; }
+        public double due_before { get; set; }
+        public double due_after { get; set; }
+        public bool is_fully_settled { get; set; }
+        public string? advance_receipt_guid { get; set; }
+
+        // ── NEW: echo back the effective payment details used for this item ───
+        public string? collection_type { get; set; }
+        public string? reference_no { get; set; }
+        public string? bank_name { get; set; }
+        public string? card_no { get; set; }
+        public DateTime? cheque_date { get; set; }
+        public string? remarks { get; set; }
+
+        /// <summary>collected / skipped</summary>
+        public string status { get; set; } = string.Empty;
+        public string? message { get; set; }
+    }
+
+    /// <summary>
+    /// Returned after a successful bulk due collection.
+    /// One shared receipt covers all bills in the batch.
+    /// </summary>
+    public class HmsBulkDueCollectionResponse
+    {
+        /// <summary>Shared receipt guid for the entire batch.</summary>
+        public string batch_receipt_guid { get; set; } = string.Empty;
+        public string? receipt_no { get; set; }
+        public string? receipt_barcode { get; set; }
+        public string collection_type { get; set; } = string.Empty;
+        public double total_advance_used { get; set; }
+        public double total_cash_collected { get; set; }
+        public double total_settled { get; set; }
+        public int items_processed { get; set; }
+        public int items_skipped { get; set; }
+        public DateTime collected_date { get; set; }
+        public List<HmsBulkDueItemResult> items { get; set; } = new();
+    }
+
     public class HmsAdvanceReceiptResponse
     {
         public string? receipt_guid { get; set; }
         public string? receipt_no { get; set; }
         public string? receipt_barcode { get; set; }
-        public string? receipt_type { get; set; }   // ADVANCE / ADVANCE_REFUND
+        public string? receipt_type { get; set; }
         public decimal? custid { get; set; }
         public string? patient_name { get; set; }
         public double amount { get; set; }
@@ -395,10 +411,6 @@ namespace medico_backend.Model
         public DateTime receipt_date { get; set; }
     }
 
-    /// <summary>
-    /// Patient advance balance summary.
-    /// Call GET /due-collection/advance-summary/{custid} before opening due collection.
-    /// </summary>
     public class HmsPatientAdvanceSummary
     {
         public decimal custid { get; set; }
@@ -410,23 +422,17 @@ namespace medico_backend.Model
         public List<HmsAdvanceLedgerRow> ledger { get; set; } = new();
     }
 
-    /// <summary>
-    /// One row from the patient's advance ledger (receipt_advances joined with receipt_master).
-    /// </summary>
     public class HmsAdvanceLedgerRow
     {
         public string? receiptadvanceid { get; set; }
         public string? receiptguid { get; set; }
-        /// <summary>NULL = deposit, bill guid = used, refund guid = refunded.</summary>
         public string? requestguid { get; set; }
         public double receiptamount { get; set; }
         public DateTime? receiptdate { get; set; }
         public string? receiptsnoprint { get; set; }
-        /// <summary>DEPOSIT / USED / REFUNDED — derived field, not stored.</summary>
         public string? transaction_type { get; set; }
     }
 
-    /// <summary>Single row in the paginated due collection history list.</summary>
     public class HmsDueCollectionSummary
     {
         public string? receipt_guid { get; set; }
@@ -446,6 +452,7 @@ namespace medico_backend.Model
         public string? branch_name { get; set; }
         public string? collected_by { get; set; }
     }
+
     // ── All Due Bills ──────────────────────────────────────────────────────
 
     public class HmsAllDueFilterRequest
@@ -456,8 +463,8 @@ namespace medico_backend.Model
         public int? dcode { get; set; }
         public DateTime? fromdate { get; set; }
         public DateTime? todate { get; set; }
-        public double? min_due { get; set; }   // only bills with due >= this value
-        public string? search { get; set; }   // name / mobile / bill_no / custid
+        public double? min_due { get; set; }
+        public string? search { get; set; }
         public int page { get; set; } = 1;
         public int pagesize { get; set; } = 20;
     }
@@ -500,9 +507,7 @@ namespace medico_backend.Model
         public decimal? custid { get; set; }
         public DateTime? fromdate { get; set; }
         public DateTime? todate { get; set; }
-        /// <summary>DUE / ADVANCE / ADVANCE_REFUND / ALL (default ALL)</summary>
         public string? receipt_type { get; set; }
-        /// <summary>CASH / CARD / UPI / CHEQUE / BANK / ADVANCE</summary>
         public string? collection_type { get; set; }
         public string? search { get; set; }
         public int page { get; set; } = 1;
