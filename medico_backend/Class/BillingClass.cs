@@ -1238,5 +1238,17 @@ namespace medico_backend.Class
                 return ($"Transaction error: {ex.Message}", null);
             }
         }
+        public async Task<HmsCounterTimingDto?> GetActiveShiftByBranchCounter(int bhcode, int cntcode, string tenantCode)
+        {
+            using var db = GetConnection();
+            return await db.QueryFirstOrDefaultAsync<HmsCounterTimingDto>(
+                @"SELECT c.*, b.name as counter_name,
+                 CASE WHEN c.todate IS NULL THEN true ELSE false END as is_open,
+                 CASE WHEN c.todate IS NOT NULL THEN true ELSE false END as is_closed
+          FROM counter_timing c
+          LEFT JOIN billno_master b ON c.cntcode = b.cntcode AND c.tenant_code = b.tenant_code
+          WHERE c.bhcode = @bhcode AND c.cntcode = @cntcode AND c.todate IS NULL AND c.tenant_code = @tenantCode
+          LIMIT 1", new { bhcode, cntcode, tenantCode });
+        }
     }
 }

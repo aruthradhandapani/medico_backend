@@ -256,5 +256,18 @@ namespace medico_backend.Controller
 
             return Ok(data);
         }
+        [HttpGet("counter/active-shift")]
+        [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(HmsCounterTimingDto))]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        public async Task<IActionResult> GetActiveShift([FromQuery] int bhcode, [FromQuery] int cntcode)
+        {
+            string tenantToken = GetTenantCode();
+            var session = await _billingService.GetActiveShiftByBranchCounter(bhcode, cntcode, tenantToken);
+
+            if (session == null)
+                return NotFound(new { message = "No active shift found for this branch/counter." });
+
+            return Ok(session);
+        }
     }
 }
