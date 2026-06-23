@@ -1599,18 +1599,18 @@ namespace medico_backend.Class
         // ═══════════════════════════════════════════════════════════════════════
 
         public async Task<(List<HmsAllDueBillRow> data, int totalCount, HmsAllDueSummary summary)>
-            GetAllDueBills(HmsAllDueFilterRequest filter, string tenantCode)
+    GetAllDueBills(HmsAllDueFilterRequest filter, string tenantCode)
         {
             using var db = GetConnection();
             var p = new DynamicParameters();
             p.Add("t", tenantCode);
 
             string where = @"WHERE lrm.tenant_code = @t
-                       AND COALESCE(lrm.isdeleted, false) = false
-                       AND COALESCE(lrm.deleted,   false) = false
-                       AND lrm.bill_category = 'HMS'
-                       AND (COALESCE(lrm.totalamount, 0)
-                          - COALESCE(lrm.paidamount,  0)) > 0.05 ";
+                   AND COALESCE(lrm.isdeleted, false) = false
+                   AND COALESCE(lrm.deleted,   false) = false
+                   AND lrm.bill_category = 'HMS'
+                   AND (COALESCE(lrm.totalamount, 0)
+                      - COALESCE(lrm.paidamount,  0)) > 0.05 ";
 
             if (filter.bhcode.HasValue) { where += " AND lrm.enteredbhcode = @bh "; p.Add("bh", filter.bhcode); }
             if (filter.cntcode.HasValue) { where += " AND lrm.cntcode = @cnt "; p.Add("cnt", filter.cntcode); }
@@ -1622,20 +1622,31 @@ namespace medico_backend.Class
             if (!string.IsNullOrEmpty(filter.search))
             {
                 where += @" AND (lrm.name ILIKE @s OR lrm.mobileno ILIKE @s
-                      OR lrm.requestsnoprint ILIKE @s OR CAST(lrm.custid AS TEXT) ILIKE @s) ";
+              OR lrm.requestsnoprint ILIKE @s OR CAST(lrm.custid AS TEXT) ILIKE @s) ";
                 p.Add("s", $"%{filter.search}%");
             }
 
+            // FIXED: LATERAL JOIN guarantees exactly 1 row per bill regardless of
+            // how many doctor_master rows exist for the same dcode + tenant_code
             string joins = @"
         FROM lab_request_master lrm
-        LEFT JOIN doctor_master dm ON dm.dcode = lrm.dcode AND dm.tenant_code = lrm.tenant_code
-        LEFT JOIN mastertenant.branch_master bm ON bm.bh_code = lrm.enteredbhcode AND bm.tenant_code = lrm.tenant_code";
+        LEFT JOIN LATERAL (
+            SELECT name FROM doctor_master
+            WHERE dcode = lrm.dcode AND tenant_code = lrm.tenant_code
+            LIMIT 1
+        ) dm ON true
+        LEFT JOIN LATERAL (
+            SELECT name FROM mastertenant.branch_master
+            WHERE bh_code = lrm.enteredbhcode AND tenant_code = lrm.tenant_code
+            LIMIT 1
+        ) bm ON true";
 
+            // FIXED: COUNT(DISTINCT) prevents inflated totals when joins fan out
             var agg = await db.QueryFirstAsync<dynamic>(
-                $@"SELECT COUNT(*) AS total_count,
-               COALESCE(SUM(lrm.totalamount), 0) AS total_billed,
-               COALESCE(SUM(lrm.paidamount), 0) AS total_paid,
-               COALESCE(SUM(lrm.totalamount - COALESCE(lrm.paidamount, 0)), 0) AS total_due
+                $@"SELECT COUNT(DISTINCT lrm.requestguid) AS total_count,
+               COALESCE(SUM(DISTINCT lrm.totalamount), 0) AS total_billed,
+               COALESCE(SUM(DISTINCT lrm.paidamount),  0) AS total_paid,
+               COALESCE(SUM(DISTINCT lrm.totalamount - COALESCE(lrm.paidamount, 0)), 0) AS total_due
            {joins} {where}", p);
 
             int totalCount = (int)agg.total_count;
@@ -1650,7 +1661,7 @@ namespace medico_backend.Class
                lrm.requestsnoprint AS bill_no,
                lrm.requestdatetime AS bill_date,
                lrm.bill_category   AS bill_type,
-               lrm.custid,
+               NULLIF(lrm.custid, 0) AS custid,
                lrm.name            AS patient_name,
                lrm.mobileno,
                lrm.opvisitid,
