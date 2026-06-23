@@ -1242,7 +1242,7 @@ namespace medico_backend.Class
         {
             using var db = GetConnection();
             return await db.QueryFirstOrDefaultAsync<HmsCounterTimingDto>(
-                @"SELECT c.*, b.name as counter_name,
+                @"SELECT c.*, b.name as counter_name, 
                  CASE WHEN c.todate IS NULL THEN true ELSE false END as is_open,
                  CASE WHEN c.todate IS NOT NULL THEN true ELSE false END as is_closed
           FROM counter_timing c

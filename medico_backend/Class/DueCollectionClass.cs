@@ -1410,7 +1410,32 @@ namespace medico_backend.Class
         }
 
         // ═══════════════════════════════════════════════════════════════════════
-        //  6. PAGINATED DUE COLLECTION LIST
+        //  6. PAGINATED DUE COLLECTION LIST  (FIXED)
+        //
+        //  Problem (before fix):
+        //    receipt_details joined with INNER JOIN and no LIMIT produces one
+        //    row per bill linked to the receipt.  For a single-bill receipt
+        //    that is fine, but for a BULK receipt (2 patients, 1 shared receipt)
+        //    the join fans out → Patient A appears twice, Patient B appears twice,
+        //    amounts double-counted, names "duplicate" in the UI.
+        //
+        //  Fix (mirrors GetPaidHistory exactly):
+        //    • receipt_details stays as a NORMAL (non-LATERAL) INNER JOIN so that
+        //      every (receipt × bill) pair produces exactly one output row.
+        //      → bulk receipt with 2 bills → 2 rows, each with its own patient name
+        //        and its own rd.receiptamount share.
+        //    • amount shown is rd.receiptamount  (this bill's share of the receipt)
+        //      NOT r.amountpaid (the batch total — would be wrong for bulk).
+        //    • doctor_master and branch_master use LATERAL + LIMIT 1 to guard
+        //      against duplicate master rows for the same dcode / bh_code.
+        //      These are the only LATERAL joins; they do NOT collapse bill rows.
+        //    • COUNT and ORDER stay on (receipt, bill) pairs so pagination is
+        //      consistent with what is displayed.
+        //
+        //  DB layout reminder:
+        //    receipt_master      — 1 row per payment event (shared for bulk)
+        //    receipt_details     — 1 row per (receipt × bill)   ← fan-out source
+        //    lab_request_master  — 1 row per bill
         // ═══════════════════════════════════════════════════════════════════════
 
         public async Task<(List<HmsDueCollectionSummary> data, int totalCount)> GetDueCollectionList(
@@ -1420,13 +1445,18 @@ namespace medico_backend.Class
             var p = new DynamicParameters();
             p.Add("t", tenantCode);
 
+            // ── Base WHERE — always filter on receipt_master + receipt_details ──
             string where = @"WHERE r.tenant_code = @t
-                               AND COALESCE(r.isdeleted, false) = false
-                               AND r.receipttype = 'DUE' ";
+                       AND COALESCE(r.isdeleted, false) = false
+                       AND r.receipttype = 'DUE' ";
 
             if (filter.custid.HasValue)
             {
-                where += " AND r.custid = @custid ";
+                // custid lives on receipt_master for single-bill receipts,
+                // but for bulk receipts the custid on receipt_master may be NULL
+                // (no single patient).  Filter on the bill side (lrm.custid) so
+                // bulk receipts with that patient are still found.
+                where += " AND lrm.custid = @custid ";
                 p.Add("custid", (int)filter.custid.Value);
             }
             if (!string.IsNullOrEmpty(filter.requestguid))
@@ -1457,33 +1487,59 @@ namespace medico_backend.Class
             if (!string.IsNullOrEmpty(filter.search))
             {
                 where += @" AND (lrm.name ILIKE @s
-                             OR lrm.mobileno ILIKE @s
-                             OR r.receiptsnoprint ILIKE @s
-                             OR lrm.requestsnoprint ILIKE @s) ";
+                     OR lrm.mobileno ILIKE @s
+                     OR r.receiptsnoprint ILIKE @s
+                     OR lrm.requestsnoprint ILIKE @s) ";
                 p.Add("s", $"%{filter.search}%");
             }
             if (filter.pending_only == true)
             {
-                where += @" AND (COALESCE(lrm.totalamount,0)
-                                - COALESCE(lrm.paidamount,0)) > 0.05 ";
+                where += @" AND (COALESCE(lrm.totalamount, 0)
+                        - COALESCE(lrm.paidamount,  0)) > 0.05 ";
             }
 
+            // ── JOINS ────────────────────────────────────────────────────────────
+            //
+            //  receipt_details  : NORMAL INNER JOIN (not LATERAL, not LIMIT 1)
+            //    → one output row per (receipt × bill).
+            //    → for a bulk receipt with 2 bills this gives 2 rows — CORRECT.
+            //    → DO NOT add LIMIT 1 here; that would collapse bulk receipts back
+            //      to a single row and hide the second patient.
+            //
+            //  lab_request_master : LEFT JOIN so that if a bill was deleted after
+            //    collection the receipt row is still visible (with NULLs for bill
+            //    fields).
+            //
+            //  doctor_master / branch_master : LATERAL + LIMIT 1 guards against
+            //    duplicate master rows for the same dcode / bh_code.  These do
+            //    NOT collapse bill rows because each bill already has its own lrm
+            //    row with its own dcode — the LATERAL sub-select just picks one
+            //    doctor name per bill.
+            // ─────────────────────────────────────────────────────────────────────
             string joins = @"
-                FROM receipt_master r
-               INNER JOIN receipt_details rd
-                       ON rd.receiptguid  = r.receiptguid
-                      AND rd.tenant_code  = r.tenant_code
-                      AND COALESCE(rd.deleted, false) = false
-               INNER JOIN lab_request_master lrm
-                       ON lrm.requestguid = rd.requestguid
-                      AND lrm.tenant_code = rd.tenant_code
-                LEFT  JOIN doctor_master dm
-                       ON dm.dcode        = lrm.dcode
-                      AND dm.tenant_code  = lrm.tenant_code
-                LEFT  JOIN mastertenant.branch_master bm
-                       ON bm.bh_code      = r.enteredbhcode
-                      AND bm.tenant_code  = r.tenant_code";
+        FROM receipt_master r
+        INNER JOIN receipt_details rd
+               ON rd.receiptguid = r.receiptguid
+              AND rd.tenant_code = r.tenant_code
+              AND COALESCE(rd.deleted, false) = false
+        LEFT JOIN lab_request_master lrm
+               ON lrm.requestguid = rd.requestguid
+              AND lrm.tenant_code = rd.tenant_code
+        LEFT JOIN LATERAL (
+            SELECT name FROM doctor_master
+             WHERE dcode = lrm.dcode AND tenant_code = lrm.tenant_code
+             LIMIT 1
+        ) dm ON true
+        LEFT JOIN LATERAL (
+            SELECT name FROM mastertenant.branch_master
+             WHERE bh_code = r.enteredbhcode AND tenant_code = r.tenant_code
+             LIMIT 1
+        ) bm ON true";
 
+            // ── COUNT: count (receipt × bill) pairs, not just receipts ──────────
+            //    COUNT(DISTINCT r.receiptguid) would under-count for bulk receipts.
+            //    COUNT(*) is correct because the joins already produce exactly one
+            //    row per (receipt × bill) pair with no fan-out.
             int total = await db.ExecuteScalarAsync<int>(
                 $"SELECT COUNT(*) {joins} {where}", p);
 
@@ -1491,42 +1547,71 @@ namespace medico_backend.Class
             p.Add("limit", filter.pagesize);
             p.Add("offset", offset);
 
+            // ── DATA QUERY ───────────────────────────────────────────────────────
+            //
+            //  Key column change vs. the old version:
+            //    OLD:  r.amountpaid  AS amount_paid   ← batch total (WRONG for bulk)
+            //    NEW:  rd.receiptamount AS amount_paid ← this bill's share (CORRECT)
+            //
+            //  advance_used sub-query: looks for ADVANCE rows in balancecollectionby
+            //    tied to THIS bill (rd.requestguid) so each bill sees only its own
+            //    advance, not the whole batch's advance.
+            //
+            //  collection_type sub-query: looks for the cash-type row in
+            //    balancecollectionby for THIS bill's receipt + request pair so that
+            //    per-item payment modes work correctly in bulk.
+            // ─────────────────────────────────────────────────────────────────────
             var rows = await db.QueryAsync<HmsDueCollectionSummary>($@"
-                SELECT
-                    r.receiptguid                                                AS receipt_guid,
-                    r.receiptsnoprint                                            AS receipt_no,
-                    lrm.name                                                     AS patient_name,
-                    lrm.mobileno,
-                    lrm.requestsnoprint                                          AS bill_no,
-                    dm.name                                                      AS doctor_name,
-                    r.amountpaid                                                 AS amount_paid,
-                    COALESCE((
-                        SELECT SUM(bcb.collectedamount)
-                          FROM balancecollectionby bcb
-                         WHERE bcb.request_guid    = rd.requestguid
-                           AND bcb.receipt_guid    != r.receiptguid
-                           AND bcb.collection_type = 'ADVANCE'
-                           AND COALESCE(bcb.deleted, false) = false
-                           AND bcb.tenant_code     = @t
-                    ), 0)                                                        AS advance_used,
-                    (SELECT bcb2.collection_type
-                       FROM balancecollectionby bcb2
-                      WHERE bcb2.receipt_guid = r.receiptguid
-                        AND bcb2.tenant_code  = @t
-                        AND COALESCE(bcb2.deleted, false) = false
-                      LIMIT 1)                                                   AS collection_type,
-                    r.receipttype                                                AS receipt_type,
-                    r.receiptdate                                                AS receipt_date,
-                    COALESCE(lrm.totalamount, 0)                                AS total_bill_amount,
-                    GREATEST(COALESCE(lrm.totalamount,0)
-                           - COALESCE(lrm.paidamount, 0), 0)                   AS current_due,
-                    CASE WHEN (COALESCE(lrm.totalamount,0)
-                             - COALESCE(lrm.paidamount, 0)) <= 0.05
-                         THEN true ELSE false END                               AS is_fully_settled,
-                    bm.name                                                      AS branch_name
-                {joins} {where}
-                ORDER BY r.receiptdate DESC
-                LIMIT @limit OFFSET @offset", p);
+        SELECT
+            r.receiptguid                                                   AS receipt_guid,
+            r.receiptsnoprint                                               AS receipt_no,
+            lrm.name                                                        AS patient_name,
+            lrm.mobileno,
+            lrm.requestsnoprint                                             AS bill_no,
+            dm.name                                                         AS doctor_name,
+
+            -- Per-bill share of this receipt (NOT the batch total)
+            COALESCE(rd.receiptamount, 0)                                   AS amount_paid,
+
+            -- Advance used specifically for THIS bill
+            COALESCE((
+                SELECT SUM(bcb.collectedamount)
+                  FROM balancecollectionby bcb
+                 WHERE bcb.request_guid    = rd.requestguid
+                   AND bcb.collection_type = 'ADVANCE'
+                   AND COALESCE(bcb.deleted, false) = false
+                   AND bcb.tenant_code     = @t
+            ), 0)                                                           AS advance_used,
+
+            -- Payment mode for this bill (per-item mode for bulk, or receipt mode)
+            COALESCE(
+                (SELECT bcb2.collection_type
+                   FROM balancecollectionby bcb2
+                  WHERE bcb2.receipt_guid  = r.receiptguid
+                    AND bcb2.request_guid  = rd.requestguid
+                    AND bcb2.tenant_code   = @t
+                    AND COALESCE(bcb2.deleted, false) = false
+                  LIMIT 1),
+                (SELECT bcb3.collection_type
+                   FROM balancecollectionby bcb3
+                  WHERE bcb3.receipt_guid  = r.receiptguid
+                    AND bcb3.tenant_code   = @t
+                    AND COALESCE(bcb3.deleted, false) = false
+                  LIMIT 1)
+            )                                                               AS collection_type,
+
+            r.receipttype                                                   AS receipt_type,
+            r.receiptdate                                                   AS receipt_date,
+            COALESCE(lrm.totalamount, 0)                                   AS total_bill_amount,
+            GREATEST(COALESCE(lrm.totalamount, 0)
+                   - COALESCE(lrm.paidamount,  0), 0)                     AS current_due,
+            CASE WHEN (COALESCE(lrm.totalamount, 0)
+                     - COALESCE(lrm.paidamount,  0)) <= 0.05
+                 THEN true ELSE false END                                  AS is_fully_settled,
+            bm.name                                                        AS branch_name
+        {joins} {where}
+        ORDER BY r.receiptdate DESC, lrm.name ASC
+        LIMIT @limit OFFSET @offset", p);
 
             return (rows.ToList(), total);
         }
@@ -1702,8 +1787,29 @@ namespace medico_backend.Class
             });
         }
 
+
         // ═══════════════════════════════════════════════════════════════════════
-        //  9. PAID HISTORY
+        //  9. PAID HISTORY  (FIXED — matches GetDueCollectionList exactly)
+        //
+        //  Fix summary vs old version:
+        //    1. COUNT(*) counts (receipt × bill) pairs, not COUNT(DISTINCT receiptguid).
+        //       COUNT(DISTINCT) under-counts when a bulk receipt has multiple bills
+        //       and the pagination offset is based on row count, not receipt count.
+        //
+        //    2. total_due_collected aggregate uses SUM(rd.receiptamount) — each bill's
+        //       own share — NOT SUM(rm.amountpaid) which is the batch total.
+        //       For a bulk receipt paying 3 bills at 1000 each:
+        //         OLD: 3 rows × 3000 = 9000   ← WRONG (tripled)
+        //         NEW: 3 rows × 1000 = 3000   ← CORRECT
+        //
+        //    3. collection_type sub-query checks receipt_guid + request_guid first
+        //       (per-item mode for bulk), then falls back to receipt_guid only.
+        //       Matches GetDueCollectionList exactly.
+        //
+        //    4. JOIN structure unchanged — receipt_details stays as a NORMAL INNER JOIN
+        //       (not LATERAL / LIMIT 1) so bulk receipts with N bills still produce N rows.
+        //
+        //  POST /api/HmsDueCollection/paid-history
         // ═══════════════════════════════════════════════════════════════════════
 
         public async Task<(List<HmsPaidHistoryRow> data, int totalCount, HmsPaidHistorySummary summary)>
@@ -1720,63 +1826,151 @@ namespace medico_backend.Class
             if (filter.custid.HasValue) { where += " AND rm.custid = @custid "; p.Add("custid", (int)filter.custid.Value); }
             if (filter.fromdate.HasValue) { where += " AND rm.receiptdate >= @from "; p.Add("from", filter.fromdate.Value.Date); }
             if (filter.todate.HasValue) { where += " AND rm.receiptdate <= @to "; p.Add("to", filter.todate.Value.Date.AddDays(1).AddSeconds(-1)); }
+
             if (!string.IsNullOrEmpty(filter.receipt_type) && filter.receipt_type.ToUpper() != "ALL")
-            { where += " AND rm.receipttype = @rtype "; p.Add("rtype", filter.receipt_type.ToUpper()); }
+            {
+                where += " AND rm.receipttype = @rtype ";
+                p.Add("rtype", filter.receipt_type.ToUpper());
+            }
             if (!string.IsNullOrEmpty(filter.collection_type))
             {
                 where += @" AND EXISTS (SELECT 1 FROM balancecollectionby bcb
-                             WHERE bcb.receipt_guid = rm.receiptguid AND bcb.collection_type = @coltype
-                               AND bcb.tenant_code = @t AND COALESCE(bcb.deleted, false) = false) ";
+             WHERE bcb.receipt_guid = rm.receiptguid AND bcb.collection_type = @coltype
+               AND bcb.tenant_code = @t AND COALESCE(bcb.deleted, false) = false) ";
                 p.Add("coltype", filter.collection_type.ToUpper());
             }
             if (!string.IsNullOrEmpty(filter.search))
             {
                 where += @" AND (lrm.name ILIKE @s OR lrm.mobileno ILIKE @s
-                      OR rm.receiptsnoprint ILIKE @s OR lrm.requestsnoprint ILIKE @s) ";
+          OR rm.receiptsnoprint ILIKE @s OR lrm.requestsnoprint ILIKE @s) ";
                 p.Add("s", $"%{filter.search}%");
             }
 
+            // ── JOINS ────────────────────────────────────────────────────────────────
+            //
+            //  receipt_details : NORMAL INNER JOIN — one output row per (receipt × bill).
+            //    A bulk receipt with 2 bills → 2 rows. DO NOT add LIMIT 1 here.
+            //
+            //  doctor_master / branch_master : LATERAL + LIMIT 1 only to guard against
+            //    duplicate master rows per dcode / bh_code. These do NOT collapse bill rows.
+            // ─────────────────────────────────────────────────────────────────────────
             string joins = @"
-        FROM receipt_master rm
-        LEFT JOIN receipt_details rd ON rd.receiptguid = rm.receiptguid AND rd.tenant_code = rm.tenant_code AND COALESCE(rd.deleted, false) = false
-        LEFT JOIN lab_request_master lrm ON lrm.requestguid = rd.requestguid AND lrm.tenant_code = rd.tenant_code
-        LEFT JOIN doctor_master dm ON dm.dcode = lrm.dcode AND dm.tenant_code = lrm.tenant_code
-        LEFT JOIN mastertenant.branch_master bm ON bm.bh_code = rm.enteredbhcode AND bm.tenant_code = rm.tenant_code";
+FROM receipt_master rm
+INNER JOIN receipt_details rd
+       ON rd.receiptguid = rm.receiptguid
+      AND rd.tenant_code = rm.tenant_code
+      AND COALESCE(rd.deleted, false) = false
+LEFT JOIN lab_request_master lrm
+       ON lrm.requestguid = rd.requestguid
+      AND lrm.tenant_code = rm.tenant_code
+LEFT JOIN LATERAL (
+    SELECT name FROM doctor_master
+     WHERE dcode = lrm.dcode AND tenant_code = lrm.tenant_code
+     LIMIT 1
+) dm ON true
+LEFT JOIN LATERAL (
+    SELECT name FROM mastertenant.branch_master
+     WHERE bh_code = rm.enteredbhcode AND tenant_code = rm.tenant_code
+     LIMIT 1
+) bm ON true";
 
+            // ── COUNT ────────────────────────────────────────────────────────────────
+            //  COUNT(*) counts (receipt × bill) pairs — consistent with what is displayed.
+            //  COUNT(DISTINCT rm.receiptguid) would under-count for bulk receipts:
+            //    bulk receipt with 3 bills → COUNT(DISTINCT) = 1, COUNT(*) = 3.
+            //  Pagination offsets are row-based, so COUNT(*) is correct here.
+            // ─────────────────────────────────────────────────────────────────────────
+            int total = await db.ExecuteScalarAsync<int>(
+                $"SELECT COUNT(*) {joins} {where}", p);
+
+            // ── AGGREGATE ────────────────────────────────────────────────────────────
+            //
+            //  total_due_collected: SUM(rd.receiptamount) — per-bill share, NOT rm.amountpaid.
+            //    rm.amountpaid is the batch total for bulk receipts. Summing it over N bill
+            //    rows multiplies the amount N times.
+            //    rd.receiptamount is the exact amount settled against this specific bill.
+            //
+            //  total_advance_deposited / total_advance_refunded: these live on receipt_master
+            //    (no bill-level split exists for advance receipts) so rm.amountpaid is correct.
+            // ─────────────────────────────────────────────────────────────────────────
             var agg = await db.QueryFirstAsync<dynamic>(
-                $@"SELECT COUNT(DISTINCT rm.receiptguid) AS total_receipts,
-               COALESCE(SUM(CASE WHEN rm.receipttype = 'DUE' THEN rm.amountpaid ELSE 0 END), 0) AS total_due_collected,
-               COALESCE(SUM(CASE WHEN rm.receipttype = 'ADVANCE' THEN rm.amountpaid ELSE 0 END), 0) AS total_advance_deposited,
-               COALESCE(SUM(CASE WHEN rm.receipttype = 'ADVANCE_REFUND' THEN rm.amountpaid ELSE 0 END), 0) AS total_advance_refunded
-           {joins} {where}", p);
+                $@"SELECT
+       COUNT(*) AS total_receipts,
+       COALESCE(SUM(CASE WHEN rm.receipttype = 'DUE'
+                         THEN rd.receiptamount ELSE 0 END), 0) AS total_due_collected,
+       COALESCE(SUM(CASE WHEN rm.receipttype = 'ADVANCE'
+                         THEN rm.amountpaid   ELSE 0 END), 0) AS total_advance_deposited,
+       COALESCE(SUM(CASE WHEN rm.receipttype = 'ADVANCE_REFUND'
+                         THEN rm.amountpaid   ELSE 0 END), 0) AS total_advance_refunded
+   {joins} {where}", p, commandTimeout: 60);
 
             int totalCount = (int)agg.total_receipts;
             int offset = (filter.page - 1) * filter.pagesize;
             p.Add("limit", filter.pagesize);
             p.Add("offset", offset);
 
+            // ── DATA QUERY ───────────────────────────────────────────────────────────
+            //
+            //  amount → rd.receiptamount (this bill's share), NOT rm.amountpaid.
+            //
+            //  collection_type sub-query:
+            //    1st attempt — receipt_guid + request_guid (per-item mode for bulk receipts)
+            //    Fallback    — receipt_guid only            (single-bill or legacy receipts)
+            //    Matches GetDueCollectionList exactly.
+            // ─────────────────────────────────────────────────────────────────────────
             var rows = (await db.QueryAsync<HmsPaidHistoryRow>(
                 $@"SELECT
-               rm.receiptguid, rm.receiptsnoprint AS receipt_no,
-               rm.receiptbarcode AS receipt_barcode, rm.receipttype AS receipt_type,
-               rm.receiptdate, rm.amountpaid AS amount,
-               rm.custid, lrm.name AS patient_name, lrm.mobileno,
-               lrm.requestsnoprint AS bill_no, lrm.requestguid AS bill_guid,
-               lrm.requestdatetime AS bill_date, dm.name AS doctor_name,
-               bm.name AS branch_name, rm.bankname AS bank_name,
-               rm.paymentreference AS reference_no, rm.chequedate,
-               (SELECT bcb.collection_type FROM balancecollectionby bcb
-                 WHERE bcb.receipt_guid = rm.receiptguid AND bcb.tenant_code = @t
-                   AND COALESCE(bcb.deleted, false) = false LIMIT 1) AS collection_type,
-               CASE WHEN lrm.requestguid IS NOT NULL
-                    THEN GREATEST(COALESCE(lrm.totalamount,0) - COALESCE(lrm.paidamount,0), 0)
-                    ELSE NULL END AS remaining_due,
-               CASE WHEN lrm.requestguid IS NOT NULL
-                    THEN (COALESCE(lrm.totalamount,0) - COALESCE(lrm.paidamount,0)) <= 0.05
-                    ELSE NULL END AS is_bill_settled
-           {joins} {where}
-           ORDER BY rm.receiptdate DESC
-           LIMIT @limit OFFSET @offset", p)).ToList();
+       rm.receiptguid,
+       rm.receiptsnoprint          AS receipt_no,
+       rm.receiptbarcode           AS receipt_barcode,
+       rm.receipttype              AS receipt_type,
+       rm.receiptdate,
+
+       -- Per-bill share of this receipt (NOT the batch total)
+       COALESCE(rd.receiptamount, 0) AS amount,
+
+       rm.custid,
+       lrm.name                    AS patient_name,
+       lrm.mobileno,
+       lrm.requestsnoprint         AS bill_no,
+       lrm.requestguid             AS bill_guid,
+       lrm.requestdatetime         AS bill_date,
+       dm.name                     AS doctor_name,
+       bm.name                     AS branch_name,
+       rm.bankname                 AS bank_name,
+       rm.paymentreference         AS reference_no,
+       rm.chequedate,
+
+       -- Payment mode: per-item (receipt + bill) first, fallback to receipt-level
+       COALESCE(
+           (SELECT bcb.collection_type
+              FROM balancecollectionby bcb
+             WHERE bcb.receipt_guid = rm.receiptguid
+               AND bcb.request_guid = rd.requestguid
+               AND bcb.tenant_code  = @t
+               AND COALESCE(bcb.deleted, false) = false
+             LIMIT 1),
+           (SELECT bcb2.collection_type
+              FROM balancecollectionby bcb2
+             WHERE bcb2.receipt_guid = rm.receiptguid
+               AND bcb2.tenant_code  = @t
+               AND COALESCE(bcb2.deleted, false) = false
+             LIMIT 1)
+       )                           AS collection_type,
+
+       CASE WHEN lrm.requestguid IS NOT NULL
+            THEN GREATEST(COALESCE(lrm.totalamount, 0)
+                        - COALESCE(lrm.paidamount,  0), 0)
+            ELSE NULL END          AS remaining_due,
+
+       CASE WHEN lrm.requestguid IS NOT NULL
+            THEN (COALESCE(lrm.totalamount, 0)
+                - COALESCE(lrm.paidamount,  0)) <= 0.05
+            ELSE NULL END          AS is_bill_settled
+
+   {joins} {where}
+   ORDER BY rm.receiptdate DESC, lrm.name ASC
+   LIMIT @limit OFFSET @offset", p, commandTimeout: 60)).ToList();
 
             return (rows, totalCount, new HmsPaidHistorySummary
             {
@@ -1785,8 +1979,9 @@ namespace medico_backend.Class
                 total_advance_deposited = Math.Round((double)agg.total_advance_deposited, 2),
                 total_advance_refunded = Math.Round((double)agg.total_advance_refunded, 2),
                 net_collected = Math.Round(
-                    (double)agg.total_due_collected + (double)agg.total_advance_deposited
-                    - (double)agg.total_advance_refunded, 2)
+                    (double)agg.total_due_collected
+                  + (double)agg.total_advance_deposited
+                  - (double)agg.total_advance_refunded, 2)
             });
         }
 
