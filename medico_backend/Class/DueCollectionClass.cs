@@ -134,10 +134,22 @@ namespace medico_backend.Class
         // ═══════════════════════════════════════════════════════════════════════
 
         public async Task<(string status, HmsDueCollectionResponse? data)> CollectDue(
-            HmsDueCollectionRequest req, string tenantCode)
+    HmsDueCollectionRequest req, string tenantCode)
         {
             var validErr = ValidateDueRequest(req);
             if (validErr != null) return (validErr, null);
+
+            // Resolve provision flags — same pattern as LIMS DueCollectionClass.Save
+            bool isbillFlag = req.isbill ?? true;                          // due-collection always settles a bill
+            bool isrefferalFlag = req.isrefferal ?? false;
+            bool ismonthlyFlag = req.ismonthly ?? false;
+            bool ispatientFlag = req.ispatient ?? !isrefferalFlag;          // patient by default unless marked referral
+
+            // Only attach bank/cheque details when the payment mode actually is a cheque
+            // (mirrors LIMS' isCheque detection — avoids writing stray bank_name on CASH/UPI rows)
+            bool isCheque = req.collection_type.Equals("CHEQUE", StringComparison.OrdinalIgnoreCase)
+                || req.cheque_date != null
+                || !string.IsNullOrWhiteSpace(req.bank_name);
 
             using var db = GetConnection();
             db.Open();
@@ -148,8 +160,8 @@ namespace medico_backend.Class
                 // Lock bill row to prevent concurrent collection
                 var bill = await db.QueryFirstOrDefaultAsync<HmsLabRequestMaster>(
                     @"SELECT * FROM lab_request_master
-                       WHERE requestguid = @rg AND tenant_code = @t
-                       FOR UPDATE",
+               WHERE requestguid = @rg AND tenant_code = @t
+               FOR UPDATE",
                     new { rg = req.requestguid, t = tenantCode }, tx);
 
                 if (bill == null)
@@ -188,9 +200,9 @@ namespace medico_backend.Class
                 // Validate open counter shift
                 var shift = await db.QueryFirstOrDefaultAsync<HmsCounterTiming>(
                     @"SELECT * FROM counter_timing
-                       WHERE bhcode = @bh AND cntcode = @cnt
-                         AND todate IS NULL AND tenant_code = @t
-                       LIMIT 1",
+               WHERE bhcode = @bh AND cntcode = @cnt
+                 AND todate IS NULL AND tenant_code = @t
+               LIMIT 1",
                     new { bh = req.enteredbhcode, cnt = req.cntcode, t = tenantCode }, tx);
 
                 if (shift == null)
@@ -199,8 +211,8 @@ namespace medico_backend.Class
 
                 var receiptCfg = await db.QueryFirstOrDefaultAsync<HmsBillNoMaster>(
                     @"SELECT * FROM billno_master
-                       WHERE isreceiptno = true AND deleted = false AND tenant_code = @t
-                       LIMIT 1",
+               WHERE isreceiptno = true AND deleted = false AND tenant_code = @t
+               LIMIT 1",
                     new { t = tenantCode }, tx);
 
                 if (receiptCfg == null)
@@ -229,18 +241,22 @@ namespace medico_backend.Class
                         tmcode = req.tmcode ?? bill.tmcode,
                         pmcode = req.pmcode ?? bill.pmcode,
                         ctcode = req.ctcode ?? bill.ctcode,
-                        bankname = req.bank_name,
+                        payledgercode = req.payledgercode,
+                        bankname = isCheque ? req.bank_name : null,
                         paymentreference = req.reference_no,
                         cardno = req.card_no,
-                        chequedate = req.cheque_date,
+                        chequedate = isCheque ? req.cheque_date : null,
+                        carddate = req.card_date,
                         amountpaid = cashCollected,
                         amountadjusted = cashCollected,
                         amounttotal = cashCollected,
                         deleted = false,
                         isdeleted = false,
-                        isbill = true,
-                        ispatient = true,
-                        isrefund = false,
+                        isbill = isbillFlag,
+                        ispatient = ispatientFlag,
+                        isrefund = req.isrefund ?? false,
+                        isrefferal = isrefferalFlag,
+                        ismonthly = ismonthlyFlag,
                         receipttype = "DUE",
                         custid = (int?)bill.custid,
                         opvisitid = bill.opvisitid,
@@ -266,7 +282,13 @@ namespace medico_backend.Class
                         computercode = req.computercode,
                         entereddate = DateTime.UtcNow,
                         ibsdate = DateTime.UtcNow,
-                        tenant_code = tenantCode
+                        tenant_code = tenantCode,
+                        custid = (int?)bill.custid,
+                        opvisitid = bill.opvisitid,
+                        enteredbhcode = req.enteredbhcode,
+                        isbill = isbillFlag,
+                        ispatient = ispatientFlag,
+                        isrefund = req.isrefund ?? false
                     };
                     await db.InsertAsync(detail, tx);
 
@@ -284,45 +306,31 @@ namespace medico_backend.Class
                 }
 
                 // ── B. ADVANCE ADJUSTMENT (FIFO) ─────────────────────────────
-                //
-                //  For each deposit consumed:
-                //    1. Write a receipt_advances USAGE row
-                //       → receiptguid  = original deposit receipt guid (links back to deposit)
-                //       → requestguid  = current bill guid (marks it as "used against this bill")
-                //       → receiptamount = amount deducted from this deposit
-                //    2. Write a balancecollectionby row with collection_type='ADVANCE'
-                //       so daily reports include the advance adjustment
-                //
-                //  This means:
-                //    Available balance = SUM(rows where requestguid IS NULL)
-                //                     − SUM(rows where requestguid IS NOT NULL)
-                //  On cancel: soft-delete the usage rows → balance is restored automatically
-                // ─────────────────────────────────────────────────────────────
                 if (advanceToUse > 0.01)
                 {
                     var deposits = (await db.QueryAsync<dynamic>(
                         @"SELECT ra.receiptadvanceid,
-                                 ra.receiptguid,
-                                 ra.receiptamount,
-                                 COALESCE(
-                                     (SELECT SUM(u.receiptamount)
-                                        FROM receipt_advances u
-                                       WHERE u.receiptguid  = ra.receiptguid
-                                         AND u.requestguid IS NOT NULL
-                                         AND COALESCE(u.deleted, false) = false),
-                                 0) AS used_amount
-                            FROM receipt_advances ra
-                           WHERE ra.requestguid IS NULL
-                             AND COALESCE(ra.deleted, false) = false
-                             AND ra.receiptguid IN (
-                                 SELECT rm.receiptguid
-                                   FROM receipt_master rm
-                                  WHERE rm.custid      = @custid
-                                    AND rm.tenant_code = @t
-                                    AND rm.receipttype = 'ADVANCE'
-                                    AND COALESCE(rm.isdeleted, false) = false
-                             )
-                           ORDER BY ra.receiptadvanceid ASC",
+                         ra.receiptguid,
+                         ra.receiptamount,
+                         COALESCE(
+                             (SELECT SUM(u.receiptamount)
+                                FROM receipt_advances u
+                               WHERE u.receiptguid  = ra.receiptguid
+                                 AND u.requestguid IS NOT NULL
+                                 AND COALESCE(u.deleted, false) = false),
+                         0) AS used_amount
+                    FROM receipt_advances ra
+                   WHERE ra.requestguid IS NULL
+                     AND COALESCE(ra.deleted, false) = false
+                     AND ra.receiptguid IN (
+                         SELECT rm.receiptguid
+                           FROM receipt_master rm
+                          WHERE rm.custid      = @custid
+                            AND rm.tenant_code = @t
+                            AND rm.receipttype = 'ADVANCE'
+                            AND COALESCE(rm.isdeleted, false) = false
+                     )
+                   ORDER BY ra.receiptadvanceid ASC",
                         new { custid = (int?)bill.custid, t = tenantCode }, tx)).ToList();
 
                     double remaining = advanceToUse;
@@ -336,20 +344,18 @@ namespace medico_backend.Class
 
                         double debit = Math.Round(Math.Min(available, remaining), 2);
 
-                        // Write usage row — links this deposit to this bill
-                        // Cancelling will soft-delete this row → restores the balance
                         await db.ExecuteAsync(
                             @"INSERT INTO receipt_advances
-                                (receiptadvanceid, receiptguid, requestguid, receiptamount,
-                                 deleted, tenant_code, usercode, computercode, entereddate, ibsdate)
-                              VALUES
-                                (@id, @rg, @billGuid, @amt,
-                                 false, @t, @uc, @cc, @dt, @dt)",
+                        (receiptadvanceid, receiptguid, requestguid, receiptamount,
+                         deleted, tenant_code, usercode, computercode, entereddate, ibsdate)
+                      VALUES
+                        (@id, @rg, @billGuid, @amt,
+                         false, @t, @uc, @cc, @dt, @dt)",
                             new
                             {
                                 id = Guid.NewGuid().ToString(),
-                                rg = (string)dep.receiptguid,       // original deposit receipt
-                                billGuid = req.requestguid,         // bill this advance is used for
+                                rg = (string)dep.receiptguid,
+                                billGuid = req.requestguid,
                                 amt = debit,
                                 t = tenantCode,
                                 uc = req.usercode,
@@ -357,7 +363,6 @@ namespace medico_backend.Class
                                 dt = DateTime.UtcNow
                             }, tx);
 
-                        // Also write balancecollectionby so daily reports include advance usage
                         await InsertBalanceCollectionRow(
                             db, tx,
                             bhcode: req.enteredbhcode,
@@ -387,9 +392,9 @@ namespace medico_backend.Class
                 // ── C. Update lab_request_master ──────────────────────────────
                 await db.ExecuteAsync(
                     @"UPDATE lab_request_master
-                         SET paidamount     = COALESCE(paidamount,     0) + @total,
-                             paidviareceipt = COALESCE(paidviareceipt, 0) + @cash
-                       WHERE requestguid = @rg AND tenant_code = @t",
+                 SET paidamount     = COALESCE(paidamount,     0) + @total,
+                     paidviareceipt = COALESCE(paidviareceipt, 0) + @cash
+               WHERE requestguid = @rg AND tenant_code = @t",
                     new
                     {
                         total = totalSettled,
@@ -403,14 +408,14 @@ namespace medico_backend.Class
                 {
                     await db.ExecuteAsync(
                         @"UPDATE balancecollectionbytest
-                             SET requeststatus = true
-                           WHERE balancecollectionbyid IN (
-                               SELECT balancecollectionbyid
-                                 FROM balancecollectionby
-                                WHERE request_guid = @rg
-                                  AND tenant_code  = @t
-                                  AND COALESCE(deleted, false) = false
-                           )",
+                     SET requeststatus = true
+                   WHERE balancecollectionbyid IN (
+                       SELECT balancecollectionbyid
+                         FROM balancecollectionby
+                        WHERE request_guid = @rg
+                          AND tenant_code  = @t
+                          AND COALESCE(deleted, false) = false
+                   )",
                         new { rg = req.requestguid, t = tenantCode }, tx);
                 }
 
@@ -476,7 +481,6 @@ namespace medico_backend.Class
             var refRequired = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
         { "CARD", "UPI", "CHEQUE", "BANK" };
 
-            // Validate every item's EFFECTIVE payment mode (item override, else batch default)
             foreach (var item in req.items)
             {
                 if (string.IsNullOrWhiteSpace(item.requestguid))
@@ -497,6 +501,12 @@ namespace medico_backend.Class
                             $"with payment mode '{effType}'.", null);
                 }
             }
+
+            // Resolve batch-level default provision flags — same pattern as LIMS Save
+            bool batchIsbillFlag = req.isbill ?? true;
+            bool batchIsrefferalFlag = req.isrefferal ?? false;
+            bool batchIsmonthlyFlag = req.ismonthly ?? false;
+            bool batchIspatientFlag = req.ispatient ?? !batchIsrefferalFlag;
 
             using var db = GetConnection();
             db.Open();
@@ -529,9 +539,6 @@ namespace medico_backend.Class
                 string batchReceiptGuid = Guid.NewGuid().ToString();
                 double batchCashTotal = req.items.Sum(i => Math.Round(i.cash_collected, 2));
 
-                // Shared receipt_master header — uses batch-level payment fields.
-                // (Per-item overrides are recorded on each bill's balancecollectionby row below;
-                //  the receipt header itself can only carry one bank/card/cheque reference.)
                 var batchReceipt = new HmsDueReceiptMaster
                 {
                     receiptguid = batchReceiptGuid,
@@ -545,18 +552,22 @@ namespace medico_backend.Class
                     tmcode = req.tmcode,
                     pmcode = req.pmcode,
                     ctcode = req.ctcode,
+                    payledgercode = req.payledgercode,
                     bankname = req.bank_name,
                     paymentreference = req.reference_no,
                     cardno = req.card_no,
                     chequedate = req.cheque_date,
+                    carddate = req.card_date,
                     amountpaid = batchCashTotal,
                     amountadjusted = batchCashTotal,
                     amounttotal = batchCashTotal,
                     deleted = false,
                     isdeleted = false,
-                    isbill = true,
-                    ispatient = true,
-                    isrefund = false,
+                    isbill = batchIsbillFlag,
+                    ispatient = batchIspatientFlag,
+                    isrefund = req.isrefund ?? false,
+                    isrefferal = batchIsrefferalFlag,
+                    ismonthly = batchIsmonthlyFlag,
                     receipttype = "DUE",
                     enteredbhcode = req.enteredbhcode,
                     usercode = req.usercode,
@@ -580,6 +591,14 @@ namespace medico_backend.Class
                     string? itemCardNo = item.card_no ?? req.card_no;
                     DateTime? itemChequeDate = item.cheque_date ?? req.cheque_date;
                     string? itemRemarks = item.remarks ?? req.remarks;
+
+                    // Per-item provision flags, falling back to batch defaults
+                    bool itemIsbillFlag = item.isbill ?? batchIsbillFlag;
+                    bool itemIsrefferalFlag = item.isrefferal ?? batchIsrefferalFlag;
+                    bool itemIsmonthlyFlag = item.ismonthly ?? batchIsmonthlyFlag;
+                    bool itemIspatientFlag = item.ispatient
+                        ?? (item.isrefferal.HasValue ? !itemIsrefferalFlag : batchIspatientFlag);
+                    bool itemIsrefundFlag = item.isrefund ?? (req.isrefund ?? false);
 
                     // Lock this bill
                     var bill = await db.QueryFirstOrDefaultAsync<HmsLabRequestMaster>(
@@ -653,7 +672,6 @@ namespace medico_backend.Class
                     double itemAdvanceToUse = Math.Round(item.advance_to_use, 2);
                     double itemCashCollected = Math.Round(item.cash_collected, 2);
 
-                    // Validate / clamp advance for this item
                     if (itemAdvanceToUse > 0.01)
                     {
                         double advBal = await GetPatientAdvanceBalance(db, bill.custid, tenantCode, tx);
@@ -666,12 +684,12 @@ namespace medico_backend.Class
                     double dueAfterAdvance = Math.Round(Math.Max(currentDue - itemAdvanceToUse, 0), 2);
 
                     if (itemCashCollected > dueAfterAdvance + 0.01)
-                        itemCashCollected = Math.Round(dueAfterAdvance, 2); // clamp
+                        itemCashCollected = Math.Round(dueAfterAdvance, 2);
 
                     double itemTotalSettled = Math.Round(itemAdvanceToUse + itemCashCollected, 2);
                     double itemDueAfter = Math.Round(Math.Max(currentDue - itemTotalSettled, 0), 2);
 
-                    // receipt_details — link this bill to the batch receipt
+                    // receipt_details — link this bill to the batch receipt, carry per-item attribution
                     await db.InsertAsync(new HmsDueReceiptDetail
                     {
                         receiptdetailsid = Guid.NewGuid().ToString(),
@@ -685,7 +703,13 @@ namespace medico_backend.Class
                         computercode = req.computercode,
                         entereddate = DateTime.UtcNow,
                         ibsdate = DateTime.UtcNow,
-                        tenant_code = tenantCode
+                        tenant_code = tenantCode,
+                        custid = (int?)bill.custid,
+                        opvisitid = bill.opvisitid,
+                        enteredbhcode = req.enteredbhcode,
+                        isbill = itemIsbillFlag,
+                        ispatient = itemIspatientFlag,
+                        isrefund = itemIsrefundFlag
                     }, tx);
 
                     // balancecollectionby — cash portion (per-item payment mode/reference)
@@ -1920,6 +1944,405 @@ namespace medico_backend.Class
                 return "usercode is required (collected_by identity).";
 
             return null;
+        }
+        // ═══════════════════════════════════════════════════════════════════════
+        //  10. ADVANCED PAID HISTORY FILTER
+        //
+        //  Supports: isBill, isPatient, isRefferal, isMonthly flags,
+        //            Branch, Counter, Year, BillNo, SampleNo, ReceiptNo,
+        //            Patient, Doctor, Receipt Date From/To with Time
+        //
+        //  POST /api/HmsDueCollection/paid-history/filter
+        // ═══════════════════════════════════════════════════════════════════════
+
+        public async Task<(List<HmsPaidHistoryRow> data, int totalCount, HmsPaidHistorySummary summary)>
+            GetAdvancedPaidHistory(HmsPaidHistoryAdvancedFilterRequest filter, string tenantCode)
+        {
+            using var db = GetConnection();
+            var p = new DynamicParameters();
+            p.Add("t", tenantCode);
+
+            string where = @"WHERE rm.tenant_code = @t
+                       AND COALESCE(rm.isdeleted, false) = false ";
+
+            // ── Flag filters ──────────────────────────────────────────────────
+            if (filter.isbill.HasValue)
+            {
+                where += " AND COALESCE(rm.isbill, false) = @isbill ";
+                p.Add("isbill", filter.isbill.Value);
+            }
+            if (filter.ispatient.HasValue)
+            {
+                where += " AND COALESCE(rm.ispatient, false) = @ispatient ";
+                p.Add("ispatient", filter.ispatient.Value);
+            }
+            if (filter.isrefferal.HasValue)
+            {
+                where += " AND COALESCE(rm.isrefferal, false) = @isrefferal ";
+                p.Add("isrefferal", filter.isrefferal.Value);
+            }
+            if (filter.ismonthly.HasValue)
+            {
+                where += " AND COALESCE(rm.ismonthly, false) = @ismonthly ";
+                p.Add("ismonthly", filter.ismonthly.Value);
+            }
+
+            // ── Location filters ──────────────────────────────────────────────
+            if (filter.bhcode.HasValue)
+            {
+                where += " AND rm.enteredbhcode = @bh ";
+                p.Add("bh", filter.bhcode.Value);
+            }
+            if (filter.cntcode.HasValue)
+            {
+                where += " AND rm.cntcode = @cnt ";
+                p.Add("cnt", filter.cntcode.Value);
+            }
+
+            // ── Year filter ───────────────────────────────────────────────────
+            if (filter.year.HasValue)
+            {
+                where += " AND EXTRACT(YEAR FROM rm.receiptdate) = @yr ";
+                p.Add("yr", filter.year.Value);
+            }
+
+            // ── Number filters ────────────────────────────────────────────────
+            if (!string.IsNullOrWhiteSpace(filter.bill_no))
+            {
+                where += " AND lrm.requestsnoprint ILIKE @billno ";
+                p.Add("billno", $"%{filter.bill_no}%");
+            }
+            if (!string.IsNullOrWhiteSpace(filter.sample_no))
+            {
+                where += " AND lrm.requestbarcode ILIKE @sampleno ";
+                p.Add("sampleno", $"%{filter.sample_no}%");
+            }
+            if (!string.IsNullOrWhiteSpace(filter.receipt_no))
+            {
+                where += " AND rm.receiptsnoprint ILIKE @receiptno ";
+                p.Add("receiptno", $"%{filter.receipt_no}%");
+            }
+
+            // ── Person filters ────────────────────────────────────────────────
+            if (!string.IsNullOrWhiteSpace(filter.patient_name))
+            {
+                where += " AND lrm.name ILIKE @pname ";
+                p.Add("pname", $"%{filter.patient_name}%");
+            }
+            if (filter.custid.HasValue)
+            {
+                where += " AND rm.custid = @custid ";
+                p.Add("custid", (int)filter.custid.Value);
+            }
+            if (filter.dcode.HasValue)
+            {
+                where += " AND lrm.dcode = @dcode ";
+                p.Add("dcode", filter.dcode.Value);
+            }
+
+            // ── Receipt Type filter ───────────────────────────────────────────
+            if (!string.IsNullOrWhiteSpace(filter.receipt_type)
+                && !filter.receipt_type.Equals("ALL", StringComparison.OrdinalIgnoreCase))
+            {
+                where += " AND rm.receipttype = @rtype ";
+                p.Add("rtype", filter.receipt_type.ToUpper());
+            }
+            if (!string.IsNullOrWhiteSpace(filter.collection_type))
+            {
+                where += @" AND EXISTS (
+            SELECT 1 FROM balancecollectionby bcb
+             WHERE bcb.receipt_guid = rm.receiptguid
+               AND bcb.collection_type = @coltype
+               AND bcb.tenant_code = @t
+               AND COALESCE(bcb.deleted, false) = false) ";
+                p.Add("coltype", filter.collection_type.ToUpper());
+            }
+
+            // ── Date + Time range ─────────────────────────────────────────────
+            if (filter.receipt_date_from.HasValue)
+            {
+                // Combine date + time_from if provided, else start of day
+                DateTime fromDt = filter.receipt_date_from.Value.Date;
+                if (filter.time_from.HasValue)
+                    fromDt = fromDt.Add(filter.time_from.Value);
+
+                where += " AND rm.receiptdate >= @from ";
+                p.Add("from", fromDt);
+            }
+            if (filter.receipt_date_to.HasValue)
+            {
+                // Combine date + time_to if provided, else end of day
+                DateTime toDt = filter.receipt_date_to.Value.Date;
+                if (filter.time_to.HasValue)
+                    toDt = toDt.Add(filter.time_to.Value);
+                else
+                    toDt = toDt.AddDays(1).AddSeconds(-1);
+
+                where += " AND rm.receiptdate <= @to ";
+                p.Add("to", toDt);
+            }
+
+            string joins = @"
+        FROM receipt_master rm
+        LEFT JOIN receipt_details rd
+               ON rd.receiptguid = rm.receiptguid
+              AND rd.tenant_code = rm.tenant_code
+              AND COALESCE(rd.deleted, false) = false
+        LEFT JOIN lab_request_master lrm
+               ON lrm.requestguid = rd.requestguid
+              AND lrm.tenant_code  = rd.tenant_code
+        LEFT JOIN doctor_master dm
+               ON dm.dcode       = lrm.dcode
+              AND dm.tenant_code  = lrm.tenant_code
+        LEFT JOIN mastertenant.branch_master bm
+               ON bm.bh_code     = rm.enteredbhcode
+              AND bm.tenant_code  = rm.tenant_code";
+
+            // ── Aggregate summary ─────────────────────────────────────────────
+            var agg = await db.QueryFirstAsync<dynamic>(
+                $@"SELECT
+               COUNT(DISTINCT rm.receiptguid) AS total_receipts,
+               COALESCE(SUM(CASE WHEN rm.receipttype = 'DUE'
+                                 THEN rm.amountpaid ELSE 0 END), 0) AS total_due_collected,
+               COALESCE(SUM(CASE WHEN rm.receipttype = 'ADVANCE'
+                                 THEN rm.amountpaid ELSE 0 END), 0) AS total_advance_deposited,
+               COALESCE(SUM(CASE WHEN rm.receipttype = 'ADVANCE_REFUND'
+                                 THEN rm.amountpaid ELSE 0 END), 0) AS total_advance_refunded
+           {joins} {where}", p);
+
+            int totalCount = (int)agg.total_receipts;
+            int offset = (filter.page - 1) * filter.pagesize;
+            p.Add("limit", filter.pagesize);
+            p.Add("offset", offset);
+
+            var rows = (await db.QueryAsync<HmsPaidHistoryRow>(
+                $@"SELECT
+               rm.receiptguid,
+               rm.receiptsnoprint          AS receipt_no,
+               rm.receiptbarcode           AS receipt_barcode,
+               rm.receipttype              AS receipt_type,
+               rm.receiptdate,
+               rm.amountpaid               AS amount,
+               rm.custid,
+               lrm.name                    AS patient_name,
+               lrm.mobileno,
+               lrm.requestsnoprint         AS bill_no,
+               lrm.requestguid             AS bill_guid,
+               lrm.requestdatetime         AS bill_date,
+               dm.name                     AS doctor_name,
+               bm.name                     AS branch_name,
+               rm.bankname                 AS bank_name,
+               rm.paymentreference         AS reference_no,
+               rm.chequedate,
+               (SELECT bcb.collection_type
+                  FROM balancecollectionby bcb
+                 WHERE bcb.receipt_guid = rm.receiptguid
+                   AND bcb.tenant_code  = @t
+                   AND COALESCE(bcb.deleted, false) = false
+                 LIMIT 1)                  AS collection_type,
+               CASE WHEN lrm.requestguid IS NOT NULL
+                    THEN GREATEST(COALESCE(lrm.totalamount,0)
+                               - COALESCE(lrm.paidamount, 0), 0)
+                    ELSE NULL END          AS remaining_due,
+               CASE WHEN lrm.requestguid IS NOT NULL
+                    THEN (COALESCE(lrm.totalamount,0)
+                        - COALESCE(lrm.paidamount, 0)) <= 0.05
+                    ELSE NULL END          AS is_bill_settled
+           {joins} {where}
+           ORDER BY rm.receiptdate DESC
+           LIMIT @limit OFFSET @offset", p)).ToList();
+
+            return (rows, totalCount, new HmsPaidHistorySummary
+            {
+                total_receipts = totalCount,
+                total_due_collected = Math.Round((double)agg.total_due_collected, 2),
+                total_advance_deposited = Math.Round((double)agg.total_advance_deposited, 2),
+                total_advance_refunded = Math.Round((double)agg.total_advance_refunded, 2),
+                net_collected = Math.Round(
+                    (double)agg.total_due_collected
+                  + (double)agg.total_advance_deposited
+                  - (double)agg.total_advance_refunded, 2)
+            });
+        }
+        // ═══════════════════════════════════════════════════════════════════════
+        //  11. DAILY COLLECTION REPORT
+        //
+        //  Filters: From, To, Branch, Customer, Monthly, Doctor, Report Type
+        //  POST /api/HmsDueCollection/daily-collection-report
+        // ═══════════════════════════════════════════════════════════════════════
+
+        public async Task<(List<HmsDailyCollectionReportRow> data, int totalCount,
+            HmsDailyCollectionReportSummary summary)>
+            GetDailyCollectionReport(HmsDailyCollectionReportFilterRequest filter, string tenantCode)
+        {
+            using var db = GetConnection();
+            var p = new DynamicParameters();
+            p.Add("t", tenantCode);
+
+            string where = @"WHERE rm.tenant_code = @t
+                       AND COALESCE(rm.isdeleted, false) = false ";
+
+            // ── FROM / TO date ────────────────────────────────────────────────
+            if (filter.fromdate.HasValue)
+            {
+                where += " AND rm.receiptdate >= @from ";
+                p.Add("from", filter.fromdate.Value.Date);
+            }
+            if (filter.todate.HasValue)
+            {
+                where += " AND rm.receiptdate <= @to ";
+                p.Add("to", filter.todate.Value.Date.AddDays(1).AddSeconds(-1));
+            }
+
+            // ── BRANCH ────────────────────────────────────────────────────────
+            if (filter.bhcode.HasValue)
+            {
+                where += " AND rm.enteredbhcode = @bh ";
+                p.Add("bh", filter.bhcode.Value);
+            }
+
+            // ── CUSTOMER — search by custid, name, or mobile ──────────────────
+            if (filter.custid.HasValue)
+            {
+                where += " AND rm.custid = @custid ";
+                p.Add("custid", (int)filter.custid.Value);
+            }
+            else if (!string.IsNullOrWhiteSpace(filter.customer_search))
+            {
+                where += @" AND (lrm.name    ILIKE @csearch
+                      OR lrm.mobileno ILIKE @csearch
+                      OR CAST(rm.custid AS TEXT) ILIKE @csearch) ";
+                p.Add("csearch", $"%{filter.customer_search}%");
+            }
+
+            // ── DOCTOR — search by dcode or name ─────────────────────────────
+            if (filter.dcode.HasValue)
+            {
+                where += " AND lrm.dcode = @dcode ";
+                p.Add("dcode", filter.dcode.Value);
+            }
+            else if (!string.IsNullOrWhiteSpace(filter.doctor_search))
+            {
+                where += @" AND (dm.name ILIKE @dsearch
+                      OR CAST(lrm.dcode AS TEXT) ILIKE @dsearch) ";
+                p.Add("dsearch", $"%{filter.doctor_search}%");
+            }
+
+            // ── MONTHLY ───────────────────────────────────────────────────────
+            if (!string.IsNullOrWhiteSpace(filter.ismonthly))
+            {
+                if (bool.TryParse(filter.ismonthly, out bool monthlyVal))
+                {
+                    where += " AND COALESCE(rm.ismonthly, false) = @ismonthly ";
+                    p.Add("ismonthly", monthlyVal);
+                }
+            }
+
+            // ── SELECT REPORT (receipt type) ──────────────────────────────────
+            if (!string.IsNullOrWhiteSpace(filter.report_type)
+                && !filter.report_type.Equals("ALL", StringComparison.OrdinalIgnoreCase))
+            {
+                where += " AND rm.receipttype = @rtype ";
+                p.Add("rtype", filter.report_type.ToUpper());
+            }
+
+            string joins = @"
+        FROM receipt_master rm
+        LEFT JOIN receipt_details rd
+               ON rd.receiptguid = rm.receiptguid
+              AND rd.tenant_code  = rm.tenant_code
+              AND COALESCE(rd.deleted, false) = false
+        LEFT JOIN lab_request_master lrm
+               ON lrm.requestguid = rd.requestguid
+              AND lrm.tenant_code  = rd.tenant_code
+        LEFT JOIN doctor_master dm
+               ON dm.dcode       = lrm.dcode
+              AND dm.tenant_code  = lrm.tenant_code
+        LEFT JOIN mastertenant.branch_master bm
+               ON bm.bh_code     = rm.enteredbhcode
+              AND bm.tenant_code  = rm.tenant_code";
+
+            // ── Summary aggregates (payment-mode breakdown) ───────────────────
+            var agg = await db.QueryFirstAsync<dynamic>(
+                $@"SELECT
+               COUNT(DISTINCT rm.receiptguid)                            AS total_receipts,
+               COALESCE(SUM(CASE WHEN bcb.collection_type = 'CASH'
+                                 THEN bcb.collectedamount  ELSE 0 END), 0) AS total_cash,
+               COALESCE(SUM(CASE WHEN bcb.collection_type = 'CARD'
+                                 THEN bcb.collectedamount  ELSE 0 END), 0) AS total_card,
+               COALESCE(SUM(CASE WHEN bcb.collection_type = 'UPI'
+                                 THEN bcb.collectedamount  ELSE 0 END), 0) AS total_upi,
+               COALESCE(SUM(CASE WHEN bcb.collection_type = 'CHEQUE'
+                                 THEN bcb.collectedamount  ELSE 0 END), 0) AS total_cheque,
+               COALESCE(SUM(CASE WHEN rm.receipttype = 'ADVANCE'
+                                 THEN rm.amountpaid   ELSE 0 END), 0)      AS total_advance,
+               COALESCE(SUM(CASE WHEN rm.receipttype = 'ADVANCE_REFUND'
+                                 THEN rm.amountpaid   ELSE 0 END), 0)      AS total_advance_refund,
+               COALESCE(SUM(rm.amountpaid), 0)                             AS grand_total
+           {joins}
+           LEFT JOIN balancecollectionby bcb
+                  ON bcb.receipt_guid = rm.receiptguid
+                 AND bcb.tenant_code  = rm.tenant_code
+                 AND COALESCE(bcb.deleted, false) = false
+           {where}", p);
+
+            int totalCount = (int)agg.total_receipts;
+            int offset = (filter.page - 1) * filter.pagesize;
+            p.Add("limit", filter.pagesize);
+            p.Add("offset", offset);
+
+            // ── Paginated rows ────────────────────────────────────────────────
+            var rows = (await db.QueryAsync<HmsDailyCollectionReportRow>(
+                $@"SELECT
+               rm.receiptguid,
+               rm.receiptsnoprint                                       AS receipt_no,
+               rm.receiptbarcode                                        AS receipt_barcode,
+               rm.receipttype                                           AS receipt_type,
+               rm.receiptdate                                           AS receipt_date,
+               rm.custid,
+               lrm.name                                                 AS patient_name,
+               lrm.mobileno,
+               lrm.requestsnoprint                                      AS bill_no,
+               lrm.requestguid                                          AS bill_guid,
+               dm.name                                                  AS doctor_name,
+               bm.name                                                  AS branch_name,
+               rm.amountpaid                                            AS amount_paid,
+               rm.bankname                                              AS bank_name,
+               rm.paymentreference                                      AS reference_no,
+               rm.ismonthly,
+               rm.isbill,
+               rm.ispatient,
+               rm.isrefferal,
+               (SELECT bcb2.collection_type
+                  FROM balancecollectionby bcb2
+                 WHERE bcb2.receipt_guid = rm.receiptguid
+                   AND bcb2.tenant_code  = @t
+                   AND COALESCE(bcb2.deleted, false) = false
+                 LIMIT 1)                                               AS collection_type,
+               CASE WHEN lrm.requestguid IS NOT NULL
+                    THEN GREATEST(COALESCE(lrm.totalamount, 0)
+                               - COALESCE(lrm.paidamount,  0), 0)
+                    ELSE NULL END                                       AS remaining_due,
+               CASE WHEN lrm.requestguid IS NOT NULL
+                    THEN (COALESCE(lrm.totalamount, 0)
+                        - COALESCE(lrm.paidamount,  0)) <= 0.05
+                    ELSE NULL END                                       AS is_bill_settled
+           {joins}
+           {where}
+           ORDER BY rm.receiptdate DESC
+           LIMIT @limit OFFSET @offset", p)).ToList();
+
+            return (rows, totalCount, new HmsDailyCollectionReportSummary
+            {
+                total_receipts = totalCount,
+                total_cash = Math.Round((double)agg.total_cash, 2),
+                total_card = Math.Round((double)agg.total_card, 2),
+                total_upi = Math.Round((double)agg.total_upi, 2),
+                total_cheque = Math.Round((double)agg.total_cheque, 2),
+                total_advance = Math.Round((double)agg.total_advance, 2),
+                total_advance_refund = Math.Round((double)agg.total_advance_refund, 2),
+                grand_total = Math.Round((double)agg.grand_total, 2)
+            });
         }
     }
 }

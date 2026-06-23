@@ -387,5 +387,69 @@ namespace medico_backend.Controllers
                 return StatusCode(500, new { success = false, message = ex.Message });
             }
         }
+        // ═══════════════════════════════════════════════════════════════════════
+        //  11. ADVANCED PAID HISTORY FILTER
+        //
+        //  POST /api/HmsDueCollection/paid-history/filter
+        // ═══════════════════════════════════════════════════════════════════════
+
+        [HttpPost("save/filter")]
+        public async Task<IActionResult> GetAdvancedPaidHistory(
+            [FromBody] HmsPaidHistoryAdvancedFilterRequest filter)
+        {
+            try
+            {
+                string tenant = ResolveTenantCode();
+                var (data, totalCount, summary) =
+                    await _service.GetAdvancedPaidHistory(filter, tenant);
+
+                return Ok(new
+                {
+                    success = true,
+                    totalCount,
+                    page = filter.page,
+                    pagesize = filter.pagesize,
+                    summary,
+                    data
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error in GetAdvancedPaidHistory.");
+                return StatusCode(500, new { success = false, message = ex.Message });
+            }
+        }
+        // ═══════════════════════════════════════════════════════════════════════
+        //  11. DAILY COLLECTION REPORT
+        //
+        //  POST /api/HmsDueCollection/daily-collection-report
+        // ═══════════════════════════════════════════════════════════════════════
+
+        [HttpPost("history/filter")]
+        public async Task<IActionResult> GetDailyCollectionReport(
+            [FromBody] HmsDailyCollectionReportFilterRequest filter)
+        {
+            try
+            {
+                string tenant = ResolveTenantCode();
+                var (data, totalCount, summary) = 
+                    await _service.GetDailyCollectionReport(filter, tenant);
+
+                return Ok(new
+                {
+                    success = true,
+                    totalCount,
+                    page = filter.page,
+                    pagesize = filter.pagesize,
+                    summary,
+                    data
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error in GetDailyCollectionReport.");
+                return StatusCode(500, new { success = false, message = ex.Message });
+            }
+        }
     }
 }

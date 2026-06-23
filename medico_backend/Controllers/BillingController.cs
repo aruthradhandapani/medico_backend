@@ -145,6 +145,116 @@ namespace medico_backend.Controller
             var metricsData = await _billingService.ExtractDailyCollectionSummaryReport(branchCode, date, tenantToken);
             return Ok(metricsData);
         }
+        // ════════════════════════════════════════════════════════════════════════
+        //  BILLNO MASTER CONFIGURATION — manage Bill No / Receipt No / Sample No setup
+        // ════════════════════════════════════════════════════════════════════════
 
+        [HttpPost("billno/create")]
+        [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(BillNoMasterResponse))]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        public async Task<IActionResult> CreateBillNoConfig([FromBody] CreateBillNoMasterRequest req)
+        {
+            string tenantToken = GetTenantCode();
+            var (status, data) = await _billingService.CreateBillNoConfig(req, tenantToken);
+
+            if (status != "SUCCESS")
+                return BadRequest(new { message = status });
+
+            return Ok(data);
+        }
+
+        [HttpPost("billno/update")]
+        [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(BillNoMasterResponse))]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        public async Task<IActionResult> UpdateBillNoConfig([FromBody] UpdateBillNoMasterRequest req)
+        {
+            string tenantToken = GetTenantCode();
+            var (status, data) = await _billingService.UpdateBillNoConfig(req, tenantToken);
+
+            if (status != "SUCCESS")
+                return BadRequest(new { message = status });
+
+            return Ok(data);
+        }
+
+        [HttpPost("billno/delete")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        public async Task<IActionResult> DeleteBillNoConfig([FromBody] DeleteBillNoMasterRequest req)
+        {
+            string tenantToken = GetTenantCode();
+            string status = await _billingService.DeleteBillNoConfig(req, tenantToken);
+
+            if (status != "SUCCESS")
+                return BadRequest(new { message = status });
+
+            return Ok(new { message = "Configuration deactivated successfully." });
+        }
+
+        [HttpGet("billno/restore/{bncode}")]
+        [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(BillNoMasterResponse))]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        public async Task<IActionResult> RestoreBillNoConfig(decimal bncode)
+        {
+            string tenantToken = GetTenantCode();
+            var (status, data) = await _billingService.RestoreBillNoConfig(bncode, tenantToken);
+
+            if (status != "SUCCESS")
+                return BadRequest(new { message = status });
+
+            return Ok(data);
+        }
+
+        [HttpGet("billno/{bncode}")]
+        [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(BillNoMasterResponse))]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        public async Task<IActionResult> GetBillNoConfig(decimal bncode)
+        {
+            string tenantToken = GetTenantCode();
+            var data = await _billingService.GetBillNoConfigByCode(bncode, tenantToken);
+
+            if (data == null)
+                return NotFound(new { message = "Configuration not found." });
+
+            return Ok(data);
+        }
+
+        [HttpPost("billno/list")]
+        [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(object))]
+        public async Task<IActionResult> GetBillNoConfigList([FromBody] BillNoMasterFilterRequest filter)
+        {
+            string tenantToken = GetTenantCode();
+            var (data, totalCount) = await _billingService.GetBillNoConfigList(filter, tenantToken);
+
+            return Ok(new
+            {
+                total = totalCount,
+                page = filter.page,
+                pageSize = filter.pagesize,
+                data
+            });
+        }
+        // ════════════════════════════════════════════════════════════════════════
+        //  DEDICATED UPDATE BILL ENDPOINT
+        //  POST /api/HmsBilling/update-bill
+        // ════════════════════════════════════════════════════════════════════════
+
+        [HttpPost("update-bill")]
+        [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(UpdateHmsBillResponse))]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        public async Task<IActionResult> UpdateBill([FromBody] UpdateHmsBillRequest request)
+        {
+            string tenantToken = GetTenantCode();
+            var (status, data) = await _billingService.UpdateBillDedicated(request, tenantToken);
+
+            if (status == "Bill not found.")
+                return NotFound(new { message = status });
+
+            if (status != "SUCCESS")
+                return BadRequest(new { message = status });
+
+            return Ok(data);
+        }
     }
 }

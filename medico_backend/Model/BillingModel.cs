@@ -567,5 +567,149 @@ namespace medico_backend.Model
         public bool? timingfixed { get; set; }
         public bool? isinsurance { get; set; }
     }
+    // ── BILLNO MASTER CONFIG DTOs ──────────────────────────────────────────────
 
+    public class CreateBillNoMasterRequest
+    {
+        public string name { get; set; } = string.Empty;
+        public string shortname { get; set; } = string.Empty;
+        public int orderno { get; set; } = 0;
+        public decimal? bhcode { get; set; }
+        public int? cntcode { get; set; }
+        public bool isdefault { get; set; } = false;
+        public bool allbranch { get; set; } = true;
+        public bool allcounter { get; set; } = true;
+        public bool restartfinancialyear { get; set; } = false;
+        public bool restartcalendaryear { get; set; } = false;
+        public bool restartmonthly { get; set; } = true;
+        public bool restartdaily { get; set; } = false;
+        public bool issampleno { get; set; } = false;
+        public bool isreceiptno { get; set; } = false;
+        public int? usercode { get; set; }
+        public int? computercode { get; set; }
+    }
+
+    public class UpdateBillNoMasterRequest
+    {
+        public decimal bncode { get; set; }
+        public string? name { get; set; }
+        public string? shortname { get; set; }
+        public int? orderno { get; set; }
+        public decimal? bhcode { get; set; }
+        public int? cntcode { get; set; }
+        public bool? isdefault { get; set; }
+        public bool? allbranch { get; set; }
+        public bool? allcounter { get; set; }
+        public bool? restartfinancialyear { get; set; }
+        public bool? restartcalendaryear { get; set; }
+        public bool? restartmonthly { get; set; }
+        public bool? restartdaily { get; set; }
+        public bool? issampleno { get; set; }
+        public bool? isreceiptno { get; set; }
+        public int? usercode { get; set; }
+    }
+
+    public class DeleteBillNoMasterRequest
+    {
+        public decimal bncode { get; set; }
+        public int? usercode { get; set; }
+    }
+
+    public class BillNoMasterFilterRequest
+    {
+        public bool? isreceiptno { get; set; }
+        public bool? issampleno { get; set; }
+        public bool? includeDeleted { get; set; } = false;
+        public string? search { get; set; }
+        public int page { get; set; } = 1;
+        public int pagesize { get; set; } = 20;
+    }
+
+    public class BillNoMasterResponse
+    {
+        public decimal bncode { get; set; }
+        public string? name { get; set; }
+        public string? shortname { get; set; }
+        public int orderno { get; set; }
+        public decimal? bhcode { get; set; }
+        public int? cntcode { get; set; }
+        public bool? isdefault { get; set; }
+        public bool? allbranch { get; set; }
+        public bool? allcounter { get; set; }
+        public bool? restartfinancialyear { get; set; }
+        public bool? restartcalendaryear { get; set; }
+        public bool? restartmonthly { get; set; }
+        public bool? restartdaily { get; set; }
+        public bool? issampleno { get; set; }
+        public bool? isreceiptno { get; set; }
+        public bool deleted { get; set; }
+        public string? tenant_code { get; set; }
+        public DateTime entereddate { get; set; }
+        /// <summary>Live count of how many sequence rows currently use this config — helps the UI warn before delete.</summary>
+        public int sequence_rows_in_use { get; set; }
+    }
+    public class UpdateHmsBillRequest
+    {
+        public string requestguid { get; set; } = string.Empty;  // required
+        public string? op_id { get; set; }
+        public string? sheet_id { get; set; }
+        public decimal? custid { get; set; }
+        public string? patient_name { get; set; }
+        public string? gender { get; set; }
+        public string? dateofbirth { get; set; }
+        public string? ageyears { get; set; }
+        public string? agemonths { get; set; }
+        public string? agedays { get; set; }
+        public string? mobileno { get; set; }
+        public string? address { get; set; }
+        public int? areacode { get; set; }
+        public int? dcode { get; set; }
+        public int? consultantdcode { get; set; }
+        public int? enteredbhcode { get; set; }
+        public int? cntcode { get; set; }
+        public int? usercode { get; set; }
+        public int? computercode { get; set; }
+        public decimal? ftcode { get; set; }
+        public decimal? pmcode { get; set; }
+        public decimal? ctcode { get; set; }
+        public decimal? ricode { get; set; }
+        public double? discountper { get; set; }
+        public double? discountamount { get; set; }
+        public double? specialdiscount { get; set; }
+        public double? pmc1 { get; set; }
+        public double? pmc2 { get; set; }
+        public double? pmc3 { get; set; }
+        public bool? iscashbill { get; set; }
+        public bool? iscreditbill { get; set; }
+        public bool? isinsurancepatient { get; set; }
+        public string? policyno { get; set; }
+        public string? authorisationno { get; set; }
+        public string? concessionreason { get; set; }
+        public string? card_refno { get; set; }
+        public string? bank_app { get; set; }
+        public List<HmsBillLineItemDto> items { get; set; } = new();
+    }
+
+    public class UpdateHmsBillResponse
+    {
+        public string requestguid { get; set; } = string.Empty;
+        public string? bill_no { get; set; }
+        public string? barcode { get; set; }
+        public DateTime? bill_date { get; set; }
+        public decimal? custid { get; set; }
+        public string? patient_name { get; set; }
+        public string? gender { get; set; }
+        public string? mobileno { get; set; }
+        public string? ageyears { get; set; }
+        public int? enteredbhcode { get; set; }
+        public int? cntcode { get; set; }
+        public double? gross_amount { get; set; }
+        public double? discount_amount { get; set; }
+        public double? net_amount { get; set; }
+        public double? paid_amount { get; set; }
+        public double? balance_amount { get; set; }
+        public bool is_settled { get; set; }
+        public string? message { get; set; }
+        public List<HmsBillLineResponse> items { get; set; } = new();
+    }
 }

@@ -81,6 +81,12 @@ namespace medico_backend.Model
         public DateTime? entereddate { get; set; }
         public DateTime? ibsdate { get; set; }
         public string? tenant_code { get; set; }
+        public int? custid { get; set; }
+        public string? opvisitid { get; set; }
+        public int? enteredbhcode { get; set; }
+        public bool? isbill { get; set; }
+        public bool? ispatient { get; set; }
+        public bool? isrefund { get; set; }
     }
 
     /// <summary>
@@ -182,6 +188,16 @@ namespace medico_backend.Model
         public decimal? ctcode { get; set; }
         public decimal? tmcode { get; set; }
         public string? remarks { get; set; }
+
+        // ── NEW: same provision flags as LIMS DueCollectionClass.Save ──────────
+        // All optional — sensible defaults applied in the service if omitted.
+        public bool? isbill { get; set; }
+        public bool? isrefferal { get; set; }
+        public bool? ismonthly { get; set; }
+        public bool? ispatient { get; set; }
+        public bool? isrefund { get; set; }
+        public long? payledgercode { get; set; }
+        public DateTime? card_date { get; set; }
     }
 
     /// <summary>
@@ -193,43 +209,32 @@ namespace medico_backend.Model
     /// </summary>
     public class HmsBulkDueCollectionItem
     {
-        /// <summary>Bill to settle (lab_request_master.requestguid).</summary>
         public string requestguid { get; set; } = string.Empty;
-
-        /// <summary>Advance to use for this bill specifically (FIFO from patient wallet).</summary>
         public double advance_to_use { get; set; } = 0;
-
-        /// <summary>Cash / card / UPI amount for this bill.</summary>
         public double cash_collected { get; set; } = 0;
-
-        // ── Per-item payment mode overrides (fallback: batch-level value) ──────
         public string? collection_type { get; set; }
         public string? reference_no { get; set; }
         public string? bank_name { get; set; }
         public string? card_no { get; set; }
         public DateTime? cheque_date { get; set; }
-
-        // ── Per-item ledger code overrides (fallback: batch-level, then bill) ──
         public decimal? pmcode { get; set; }
         public decimal? ctcode { get; set; }
         public decimal? tmcode { get; set; }
-
-        // ── Per-item remarks ─────────────────────────────────────────────────
         public string? remarks { get; set; }
+
+        // ── NEW: per-item provision flags (fallback: batch-level value) ────────
+        public bool? isbill { get; set; }
+        public bool? isrefferal { get; set; }
+        public bool? ismonthly { get; set; }
+        public bool? ispatient { get; set; }
+        public bool? isrefund { get; set; }
+        public long? payledgercode { get; set; }
+        public DateTime? card_date { get; set; }
     }
 
-    /// <summary>
-    /// Bulk due collection request — settles multiple bills in one atomic transaction.
-    /// One shared receipt_master is created for the batch.
-    /// Every field here acts as the DEFAULT for items that don't override it,
-    /// so a simple single-mode batch can omit per-item fields entirely.
-    ///
-    /// POST /api/HmsDueCollection/collect/bulk
-    /// </summary>
     public class HmsBulkDueCollectionRequest
     {
         public List<HmsBulkDueCollectionItem> items { get; set; } = new();
-
         public string collection_type { get; set; } = "CASH";
         public string? reference_no { get; set; }
         public string? bank_name { get; set; }
@@ -244,6 +249,15 @@ namespace medico_backend.Model
         public decimal? ctcode { get; set; }
         public decimal? tmcode { get; set; }
         public string? remarks { get; set; }
+
+        // ── NEW: batch-level default provision flags ────────────────────────────
+        public bool? isbill { get; set; }
+        public bool? isrefferal { get; set; }
+        public bool? ismonthly { get; set; }
+        public bool? ispatient { get; set; }
+        public bool? isrefund { get; set; }
+        public long? payledgercode { get; set; }
+        public DateTime? card_date { get; set; }
     }
 
     public class HmsAdvanceDepositRequest
@@ -545,5 +559,94 @@ namespace medico_backend.Model
         public double total_advance_deposited { get; set; }
         public double total_advance_refunded { get; set; }
         public double net_collected { get; set; }
+    }
+    public class HmsPaidHistoryAdvancedFilterRequest
+    {
+        // ── Flag filters ──────────────────────────────────────────
+        public bool? isbill { get; set; }
+        public bool? ispatient { get; set; }
+        public bool? isrefferal { get; set; }
+        public bool? ismonthly { get; set; }
+
+        // ── Location filters ──────────────────────────────────────
+        public int? bhcode { get; set; }          // Branch
+        public int? cntcode { get; set; }         // Counter
+
+        // ── Number filters ────────────────────────────────────────
+        public int? year { get; set; }            // Year (e.g. 2026)
+        public string? bill_no { get; set; }      // Bill No (requestsnoprint)
+        public string? sample_no { get; set; }    // Sample No
+        public string? receipt_no { get; set; }   // Receipt No (receiptsnoprint)
+
+        // ── Person filters ────────────────────────────────────────
+        public string? patient_name { get; set; } // Patient name search
+        public int? dcode { get; set; }           // Doctor
+        public decimal? custid { get; set; }      // Patient ID
+
+        // ── Date + Time range ─────────────────────────────────────
+        public DateTime? receipt_date_from { get; set; }   // Receipt Date From
+        public DateTime? receipt_date_to { get; set; }     // Receipt Date To
+        public TimeSpan? time_from { get; set; }            // Time From
+        public TimeSpan? time_to { get; set; }              // Time To
+
+        // ── Receipt type filter ───────────────────────────────────
+        public string? receipt_type { get; set; }  // DUE / ADVANCE / ADVANCE_REFUND / ALL
+        public string? collection_type { get; set; } // CASH / CARD / UPI / CHEQUE
+
+        // ── Pagination ────────────────────────────────────────────
+        public int page { get; set; } = 1;
+        public int pagesize { get; set; } = 20;
+    }
+    public class HmsDailyCollectionReportFilterRequest
+    {
+        public DateTime? fromdate { get; set; }          // FROM date
+        public DateTime? todate { get; set; }            // TO date
+        public int? bhcode { get; set; }                 // BRANCH
+        public string? customer_search { get; set; }     // CUSTOMER — search by ID, Name, Mobile
+        public decimal? custid { get; set; }             // resolved after customer search
+        public string? doctor_search { get; set; }       // DOCTOR — search by ID, Name
+        public int? dcode { get; set; }                  // resolved after doctor search
+        public string? ismonthly { get; set; }           // MONTHLY — "true" / "false" / null = all
+        public string? report_type { get; set; }         // SELECT REPORT — "DUE"/"ADVANCE"/"ALL" etc.
+        public int page { get; set; } = 1;
+        public int pagesize { get; set; } = 20;
+    }
+
+    public class HmsDailyCollectionReportRow
+    {
+        public string? receiptguid { get; set; }
+        public string? receipt_no { get; set; }
+        public string? receipt_barcode { get; set; }
+        public string? receipt_type { get; set; }
+        public DateTime? receipt_date { get; set; }
+        public int? custid { get; set; }
+        public string? patient_name { get; set; }
+        public string? mobileno { get; set; }
+        public string? bill_no { get; set; }
+        public string? bill_guid { get; set; }
+        public string? doctor_name { get; set; }
+        public string? branch_name { get; set; }
+        public double? amount_paid { get; set; }
+        public string? collection_type { get; set; }
+        public string? bank_name { get; set; }
+        public string? reference_no { get; set; }
+        public bool? ismonthly { get; set; }
+        public bool? isbill { get; set; }
+        public bool? ispatient { get; set; }
+        public bool? isrefferal { get; set; }
+        public double? remaining_due { get; set; }
+        public bool? is_bill_settled { get; set; }
+    }
+
+    public class HmsDailyCollectionReportSummary
+    {
+        public int total_receipts { get; set; }
+        public double total_cash { get; set; }
+        public double total_card { get; set; }
+        public double total_upi { get; set; }
+        public double total_cheque { get; set; }
+        public double total_advance { get; set; }
+        public double total_advance_refund { get; set; }
+        public double grand_total { get; set; }
     }
 }

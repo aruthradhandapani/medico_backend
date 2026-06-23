@@ -799,6 +799,444 @@ namespace medico_backend.Class
             }
             return null;
         }
+        // ════════════════════════════════════════════════════════════════════════
+        //  8. BILLNO MASTER CONFIGURATION (Bill / Receipt / Sample number setup)
+        // ════════════════════════════════════════════════════════════════════════
 
+        public async Task<(string status, BillNoMasterResponse? data)> CreateBillNoConfig(
+            CreateBillNoMasterRequest req, string tenantCode)
+        {
+            if (string.IsNullOrWhiteSpace(req.name))
+                return ("Configuration name is required.", null);
+            if (string.IsNullOrWhiteSpace(req.shortname))
+                return ("Short code (prefix, e.g. 'BILL', 'RCP') is required.", null);
+            if (req.shortname.Length > 10)
+                return ("Short code must be 10 characters or fewer.", null);
+
+            using var db = GetConnection();
+            db.Open();
+            using var tx = db.BeginTransaction();
+
+            try
+            {
+                // Guard against duplicate "type" configs for the same scope when isdefault=true.
+                // Only one default bill-number config and one default receipt-number config
+                // should exist per tenant (mirrors how CreateBill/GenerateReceiptLog pick "LIMIT 1").
+                if (req.isdefault)
+                {
+                    var clashing = await db.QueryFirstOrDefaultAsync<HmsBillNoMaster>(
+                        @"SELECT * FROM billno_master
+                   WHERE tenant_code = @t AND deleted = false
+                     AND isreceiptno = @isrcpt AND issampleno = @issample
+                     AND isdefault = true
+                   LIMIT 1",
+                        new { t = tenantCode, isrcpt = req.isreceiptno, issample = req.issampleno }, tx);
+
+                    if (clashing != null)
+                        return ($"A default configuration of this type already exists: '{clashing.name}' " +
+                                $"(bncode={clashing.bncode}). Update or delete it first, or set isdefault=false.", null);
+                }
+
+                // Generate next bncode for this tenant (locked to avoid race conditions)
+               // decimal nextCode = await db.ExecuteScalarAsync<decimal>(
+               //     @"SELECT COALESCE(MAX(bncode), 0) + 1 FROM billno_master
+               //WHERE tenant_code = @t FOR UPDATE",
+               //     new { t = tenantCode }, tx);
+
+                 await db.ExecuteAsync(
+    "SELECT pg_advisory_xact_lock(hashtext(@t))",
+    new { t = tenantCode }, tx);
+
+                // Safe MAX after lock acquired
+                decimal nextCode = await db.ExecuteScalarAsync<decimal>(
+                    @"SELECT COALESCE(MAX(bncode), 0) + 1 FROM billno_master WHERE tenant_code = @t",
+                    new { t = tenantCode }, tx);
+
+                var row = new HmsBillNoMaster
+                {
+                    bncode = nextCode,
+                    orderno = req.orderno,
+                    name = req.name,
+                    shortname = req.shortname.ToUpper(),
+                    bhcode = req.bhcode,
+                    cntcode = req.cntcode,
+                    isdefault = req.isdefault,
+                    allbranch = req.allbranch,
+                    allcounter = req.allcounter,
+                    restartfinancialyear = req.restartfinancialyear,
+                    restartcalendaryear = req.restartcalendaryear,
+                    restartmonthly = req.restartmonthly,
+                    restartdaily = req.restartdaily,
+                    issampleno = req.issampleno,
+                    isreceiptno = req.isreceiptno,
+                    deleted = false,
+                    tenant_code = tenantCode,
+                    usercode = req.usercode ?? 0,
+                    computercode = req.computercode ?? 0,
+                    entereddate = DateTime.UtcNow,
+                    ibsdate = DateTime.UtcNow
+                };
+
+                await db.InsertAsync(row, tx);
+                tx.Commit();
+
+                return ("SUCCESS", MapToResponse(row, 0));
+            }
+            catch (Exception ex)
+            {
+                tx.Rollback();
+                _logger.LogError(ex, "CreateBillNoConfig failed.");
+                return ($"Transaction error: {ex.Message}", null);
+            }
+        }
+
+        public async Task<(string status, BillNoMasterResponse? data)> UpdateBillNoConfig(
+            UpdateBillNoMasterRequest req, string tenantCode)
+        {
+            using var db = GetConnection();
+            db.Open();
+            using var tx = db.BeginTransaction();
+
+            try
+            {
+                var existing = await db.QueryFirstOrDefaultAsync<HmsBillNoMaster>(
+                    "SELECT * FROM billno_master WHERE bncode = @bn AND tenant_code = @t",
+                    new { bn = req.bncode, t = tenantCode }, tx);
+
+                if (existing == null) return ("Configuration not found.", null);
+                if (existing.deleted) return ("Cannot update a deleted configuration. Restore it first.", null);
+
+                if (req.name != null) existing.name = req.name;
+                if (req.shortname != null) existing.shortname = req.shortname.ToUpper();
+                if (req.orderno.HasValue) existing.orderno = req.orderno.Value;
+                if (req.bhcode.HasValue) existing.bhcode = req.bhcode;
+                if (req.cntcode.HasValue) existing.cntcode = req.cntcode;
+                if (req.isdefault.HasValue) existing.isdefault = req.isdefault;
+                if (req.allbranch.HasValue) existing.allbranch = req.allbranch;
+                if (req.allcounter.HasValue) existing.allcounter = req.allcounter;
+                if (req.restartfinancialyear.HasValue) existing.restartfinancialyear = req.restartfinancialyear;
+                if (req.restartcalendaryear.HasValue) existing.restartcalendaryear = req.restartcalendaryear;
+                if (req.restartmonthly.HasValue) existing.restartmonthly = req.restartmonthly;
+                if (req.restartdaily.HasValue) existing.restartdaily = req.restartdaily;
+                if (req.issampleno.HasValue) existing.issampleno = req.issampleno;
+                if (req.isreceiptno.HasValue) existing.isreceiptno = req.isreceiptno;
+
+                // Re-check default clash if isdefault is being turned on
+                if (existing.isdefault == true)
+                {
+                    var clashing = await db.QueryFirstOrDefaultAsync<HmsBillNoMaster>(
+                        @"SELECT * FROM billno_master
+                   WHERE tenant_code = @t AND deleted = false AND bncode <> @bn
+                     AND isreceiptno = @isrcpt AND issampleno = @issample
+                     AND isdefault = true
+                   LIMIT 1",
+                        new { t = tenantCode, bn = existing.bncode, isrcpt = existing.isreceiptno, issample = existing.issampleno }, tx);
+
+                    if (clashing != null)
+                        return ($"Another default configuration of this type already exists: '{clashing.name}'.", null);
+                }
+
+                await db.UpdateAsync(existing, tx);
+                tx.Commit();
+
+                int inUse = await CountSequenceRows(existing.bncode, tenantCode);
+                return ("SUCCESS", MapToResponse(existing, inUse));
+            }
+            catch (Exception ex)
+            {
+                tx.Rollback();
+                _logger.LogError(ex, "UpdateBillNoConfig failed for bncode={bn}", req.bncode);
+                return ($"Transaction error: {ex.Message}", null);
+            }
+        }
+
+        public async Task<string> DeleteBillNoConfig(DeleteBillNoMasterRequest req, string tenantCode)
+        {
+            using var db = GetConnection();
+
+            var existing = await db.QueryFirstOrDefaultAsync<HmsBillNoMaster>(
+                "SELECT * FROM billno_master WHERE bncode = @bn AND tenant_code = @t",
+                new { bn = req.bncode, t = tenantCode });
+
+            if (existing == null) return "Configuration not found.";
+            if (existing.deleted) return "Configuration is already deleted.";
+
+            // Warn rather than block — sequence rows just stop advancing for this config once it's soft-deleted.
+            // Bills already created referencing this bncode are unaffected (they keep their own bncode value).
+            await db.ExecuteAsync(
+                "UPDATE billno_master SET deleted = true WHERE bncode = @bn AND tenant_code = @t",
+                new { bn = req.bncode, t = tenantCode });
+
+            return "SUCCESS";
+        }
+
+        public async Task<(string status, BillNoMasterResponse? data)> RestoreBillNoConfig(
+            decimal bncode, string tenantCode)
+        {
+            using var db = GetConnection();
+
+            var existing = await db.QueryFirstOrDefaultAsync<HmsBillNoMaster>(
+                "SELECT * FROM billno_master WHERE bncode = @bn AND tenant_code = @t",
+                new { bn = bncode, t = tenantCode });
+
+            if (existing == null) return ("Configuration not found.", null);
+            if (!existing.deleted) return ("Configuration is not deleted.", null);
+
+            await db.ExecuteAsync(
+                "UPDATE billno_master SET deleted = false WHERE bncode = @bn AND tenant_code = @t",
+                new { bn = bncode, t = tenantCode });
+
+            existing.deleted = false;
+            int inUse = await CountSequenceRows(bncode, tenantCode);
+            return ("SUCCESS", MapToResponse(existing, inUse));
+        }
+
+        public async Task<BillNoMasterResponse?> GetBillNoConfigByCode(decimal bncode, string tenantCode)
+        {
+            using var db = GetConnection();
+            var row = await db.QueryFirstOrDefaultAsync<HmsBillNoMaster>(
+                "SELECT * FROM billno_master WHERE bncode = @bn AND tenant_code = @t",
+                new { bn = bncode, t = tenantCode });
+
+            if (row == null) return null;
+            int inUse = await CountSequenceRows(bncode, tenantCode);
+            return MapToResponse(row, inUse);
+        }
+
+        public async Task<(List<BillNoMasterResponse> data, int totalCount)> GetBillNoConfigList(
+            BillNoMasterFilterRequest filter, string tenantCode)
+        {
+            using var db = GetConnection();
+            var p = new DynamicParameters();
+            p.Add("t", tenantCode);
+
+            string where = "WHERE tenant_code = @t ";
+
+            if (filter.includeDeleted != true)
+                where += " AND deleted = false ";
+            if (filter.isreceiptno.HasValue)
+            {
+                where += " AND isreceiptno = @isrcpt ";
+                p.Add("isrcpt", filter.isreceiptno);
+            }
+            if (filter.issampleno.HasValue)
+            {
+                where += " AND issampleno = @issample ";
+                p.Add("issample", filter.issampleno);
+            }
+            if (!string.IsNullOrEmpty(filter.search))
+            {
+                where += " AND (name ILIKE @s OR shortname ILIKE @s) ";
+                p.Add("s", $"%{filter.search}%");
+            }
+
+            int total = await db.ExecuteScalarAsync<int>($"SELECT COUNT(*) FROM billno_master {where}", p);
+
+            int offset = (filter.page - 1) * filter.pagesize;
+            p.Add("limit", filter.pagesize);
+            p.Add("offset", offset);
+
+            var rows = (await db.QueryAsync<HmsBillNoMaster>(
+                $@"SELECT * FROM billno_master {where}
+           ORDER BY isreceiptno ASC, issampleno ASC, bncode ASC
+           LIMIT @limit OFFSET @offset", p)).ToList();
+
+            var results = new List<BillNoMasterResponse>();
+            foreach (var row in rows)
+            {
+                int inUse = await CountSequenceRows(row.bncode, tenantCode);
+                results.Add(MapToResponse(row, inUse));
+            }
+
+            return (results, total);
+        }
+
+        // ── Helpers ──────────────────────────────────────────────────────────────
+
+        private async Task<int> CountSequenceRows(decimal bncode, string tenantCode)
+        {
+            using var db = GetConnection();
+            return await db.ExecuteScalarAsync<int>(
+                "SELECT COUNT(*) FROM billno_sequence WHERE bncode = @bn AND tenant_code = @t",
+                new { bn = bncode, t = tenantCode });
+        }
+
+        private BillNoMasterResponse MapToResponse(HmsBillNoMaster row, int inUse) => new()
+        {
+            bncode = row.bncode,
+            name = row.name,
+            shortname = row.shortname,
+            orderno = row.orderno,
+            bhcode = row.bhcode,
+            cntcode = row.cntcode,
+            isdefault = row.isdefault,
+            allbranch = row.allbranch,
+            allcounter = row.allcounter,
+            restartfinancialyear = row.restartfinancialyear,
+            restartcalendaryear = row.restartcalendaryear,
+            restartmonthly = row.restartmonthly,
+            restartdaily = row.restartdaily,
+            issampleno = row.issampleno,
+            isreceiptno = row.isreceiptno,
+            deleted = row.deleted,
+            tenant_code = row.tenant_code,
+            entereddate = row.entereddate,
+            sequence_rows_in_use = inUse
+        };
+        // ════════════════════════════════════════════════════════════════════════
+        //  9. DEDICATED BILL UPDATE
+        // ════════════════════════════════════════════════════════════════════════
+
+        public async Task<(string status, UpdateHmsBillResponse? data)> UpdateBillDedicated(
+            UpdateHmsBillRequest req, string tenantCode)
+        {
+            // ── Validations ───────────────────────────────────────────────────
+            if (string.IsNullOrWhiteSpace(req.requestguid))
+                return ("requestguid is required for update.", null);
+            if (string.IsNullOrWhiteSpace(req.patient_name))
+                return ("Patient name is required.", null);
+            if (req.items == null || !req.items.Any())
+                return ("At least one line item is required.", null);
+
+            foreach (var item in req.items)
+            {
+                if (string.IsNullOrWhiteSpace(item.item_name) && !item.tcode.HasValue)
+                    return ("Each item must have either item_name or tcode.", null);
+                if ((item.amount ?? 0) < 0)
+                    return ("Item amount cannot be negative.", null);
+            }
+
+            using var db = GetConnection();
+            db.Open();
+            using var tx = db.BeginTransaction();
+
+            try
+            {
+                // ── Fetch existing bill (lock row) ────────────────────────────
+                var existing = await db.QueryFirstOrDefaultAsync<HmsLabRequestMaster>(
+                    @"SELECT * FROM lab_request_master
+               WHERE requestguid = @rg AND tenant_code = @t
+               FOR UPDATE",
+                    new { rg = req.requestguid, t = tenantCode }, tx);
+
+                if (existing == null)
+                    return ("Bill not found.", null);
+                if (existing.isdeleted == true || existing.deleted == true)
+                    return ("Cannot update a cancelled bill.", null);
+
+                // ── Recalculate amounts ───────────────────────────────────────
+                double lineGrossTotal = req.items.Sum(x => x.amount ?? 0);
+                double aggregateDiscount = (req.discountamount ?? 0) + (req.specialdiscount ?? 0);
+                double netAmount = Math.Max(lineGrossTotal - aggregateDiscount, 0);
+
+                // ── Apply changes to master ───────────────────────────────────
+                existing.custid = req.custid ?? existing.custid;
+                existing.name = req.patient_name ?? existing.name;
+                existing.gender = req.gender ?? existing.gender;
+                existing.dateofbirth = req.dateofbirth ?? existing.dateofbirth;
+                existing.ageyears = req.ageyears ?? existing.ageyears;
+                existing.agemonths = req.agemonths ?? existing.agemonths;
+                existing.agedays = req.agedays ?? existing.agedays;
+                existing.mobileno = req.mobileno ?? existing.mobileno;
+                existing.address = req.address ?? existing.address;
+                existing.areacode = req.areacode ?? existing.areacode;
+                existing.dcode = req.dcode ?? existing.dcode;
+                existing.consultantdcode = req.consultantdcode ?? existing.consultantdcode;
+                existing.ftcode = req.ftcode ?? existing.ftcode;
+                existing.pmcode = req.pmcode ?? existing.pmcode;
+                existing.ctcode = req.ctcode ?? existing.ctcode;
+                existing.ricode = req.ricode ?? existing.ricode;
+                existing.discountper = req.discountper ?? existing.discountper;
+                existing.discountamount = req.discountamount ?? existing.discountamount;
+                existing.specialdiscount = req.specialdiscount ?? existing.specialdiscount;
+                existing.pmc1 = req.pmc1 ?? existing.pmc1;
+                existing.pmc2 = req.pmc2 ?? existing.pmc2;
+                existing.pmc3 = req.pmc3 ?? existing.pmc3;
+                existing.iscashbill = req.iscashbill ?? existing.iscashbill;
+                existing.iscreditbill = req.iscreditbill ?? existing.iscreditbill;
+                existing.isinsurancepatient = req.isinsurancepatient ?? existing.isinsurancepatient;
+                existing.policyno = req.policyno ?? existing.policyno;
+                existing.authorisationno = req.authorisationno ?? existing.authorisationno;
+                existing.concessionreason = req.concessionreason ?? existing.concessionreason;
+                existing.card_refno = req.card_refno ?? existing.card_refno;
+                existing.bank_app = req.bank_app ?? existing.bank_app;
+                existing.sheet_id = req.sheet_id ?? existing.sheet_id;
+                existing.opvisitid = req.op_id ?? existing.opvisitid;
+                existing.alteredbhcode = req.enteredbhcode ?? existing.alteredbhcode;
+                existing.requestamount = lineGrossTotal;
+                existing.totalamount = netAmount;
+
+                await db.UpdateAsync(existing, tx);
+
+                // ── Delete old detail lines and re-insert ─────────────────────
+                await db.ExecuteAsync(
+                    @"DELETE FROM lab_request_details
+               WHERE requestguid = @rg AND tenant_code = @t",
+                    new { rg = req.requestguid, t = tenantCode }, tx);
+
+                int sno = 1;
+                foreach (var line in req.items)
+                {
+                    await db.InsertAsync(new HmsLabRequestDetail
+                    {
+                        requestdetailsid = Guid.NewGuid().ToString(),
+                        requestguid = req.requestguid,
+                        testsno = sno++,
+                        tcode = line.tcode,
+                        chargetype = line.charge_type,
+                        item_name = line.item_name,
+                        item_ref_id = line.item_ref_id,
+                        testrate = line.unit_rate,
+                        standardprice = line.unit_rate,
+                        testamount = line.amount,
+                        discount = line.discount,
+                        newamount = (line.amount ?? 0) - (line.discount ?? 0),
+                        gstper = line.gst_per,
+                        gstamount = ((line.amount ?? 0) - (line.discount ?? 0))
+                                           * ((line.gst_per ?? 0) / 100.0),
+                        qty = line.qty,
+                        ttid = line.ttid,
+                        resultstatus = false,
+                        requeststatus = true,
+                        isdeleted = false,
+                        tenant_code = tenantCode
+                    }, tx);
+                }
+
+                tx.Commit();
+
+                // ── Fetch and return updated bill ─────────────────────────────
+                var updated = await FetchBillRecordByGuid(req.requestguid, tenantCode);
+
+                return ("SUCCESS", new UpdateHmsBillResponse
+                {
+                    requestguid = updated?.requestguid ?? req.requestguid,
+                    bill_no = updated?.bill_no,
+                    barcode = updated?.barcode,
+                    bill_date = updated?.bill_date,
+                    custid = updated?.custid,
+                    patient_name = updated?.patient_name,
+                    gender = updated?.gender,
+                    mobileno = updated?.mobileno,
+                    ageyears = updated?.ageyears,
+                    enteredbhcode = updated?.enteredbhcode,
+                    cntcode = updated?.cntcode,
+                    gross_amount = updated?.gross_amount,
+                    discount_amount = updated?.discount_amount,
+                    net_amount = updated?.net_amount,
+                    paid_amount = updated?.paid_amount,
+                    balance_amount = updated?.balance_amount,
+                    is_settled = updated?.is_settled ?? false,
+                    message = "Bill updated successfully.",
+                    items = updated?.items ?? new()
+                });
+            }
+            catch (Exception ex)
+            {
+                tx.Rollback();
+                _logger.LogError(ex, "UpdateBillDedicated failed for requestguid={rg}", req.requestguid);
+                return ($"Transaction error: {ex.Message}", null);
+            }
+        }
     }
 }
