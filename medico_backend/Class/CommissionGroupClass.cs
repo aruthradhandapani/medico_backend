@@ -5,56 +5,49 @@ using Medico_Backend.Model;
 
 namespace Medico_Backend.Class
 {
-    public class AreaMasterClass
+    public class CommissionGroupMasterClass
     {
         private readonly string db_conn;
 
-        public AreaMasterClass(IConfiguration configuration)
+        public CommissionGroupMasterClass(IConfiguration configuration)
         {
             db_conn = configuration.GetConnectionString("conn");
         }
 
         // ─────────────────────────────────────────
-        // GET NEXT AREACODE
+        // GET NEXT CGCODE
         // ─────────────────────────────────────────
-        public async Task<int> GetNextAreaCode(string tenant_code)
+        public async Task<decimal> GetNextCgCode()
         {
             using IDbConnection db = new NpgsqlConnection(db_conn);
 
-            string sql = @"SELECT COALESCE(MAX(areacode), 0) + 1
-                           FROM area_master
-                           WHERE tenant_code = @tenant_code";
+            string sql = @"SELECT COALESCE(MAX(cgcode), 0) + 1
+                           FROM commissiongroup_master";
 
-            return await db.ExecuteScalarAsync<int>(sql, new { tenant_code });
+            return await db.ExecuteScalarAsync<decimal>(sql);
         }
 
         // ─────────────────────────────────────────
         // INSERT
         // ─────────────────────────────────────────
-        public async Task<string> Insert(AreaMasterModel data, string tenant_code)
+        public async Task<string> Insert(CommissionGroupMasterModel data)
         {
             try
             {
                 using IDbConnection db = new NpgsqlConnection(db_conn);
 
-                data.tenant_code = tenant_code;
-                data.areacode = await GetNextAreaCode(tenant_code);
+                data.cgcode = await GetNextCgCode();
                 data.entereddate = DateTime.UtcNow;
                 data.ibsdate = DateTime.UtcNow;
                 data.deleted = false;
 
                 string sql = @"
-                    INSERT INTO area_master
+                    INSERT INTO commissiongroup_master
                     (
-                        areacode,
-                        tenant_code,
+                        cgcode,
                         orderno,
                         shortname,
-                        areaname,
-                        citycode,
-                        areapincode,
-                        statecode,
-                        countrycode,
+                        name,
                         description,
                         deleted,
                         usercode,
@@ -64,15 +57,10 @@ namespace Medico_Backend.Class
                     )
                     VALUES
                     (
-                        @areacode,
-                        @tenant_code,
+                        @cgcode,
                         @orderno,
                         @shortname,
-                        @areaname,
-                        @citycode,
-                        @areapincode,
-                        @statecode,
-                        @countrycode,
+                        @name,
                         @description,
                         @deleted,
                         @usercode,
@@ -82,6 +70,7 @@ namespace Medico_Backend.Class
                     )";
 
                 await db.ExecuteAsync(sql, data);
+
                 return "Success";
             }
             catch (Exception ex)
@@ -93,35 +82,29 @@ namespace Medico_Backend.Class
         // ─────────────────────────────────────────
         // UPDATE
         // ─────────────────────────────────────────
-        public async Task<string> Update(AreaMasterModel data, string tenant_code)
+        public async Task<string> Update(CommissionGroupMasterModel data)
         {
             try
             {
                 using IDbConnection db = new NpgsqlConnection(db_conn);
 
-                data.tenant_code = tenant_code;
                 data.ibsdate = DateTime.UtcNow;
 
                 string sql = @"
-                    UPDATE area_master
+                    UPDATE commissiongroup_master
                     SET
-                        orderno      = @orderno,
-                        shortname    = @shortname,
-                        areaname     = @areaname,
-                        citycode     = @citycode,
-                        areapincode  = @areapincode,
-                        statecode    = @statecode,
-                        countrycode  = @countrycode,
-                        description  = @description,
-                        deleted      = @deleted,
-                        usercode     = @usercode,
+                        orderno = @orderno,
+                        shortname = @shortname,
+                        name = @name,
+                        description = @description,
+                        deleted = @deleted,
+                        usercode = @usercode,
                         computercode = @computercode,
-                        ibsdate      = @ibsdate,
-                        tenant_code  = @tenant_code
-                    WHERE areacode = @areacode
-                    AND tenant_code = @tenant_code";
+                        ibsdate = @ibsdate
+                    WHERE cgcode = @cgcode";
 
                 await db.ExecuteAsync(sql, data);
+
                 return "Success";
             }
             catch (Exception ex)
@@ -133,20 +116,20 @@ namespace Medico_Backend.Class
         // ─────────────────────────────────────────
         // DELETE
         // ─────────────────────────────────────────
-        public async Task<string> Delete(int areacode, string tenant_code)
+        public async Task<string> Delete(decimal cgcode)
         {
             try
             {
                 using IDbConnection db = new NpgsqlConnection(db_conn);
 
                 string sql = @"
-                    UPDATE area_master
+                    UPDATE commissiongroup_master
                     SET deleted = true,
                         ibsdate = now()
-                    WHERE areacode = @areacode
-                    AND tenant_code = @tenant_code";
+                    WHERE cgcode = @cgcode";
 
-                await db.ExecuteAsync(sql, new { areacode, tenant_code });
+                await db.ExecuteAsync(sql, new { cgcode });
+
                 return "Success";
             }
             catch (Exception ex)
@@ -156,58 +139,59 @@ namespace Medico_Backend.Class
         }
 
         // ─────────────────────────────────────────
-        // GET ALL (tenant + global)
+        // GET ALL
         // ─────────────────────────────────────────
-        public async Task<List<AreaMasterModel>> Get(string tenant_code)
+        public async Task<List<CommissionGroupMasterModel>> Get()
         {
             using IDbConnection db = new NpgsqlConnection(db_conn);
 
             string sql = @"
                 SELECT *
-                FROM area_master
+                FROM commissiongroup_master
                 WHERE deleted = false
-                AND (tenant_code = @tenant_code OR tenant_code IS NULL)
-                ORDER BY areacode";
+                ORDER BY cgcode";
 
-            var result = await db.QueryAsync<AreaMasterModel>(sql, new { tenant_code });
+            var result = await db.QueryAsync<CommissionGroupMasterModel>(sql);
+
             return result.ToList();
         }
 
         // ─────────────────────────────────────────
-        // GET BY AREACODE (tenant + global)
+        // GET BY CGCODE
         // ─────────────────────────────────────────
-        public async Task<AreaMasterModel?> GetByAreaCode(int areacode, string tenant_code)
+        public async Task<CommissionGroupMasterModel?> GetByCgCode(decimal cgcode)
         {
             using IDbConnection db = new NpgsqlConnection(db_conn);
 
             string sql = @"
                 SELECT *
-                FROM area_master
+                FROM commissiongroup_master
                 WHERE deleted = false
-                AND areacode = @areacode
-                AND (tenant_code = @tenant_code OR tenant_code IS NULL)";
+                AND cgcode = @cgcode";
 
-            return await db.QueryFirstOrDefaultAsync<AreaMasterModel>(
-                sql, new { areacode, tenant_code });
+            return await db.QueryFirstOrDefaultAsync<CommissionGroupMasterModel>(
+                sql,
+                new { cgcode });
         }
 
         // ─────────────────────────────────────────
-        // SEARCH BY AREA NAME (tenant + global)
+        // SEARCH BY NAME
         // ─────────────────────────────────────────
-        public async Task<List<AreaMasterModel>> SearchByAreaName(string areaname, string tenant_code)
+        public async Task<List<CommissionGroupMasterModel>> SearchByName(string name)
         {
             using IDbConnection db = new NpgsqlConnection(db_conn);
 
             string sql = @"
                 SELECT *
-                FROM area_master
+                FROM commissiongroup_master
                 WHERE deleted = false
-                AND (tenant_code = @tenant_code OR tenant_code IS NULL)
-                AND LOWER(areaname) LIKE LOWER(@areaname)
-                ORDER BY areaname";
+                AND LOWER(name) LIKE LOWER(@name)
+                ORDER BY name";
 
-            var result = await db.QueryAsync<AreaMasterModel>(
-                sql, new { areaname = $"%{areaname}%", tenant_code });
+            var result = await db.QueryAsync<CommissionGroupMasterModel>(
+                sql,
+                new { name = $"%{name}%" });
+
             return result.ToList();
         }
     }

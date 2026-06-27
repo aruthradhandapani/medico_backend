@@ -6,11 +6,11 @@ namespace Medico_Backend.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
-    public class AreaMasterController : ControllerBase
+    public class DoctorTypeMasterController : ControllerBase
     {
-        private readonly AreaMasterClass cls;
+        private readonly DoctorTypeMasterClass cls;
 
-        public AreaMasterController(AreaMasterClass _cls)
+        public DoctorTypeMasterController(DoctorTypeMasterClass _cls)
         {
             cls = _cls;
         }
@@ -31,44 +31,44 @@ namespace Medico_Backend.Controllers
             return Ok(data);
         }
 
-        [HttpGet("get-by-areacode")]
-        public async Task<IActionResult> GetByAreaCode(int areacode)
+        [HttpGet("get-by-tcode")]
+        public async Task<IActionResult> GetByTCode(int tcode)
         {
             var tenant_code = GetTenantCode();
             if (string.IsNullOrEmpty(tenant_code))
                 return BadRequest("tenant_code header is required");
 
-            var data = await cls.GetByAreaCode(areacode, tenant_code);
+            var data = await cls.GetByTCode(tcode, tenant_code);
             if (data == null)
                 return NotFound("Data Not Found");
 
             return Ok(data);
         }
 
-        [HttpGet("search-by-areaname")]
-        public async Task<IActionResult> SearchByAreaName(string areaname)
+        [HttpGet("search-by-name")]
+        public async Task<IActionResult> SearchByName(string name)
         {
             var tenant_code = GetTenantCode();
             if (string.IsNullOrEmpty(tenant_code))
                 return BadRequest("tenant_code header is required");
 
-            var data = await cls.SearchByAreaName(areaname, tenant_code);
+            var data = await cls.SearchByName(name, tenant_code);
             return Ok(data);
         }
 
-        [HttpGet("get-next-areacode")]
-        public async Task<IActionResult> GetNextAreaCode()
+        [HttpGet("get-next-tcode")]
+        public async Task<IActionResult> GetNextTCode()
         {
             var tenant_code = GetTenantCode();
             if (string.IsNullOrEmpty(tenant_code))
                 return BadRequest("tenant_code header is required");
 
-            var data = await cls.GetNextAreaCode(tenant_code);
+            var data = await cls.GetNextTCode(tenant_code);
             return Ok(data);
         }
 
         [HttpPost("insert")]
-        public async Task<IActionResult> Insert([FromBody] AreaMasterModel data)
+        public async Task<IActionResult> Insert([FromBody] DoctorTypeMasterModel data)
         {
             var tenant_code = GetTenantCode();
             if (string.IsNullOrEmpty(tenant_code))
@@ -79,7 +79,7 @@ namespace Medico_Backend.Controllers
         }
 
         [HttpPost("update")]
-        public async Task<IActionResult> Update([FromBody] AreaMasterModel data)
+        public async Task<IActionResult> Update([FromBody] DoctorTypeMasterModel data)
         {
             var tenant_code = GetTenantCode();
             if (string.IsNullOrEmpty(tenant_code))
@@ -90,13 +90,13 @@ namespace Medico_Backend.Controllers
         }
 
         [HttpGet("delete")]
-        public async Task<IActionResult> Delete(int areacode)
+        public async Task<IActionResult> Delete(int tcode)
         {
             var tenant_code = GetTenantCode();
             if (string.IsNullOrEmpty(tenant_code))
                 return BadRequest("tenant_code header is required");
 
-            var result = await cls.Delete(areacode, tenant_code);
+            var result = await cls.Delete(tcode, tenant_code);
             return Ok(result);
         }
     }

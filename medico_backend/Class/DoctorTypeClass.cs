@@ -5,24 +5,24 @@ using Medico_Backend.Model;
 
 namespace Medico_Backend.Class
 {
-    public class AreaMasterClass
+    public class DoctorTypeMasterClass
     {
         private readonly string db_conn;
 
-        public AreaMasterClass(IConfiguration configuration)
+        public DoctorTypeMasterClass(IConfiguration configuration)
         {
             db_conn = configuration.GetConnectionString("conn");
         }
 
         // ─────────────────────────────────────────
-        // GET NEXT AREACODE
+        // GET NEXT TCODE
         // ─────────────────────────────────────────
-        public async Task<int> GetNextAreaCode(string tenant_code)
+        public async Task<int> GetNextTCode(string tenant_code)
         {
             using IDbConnection db = new NpgsqlConnection(db_conn);
 
-            string sql = @"SELECT COALESCE(MAX(areacode), 0) + 1
-                           FROM area_master
+            string sql = @"SELECT COALESCE(MAX(tcode), 0) + 1
+                           FROM doctor_type_master
                            WHERE tenant_code = @tenant_code";
 
             return await db.ExecuteScalarAsync<int>(sql, new { tenant_code });
@@ -31,30 +31,26 @@ namespace Medico_Backend.Class
         // ─────────────────────────────────────────
         // INSERT
         // ─────────────────────────────────────────
-        public async Task<string> Insert(AreaMasterModel data, string tenant_code)
+        public async Task<string> Insert(DoctorTypeMasterModel data, string tenant_code)
         {
             try
             {
                 using IDbConnection db = new NpgsqlConnection(db_conn);
 
                 data.tenant_code = tenant_code;
-                data.areacode = await GetNextAreaCode(tenant_code);
+                data.tcode = await GetNextTCode(tenant_code);
                 data.entereddate = DateTime.UtcNow;
                 data.ibsdate = DateTime.UtcNow;
                 data.deleted = false;
 
                 string sql = @"
-                    INSERT INTO area_master
+                    INSERT INTO doctor_type_master
                     (
-                        areacode,
+                        tcode,
                         tenant_code,
                         orderno,
+                        name,
                         shortname,
-                        areaname,
-                        citycode,
-                        areapincode,
-                        statecode,
-                        countrycode,
                         description,
                         deleted,
                         usercode,
@@ -64,15 +60,11 @@ namespace Medico_Backend.Class
                     )
                     VALUES
                     (
-                        @areacode,
+                        @tcode,
                         @tenant_code,
                         @orderno,
+                        @name,
                         @shortname,
-                        @areaname,
-                        @citycode,
-                        @areapincode,
-                        @statecode,
-                        @countrycode,
                         @description,
                         @deleted,
                         @usercode,
@@ -93,7 +85,7 @@ namespace Medico_Backend.Class
         // ─────────────────────────────────────────
         // UPDATE
         // ─────────────────────────────────────────
-        public async Task<string> Update(AreaMasterModel data, string tenant_code)
+        public async Task<string> Update(DoctorTypeMasterModel data, string tenant_code)
         {
             try
             {
@@ -103,22 +95,18 @@ namespace Medico_Backend.Class
                 data.ibsdate = DateTime.UtcNow;
 
                 string sql = @"
-                    UPDATE area_master
+                    UPDATE doctor_type_master
                     SET
                         orderno      = @orderno,
+                        name         = @name,
                         shortname    = @shortname,
-                        areaname     = @areaname,
-                        citycode     = @citycode,
-                        areapincode  = @areapincode,
-                        statecode    = @statecode,
-                        countrycode  = @countrycode,
                         description  = @description,
                         deleted      = @deleted,
                         usercode     = @usercode,
                         computercode = @computercode,
                         ibsdate      = @ibsdate,
                         tenant_code  = @tenant_code
-                    WHERE areacode = @areacode
+                    WHERE tcode = @tcode
                     AND tenant_code = @tenant_code";
 
                 await db.ExecuteAsync(sql, data);
@@ -133,20 +121,20 @@ namespace Medico_Backend.Class
         // ─────────────────────────────────────────
         // DELETE
         // ─────────────────────────────────────────
-        public async Task<string> Delete(int areacode, string tenant_code)
+        public async Task<string> Delete(int tcode, string tenant_code)
         {
             try
             {
                 using IDbConnection db = new NpgsqlConnection(db_conn);
 
                 string sql = @"
-                    UPDATE area_master
+                    UPDATE doctor_type_master
                     SET deleted = true,
                         ibsdate = now()
-                    WHERE areacode = @areacode
+                    WHERE tcode = @tcode
                     AND tenant_code = @tenant_code";
 
-                await db.ExecuteAsync(sql, new { areacode, tenant_code });
+                await db.ExecuteAsync(sql, new { tcode, tenant_code });
                 return "Success";
             }
             catch (Exception ex)
@@ -156,58 +144,55 @@ namespace Medico_Backend.Class
         }
 
         // ─────────────────────────────────────────
-        // GET ALL (tenant + global)
+        // GET ALL
         // ─────────────────────────────────────────
-        public async Task<List<AreaMasterModel>> Get(string tenant_code)
+        public async Task<List<DoctorTypeMasterModel>> Get(string tenant_code)
         {
             using IDbConnection db = new NpgsqlConnection(db_conn);
 
             string sql = @"
-                SELECT *
-                FROM area_master
+                SELECT * FROM doctor_type_master
                 WHERE deleted = false
-                AND (tenant_code = @tenant_code OR tenant_code IS NULL)
-                ORDER BY areacode";
+                AND tenant_code = @tenant_code
+                ORDER BY orderno";
 
-            var result = await db.QueryAsync<AreaMasterModel>(sql, new { tenant_code });
+            var result = await db.QueryAsync<DoctorTypeMasterModel>(sql, new { tenant_code });
             return result.ToList();
         }
 
         // ─────────────────────────────────────────
-        // GET BY AREACODE (tenant + global)
+        // GET BY TCODE
         // ─────────────────────────────────────────
-        public async Task<AreaMasterModel?> GetByAreaCode(int areacode, string tenant_code)
+        public async Task<DoctorTypeMasterModel?> GetByTCode(int tcode, string tenant_code)
         {
             using IDbConnection db = new NpgsqlConnection(db_conn);
 
             string sql = @"
-                SELECT *
-                FROM area_master
+                SELECT * FROM doctor_type_master
                 WHERE deleted = false
-                AND areacode = @areacode
-                AND (tenant_code = @tenant_code OR tenant_code IS NULL)";
+                AND tcode = @tcode
+                AND tenant_code = @tenant_code";
 
-            return await db.QueryFirstOrDefaultAsync<AreaMasterModel>(
-                sql, new { areacode, tenant_code });
+            return await db.QueryFirstOrDefaultAsync<DoctorTypeMasterModel>(
+                sql, new { tcode, tenant_code });
         }
 
         // ─────────────────────────────────────────
-        // SEARCH BY AREA NAME (tenant + global)
+        // SEARCH BY NAME
         // ─────────────────────────────────────────
-        public async Task<List<AreaMasterModel>> SearchByAreaName(string areaname, string tenant_code)
+        public async Task<List<DoctorTypeMasterModel>> SearchByName(string name, string tenant_code)
         {
             using IDbConnection db = new NpgsqlConnection(db_conn);
 
             string sql = @"
-                SELECT *
-                FROM area_master
+                SELECT * FROM doctor_type_master
                 WHERE deleted = false
-                AND (tenant_code = @tenant_code OR tenant_code IS NULL)
-                AND LOWER(areaname) LIKE LOWER(@areaname)
-                ORDER BY areaname";
+                AND tenant_code = @tenant_code
+                AND LOWER(name) LIKE LOWER(@name)
+                ORDER BY orderno";
 
-            var result = await db.QueryAsync<AreaMasterModel>(
-                sql, new { areaname = $"%{areaname}%", tenant_code });
+            var result = await db.QueryAsync<DoctorTypeMasterModel>(
+                sql, new { name = $"%{name}%", tenant_code });
             return result.ToList();
         }
     }

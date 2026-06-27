@@ -2,19 +2,17 @@
 
 namespace Medico_Backend.Model
 {
-    [Table("city_master")]
-    public class CityMasterModel
+    [Table("commissiongroup_master")]
+    public class CommissionGroupMasterModel
     {
         [ExplicitKey]
-        public int citycode { get; set; }
-
-        public string? tenant_code { get; set; }
+        public decimal cgcode { get; set; }
 
         public int orderno { get; set; }
 
         public string? shortname { get; set; }
 
-        public string? cityname { get; set; }
+        public string? name { get; set; }
 
         public string? description { get; set; }
 

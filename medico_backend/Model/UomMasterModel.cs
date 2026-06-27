@@ -2,19 +2,21 @@
 
 namespace Medico_Backend.Model
 {
-    [Table("city_master")]
-    public class CityMasterModel
+    [Table("uom_master")]
+    public class UomMasterModel
     {
         [ExplicitKey]
-        public int citycode { get; set; }
+        public decimal ucode { get; set; }
 
         public string? tenant_code { get; set; }
 
         public int orderno { get; set; }
 
+        public string? name { get; set; }
+
         public string? shortname { get; set; }
 
-        public string? cityname { get; set; }
+        public int? decimalplaces { get; set; }
 
         public string? description { get; set; }
 
@@ -27,5 +29,7 @@ namespace Medico_Backend.Model
         public DateTime entereddate { get; set; }
 
         public DateTime ibsdate { get; set; }
+
+        public int? packsize { get; set; }
     }
 }

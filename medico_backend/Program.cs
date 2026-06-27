@@ -58,6 +58,34 @@ builder.Services.AddScoped<HmsBillingClass>();
 builder.Services.AddScoped<HmsBillingController>();
 builder.Services.AddScoped<HmsDueCollectionClass>();
 builder.Services.AddScoped<HmsDueCollectionController>();
+builder.Services.AddScoped<CounterMasterClass>();
+builder.Services.AddScoped<CounterMasterController>();
+builder.Services.AddScoped<CounterTimingClass>();
+builder.Services.AddScoped<CounterTimingController>();
+builder.Services.AddScoped<DoctorTypeMasterClass>();
+builder.Services.AddScoped<DoctorTypeMasterController>();
+builder.Services.AddScoped<DoctorSpecialtyMasterClass>();
+builder.Services.AddScoped<DoctorSpecialtyMasterController>();
+builder.Services.AddScoped<ReimbursementCompanyMasterClass>();
+builder.Services.AddScoped<ReimbursementCompanyMasterController>();
+builder.Services.AddScoped<UomMasterClass>();
+builder.Services.AddScoped<UomMasterController>();
+builder.Services.AddScoped<ReportMethodClass>();
+builder.Services.AddScoped<ReportMethodController>();
+builder.Services.AddScoped<GroupMasterClass>();
+builder.Services.AddScoped<GroupMasterController>();
+builder.Services.AddScoped<SampleMasterClass>();
+builder.Services.AddScoped<SampleMasterController>();
+builder.Services.AddScoped<TestTypeMasterClass>();
+builder.Services.AddScoped<TestTypeMasterController>();
+builder.Services.AddScoped<CountryMasterClass>();
+builder.Services.AddScoped<CountryMasterController>();
+builder.Services.AddScoped<StateMasterClass>();
+builder.Services.AddScoped<StateMasterController>();
+builder.Services.AddScoped<CityMasterClass>();
+builder.Services.AddScoped<CityMasterController>();
+builder.Services.AddScoped<AreaMasterClass>();
+builder.Services.AddScoped<AreaMasterController>();
 
 builder.Services.AddSingleton<IAmazonS3>(sp =>
 {

@@ -5,57 +5,56 @@ using Medico_Backend.Model;
 
 namespace Medico_Backend.Class
 {
-    public class AreaMasterClass
+    public class ReportMethodClass
     {
         private readonly string db_conn;
 
-        public AreaMasterClass(IConfiguration configuration)
+        public ReportMethodClass(IConfiguration configuration)
         {
             db_conn = configuration.GetConnectionString("conn");
         }
 
         // ─────────────────────────────────────────
-        // GET NEXT AREACODE
+        // GET NEXT RTMCODE
         // ─────────────────────────────────────────
-        public async Task<int> GetNextAreaCode(string tenant_code)
+        public async Task<decimal> GetNextRtmCode(string tenant_code)
         {
             using IDbConnection db = new NpgsqlConnection(db_conn);
 
-            string sql = @"SELECT COALESCE(MAX(areacode), 0) + 1
-                           FROM area_master
+            string sql = @"SELECT COALESCE(MAX(rtmcode), 0) + 1
+                           FROM report_method
                            WHERE tenant_code = @tenant_code";
 
-            return await db.ExecuteScalarAsync<int>(sql, new { tenant_code });
+            return await db.ExecuteScalarAsync<decimal>(sql, new { tenant_code });
         }
 
         // ─────────────────────────────────────────
         // INSERT
         // ─────────────────────────────────────────
-        public async Task<string> Insert(AreaMasterModel data, string tenant_code)
+        public async Task<string> Insert(ReportMethodModel data, string tenant_code)
         {
             try
             {
                 using IDbConnection db = new NpgsqlConnection(db_conn);
 
                 data.tenant_code = tenant_code;
-                data.areacode = await GetNextAreaCode(tenant_code);
+                data.rtmcode = await GetNextRtmCode(tenant_code);
                 data.entereddate = DateTime.UtcNow;
                 data.ibsdate = DateTime.UtcNow;
                 data.deleted = false;
 
                 string sql = @"
-                    INSERT INTO area_master
+                    INSERT INTO report_method
                     (
-                        areacode,
+                        rtmcode,
                         tenant_code,
                         orderno,
                         shortname,
-                        areaname,
-                        citycode,
-                        areapincode,
-                        statecode,
-                        countrycode,
+                        name,
+                        durationtime,
+                        duration,
                         description,
+                        footer,
                         deleted,
                         usercode,
                         computercode,
@@ -64,16 +63,15 @@ namespace Medico_Backend.Class
                     )
                     VALUES
                     (
-                        @areacode,
+                        @rtmcode,
                         @tenant_code,
                         @orderno,
                         @shortname,
-                        @areaname,
-                        @citycode,
-                        @areapincode,
-                        @statecode,
-                        @countrycode,
+                        @name,
+                        @durationtime,
+                        @duration,
                         @description,
+                        @footer,
                         @deleted,
                         @usercode,
                         @computercode,
@@ -82,6 +80,7 @@ namespace Medico_Backend.Class
                     )";
 
                 await db.ExecuteAsync(sql, data);
+
                 return "Success";
             }
             catch (Exception ex)
@@ -93,7 +92,7 @@ namespace Medico_Backend.Class
         // ─────────────────────────────────────────
         // UPDATE
         // ─────────────────────────────────────────
-        public async Task<string> Update(AreaMasterModel data, string tenant_code)
+        public async Task<string> Update(ReportMethodModel data, string tenant_code)
         {
             try
             {
@@ -103,25 +102,24 @@ namespace Medico_Backend.Class
                 data.ibsdate = DateTime.UtcNow;
 
                 string sql = @"
-                    UPDATE area_master
+                    UPDATE report_method
                     SET
-                        orderno      = @orderno,
-                        shortname    = @shortname,
-                        areaname     = @areaname,
-                        citycode     = @citycode,
-                        areapincode  = @areapincode,
-                        statecode    = @statecode,
-                        countrycode  = @countrycode,
-                        description  = @description,
-                        deleted      = @deleted,
-                        usercode     = @usercode,
+                        orderno = @orderno,
+                        shortname = @shortname,
+                        name = @name,
+                        durationtime = @durationtime,
+                        duration = @duration,
+                        description = @description,
+                        footer = @footer,
+                        deleted = @deleted,
+                        usercode = @usercode,
                         computercode = @computercode,
-                        ibsdate      = @ibsdate,
-                        tenant_code  = @tenant_code
-                    WHERE areacode = @areacode
+                        ibsdate = @ibsdate
+                    WHERE rtmcode = @rtmcode
                     AND tenant_code = @tenant_code";
 
                 await db.ExecuteAsync(sql, data);
+
                 return "Success";
             }
             catch (Exception ex)
@@ -133,20 +131,21 @@ namespace Medico_Backend.Class
         // ─────────────────────────────────────────
         // DELETE
         // ─────────────────────────────────────────
-        public async Task<string> Delete(int areacode, string tenant_code)
+        public async Task<string> Delete(decimal rtmcode, string tenant_code)
         {
             try
             {
                 using IDbConnection db = new NpgsqlConnection(db_conn);
 
                 string sql = @"
-                    UPDATE area_master
+                    UPDATE report_method
                     SET deleted = true,
                         ibsdate = now()
-                    WHERE areacode = @areacode
+                    WHERE rtmcode = @rtmcode
                     AND tenant_code = @tenant_code";
 
-                await db.ExecuteAsync(sql, new { areacode, tenant_code });
+                await db.ExecuteAsync(sql, new { rtmcode, tenant_code });
+
                 return "Success";
             }
             catch (Exception ex)
@@ -156,58 +155,62 @@ namespace Medico_Backend.Class
         }
 
         // ─────────────────────────────────────────
-        // GET ALL (tenant + global)
+        // GET ALL
         // ─────────────────────────────────────────
-        public async Task<List<AreaMasterModel>> Get(string tenant_code)
+        public async Task<List<ReportMethodModel>> Get(string tenant_code)
         {
             using IDbConnection db = new NpgsqlConnection(db_conn);
 
             string sql = @"
                 SELECT *
-                FROM area_master
+                FROM report_method
                 WHERE deleted = false
-                AND (tenant_code = @tenant_code OR tenant_code IS NULL)
-                ORDER BY areacode";
+                AND tenant_code = @tenant_code
+                ORDER BY orderno";
 
-            var result = await db.QueryAsync<AreaMasterModel>(sql, new { tenant_code });
+            var result = await db.QueryAsync<ReportMethodModel>(sql, new { tenant_code });
+
             return result.ToList();
         }
 
         // ─────────────────────────────────────────
-        // GET BY AREACODE (tenant + global)
+        // GET BY RTMCODE
         // ─────────────────────────────────────────
-        public async Task<AreaMasterModel?> GetByAreaCode(int areacode, string tenant_code)
+        public async Task<ReportMethodModel?> GetByRtmCode(decimal rtmcode, string tenant_code)
         {
             using IDbConnection db = new NpgsqlConnection(db_conn);
 
             string sql = @"
                 SELECT *
-                FROM area_master
+                FROM report_method
                 WHERE deleted = false
-                AND areacode = @areacode
-                AND (tenant_code = @tenant_code OR tenant_code IS NULL)";
+                AND rtmcode = @rtmcode
+                AND tenant_code = @tenant_code";
 
-            return await db.QueryFirstOrDefaultAsync<AreaMasterModel>(
-                sql, new { areacode, tenant_code });
+            return await db.QueryFirstOrDefaultAsync<ReportMethodModel>(
+                sql,
+                new { rtmcode, tenant_code });
         }
 
         // ─────────────────────────────────────────
-        // SEARCH BY AREA NAME (tenant + global)
+        // SEARCH BY NAME
         // ─────────────────────────────────────────
-        public async Task<List<AreaMasterModel>> SearchByAreaName(string areaname, string tenant_code)
+        public async Task<List<ReportMethodModel>> SearchByName(string name, string tenant_code)
         {
             using IDbConnection db = new NpgsqlConnection(db_conn);
 
             string sql = @"
                 SELECT *
-                FROM area_master
+                FROM report_method
                 WHERE deleted = false
-                AND (tenant_code = @tenant_code OR tenant_code IS NULL)
-                AND LOWER(areaname) LIKE LOWER(@areaname)
-                ORDER BY areaname";
+                AND tenant_code = @tenant_code
+                AND LOWER(name) LIKE LOWER(@name)
+                ORDER BY orderno";
 
-            var result = await db.QueryAsync<AreaMasterModel>(
-                sql, new { areaname = $"%{areaname}%", tenant_code });
+            var result = await db.QueryAsync<ReportMethodModel>(
+                sql,
+                new { name = $"%{name}%", tenant_code });
+
             return result.ToList();
         }
     }

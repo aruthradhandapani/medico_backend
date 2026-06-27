@@ -6,11 +6,11 @@ namespace Medico_Backend.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
-    public class AreaMasterController : ControllerBase
+    public class ReimbursementCompanyMasterController : ControllerBase
     {
-        private readonly AreaMasterClass cls;
+        private readonly ReimbursementCompanyMasterClass cls;
 
-        public AreaMasterController(AreaMasterClass _cls)
+        public ReimbursementCompanyMasterController(ReimbursementCompanyMasterClass _cls)
         {
             cls = _cls;
         }
@@ -31,44 +31,55 @@ namespace Medico_Backend.Controllers
             return Ok(data);
         }
 
-        [HttpGet("get-by-areacode")]
-        public async Task<IActionResult> GetByAreaCode(int areacode)
+        [HttpGet("get-by-ricode")]
+        public async Task<IActionResult> GetByRiCode(decimal ricode)
         {
             var tenant_code = GetTenantCode();
             if (string.IsNullOrEmpty(tenant_code))
                 return BadRequest("tenant_code header is required");
 
-            var data = await cls.GetByAreaCode(areacode, tenant_code);
+            var data = await cls.GetByRiCode(ricode, tenant_code);
             if (data == null)
                 return NotFound("Data Not Found");
 
             return Ok(data);
         }
 
-        [HttpGet("search-by-areaname")]
-        public async Task<IActionResult> SearchByAreaName(string areaname)
+        [HttpGet("search-by-name")]
+        public async Task<IActionResult> SearchByName(string name)
         {
             var tenant_code = GetTenantCode();
             if (string.IsNullOrEmpty(tenant_code))
                 return BadRequest("tenant_code header is required");
 
-            var data = await cls.SearchByAreaName(areaname, tenant_code);
+            var data = await cls.SearchByName(name, tenant_code);
             return Ok(data);
         }
 
-        [HttpGet("get-next-areacode")]
-        public async Task<IActionResult> GetNextAreaCode()
+        [HttpGet("get-by-ftcode")]
+        public async Task<IActionResult> GetByFtCode(int ftcode)
         {
             var tenant_code = GetTenantCode();
             if (string.IsNullOrEmpty(tenant_code))
                 return BadRequest("tenant_code header is required");
 
-            var data = await cls.GetNextAreaCode(tenant_code);
+            var data = await cls.GetByFtCode(ftcode, tenant_code);
+            return Ok(data);
+        }
+
+        [HttpGet("get-next-ricode")]
+        public async Task<IActionResult> GetNextRiCode()
+        {
+            var tenant_code = GetTenantCode();
+            if (string.IsNullOrEmpty(tenant_code))
+                return BadRequest("tenant_code header is required");
+
+            var data = await cls.GetNextRiCode(tenant_code);
             return Ok(data);
         }
 
         [HttpPost("insert")]
-        public async Task<IActionResult> Insert([FromBody] AreaMasterModel data)
+        public async Task<IActionResult> Insert([FromBody] ReimbursementCompanyMasterModel data)
         {
             var tenant_code = GetTenantCode();
             if (string.IsNullOrEmpty(tenant_code))
@@ -79,7 +90,7 @@ namespace Medico_Backend.Controllers
         }
 
         [HttpPost("update")]
-        public async Task<IActionResult> Update([FromBody] AreaMasterModel data)
+        public async Task<IActionResult> Update([FromBody] ReimbursementCompanyMasterModel data)
         {
             var tenant_code = GetTenantCode();
             if (string.IsNullOrEmpty(tenant_code))
@@ -90,13 +101,13 @@ namespace Medico_Backend.Controllers
         }
 
         [HttpGet("delete")]
-        public async Task<IActionResult> Delete(int areacode)
+        public async Task<IActionResult> Delete(decimal ricode)
         {
             var tenant_code = GetTenantCode();
             if (string.IsNullOrEmpty(tenant_code))
                 return BadRequest("tenant_code header is required");
 
-            var result = await cls.Delete(areacode, tenant_code);
+            var result = await cls.Delete(ricode, tenant_code);
             return Ok(result);
         }
     }

@@ -18,26 +18,28 @@ namespace Medico_Backend.Class
         // ─────────────────────────────────────────
         // GET NEXT STATECODE
         // ─────────────────────────────────────────
-        public async Task<int> GetNextStateCode()
+        public async Task<int> GetNextStateCode(string tenant_code)
         {
             using IDbConnection db = new NpgsqlConnection(db_conn);
 
             string sql = @"SELECT COALESCE(MAX(statecode), 0) + 1
-                           FROM state_master";
+                           FROM state_master
+                           WHERE tenant_code = @tenant_code";
 
-            return await db.ExecuteScalarAsync<int>(sql);
+            return await db.ExecuteScalarAsync<int>(sql, new { tenant_code });
         }
 
         // ─────────────────────────────────────────
         // INSERT
         // ─────────────────────────────────────────
-        public async Task<string> Insert(StateMasterModel data)
+        public async Task<string> Insert(StateMasterModel data, string tenant_code)
         {
             try
             {
                 using IDbConnection db = new NpgsqlConnection(db_conn);
 
-                data.statecode = await GetNextStateCode();
+                data.tenant_code = tenant_code;
+                data.statecode = await GetNextStateCode(tenant_code);
                 data.entereddate = DateTime.UtcNow;
                 data.ibsdate = DateTime.UtcNow;
                 data.deleted = false;
@@ -55,12 +57,13 @@ namespace Medico_Backend.Class
         // ─────────────────────────────────────────
         // UPDATE
         // ─────────────────────────────────────────
-        public async Task<string> Update(StateMasterModel data)
+        public async Task<string> Update(StateMasterModel data, string tenant_code)
         {
             try
             {
                 using IDbConnection db = new NpgsqlConnection(db_conn);
 
+                data.tenant_code = tenant_code;
                 data.ibsdate = DateTime.UtcNow;
 
                 var result = await db.UpdateAsync(data);
@@ -74,9 +77,9 @@ namespace Medico_Backend.Class
         }
 
         // ─────────────────────────────────────────
-        // DELETE (SOFT DELETE)
+        // DELETE
         // ─────────────────────────────────────────
-        public async Task<string> Delete(int statecode)
+        public async Task<string> Delete(int statecode, string tenant_code)
         {
             try
             {
@@ -85,9 +88,10 @@ namespace Medico_Backend.Class
                 string sql = @"UPDATE state_master
                                SET deleted = true,
                                    ibsdate = now()
-                               WHERE statecode = @statecode";
+                               WHERE statecode = @statecode
+                               AND tenant_code = @tenant_code";
 
-                await db.ExecuteAsync(sql, new { statecode });
+                await db.ExecuteAsync(sql, new { statecode, tenant_code });
 
                 return "Success";
             }
@@ -98,55 +102,56 @@ namespace Medico_Backend.Class
         }
 
         // ─────────────────────────────────────────
-        // GET ALL
+        // GET ALL (tenant + global)
         // ─────────────────────────────────────────
-        public async Task<List<StateMasterModel>> Get()
+        public async Task<List<StateMasterModel>> Get(string tenant_code)
         {
             using IDbConnection db = new NpgsqlConnection(db_conn);
 
             string sql = @"SELECT *
                            FROM state_master
                            WHERE deleted = false
+                           AND (tenant_code = @tenant_code OR tenant_code IS NULL)
                            ORDER BY statecode";
 
-            var result = await db.QueryAsync<StateMasterModel>(sql);
+            var result = await db.QueryAsync<StateMasterModel>(sql, new { tenant_code });
 
             return result.ToList();
         }
 
         // ─────────────────────────────────────────
-        // GET BY STATECODE
+        // GET BY STATECODE (tenant + global)
         // ─────────────────────────────────────────
-        public async Task<StateMasterModel?> GetByStateCode(int statecode)
+        public async Task<StateMasterModel?> GetByStateCode(int statecode, string tenant_code)
         {
             using IDbConnection db = new NpgsqlConnection(db_conn);
 
             string sql = @"SELECT *
                            FROM state_master
                            WHERE deleted = false
-                           AND statecode = @statecode";
+                           AND statecode = @statecode
+                           AND (tenant_code = @tenant_code OR tenant_code IS NULL)";
 
             return await db.QueryFirstOrDefaultAsync<StateMasterModel>(
-                sql,
-                new { statecode });
+                sql, new { statecode, tenant_code });
         }
 
         // ─────────────────────────────────────────
-        // SEARCH BY STATE NAME
+        // SEARCH BY STATE NAME (tenant + global)
         // ─────────────────────────────────────────
-        public async Task<List<StateMasterModel>> SearchByStateName(string statename)
+        public async Task<List<StateMasterModel>> SearchByStateName(string statename, string tenant_code)
         {
             using IDbConnection db = new NpgsqlConnection(db_conn);
 
             string sql = @"SELECT *
                            FROM state_master
                            WHERE deleted = false
+                           AND (tenant_code = @tenant_code OR tenant_code IS NULL)
                            AND LOWER(statename) LIKE LOWER(@statename)
                            ORDER BY statename";
 
             var result = await db.QueryAsync<StateMasterModel>(
-                sql,
-                new { statename = $"%{statename}%" });
+                sql, new { statename = $"%{statename}%", tenant_code });
 
             return result.ToList();
         }

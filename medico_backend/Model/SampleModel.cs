@@ -2,11 +2,11 @@
 
 namespace Medico_Backend.Model
 {
-    [Table("city_master")]
-    public class CityMasterModel
+    [Table("sample_master")]
+    public class SampleMasterModel
     {
         [ExplicitKey]
-        public int citycode { get; set; }
+        public decimal scode { get; set; }
 
         public string? tenant_code { get; set; }
 
@@ -14,7 +14,7 @@ namespace Medico_Backend.Model
 
         public string? shortname { get; set; }
 
-        public string? cityname { get; set; }
+        public string? name { get; set; }
 
         public string? description { get; set; }
 

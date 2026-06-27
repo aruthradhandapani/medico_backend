@@ -8,6 +8,8 @@ namespace Medico_Backend.Model
         [ExplicitKey]
         public int statecode { get; set; }
 
+        public string? tenant_code { get; set; }
+
         public int orderno { get; set; }
 
         public string? shortname { get; set; }

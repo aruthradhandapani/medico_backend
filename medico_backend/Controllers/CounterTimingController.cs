@@ -6,11 +6,11 @@ namespace Medico_Backend.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
-    public class AreaMasterController : ControllerBase
+    public class CounterTimingController : ControllerBase
     {
-        private readonly AreaMasterClass cls;
+        private readonly CounterTimingClass cls;
 
-        public AreaMasterController(AreaMasterClass _cls)
+        public CounterTimingController(CounterTimingClass _cls)
         {
             cls = _cls;
         }
@@ -31,44 +31,53 @@ namespace Medico_Backend.Controllers
             return Ok(data);
         }
 
-        [HttpGet("get-by-areacode")]
-        public async Task<IActionResult> GetByAreaCode(int areacode)
+        [HttpGet("get-by-cnttid")]
+        public async Task<IActionResult> GetByCnttid(string cnttid)
         {
             var tenant_code = GetTenantCode();
             if (string.IsNullOrEmpty(tenant_code))
                 return BadRequest("tenant_code header is required");
 
-            var data = await cls.GetByAreaCode(areacode, tenant_code);
+            var data = await cls.GetByCnttid(cnttid, tenant_code);
+
             if (data == null)
+            {
                 return NotFound("Data Not Found");
+            }
 
             return Ok(data);
         }
 
-        [HttpGet("search-by-areaname")]
-        public async Task<IActionResult> SearchByAreaName(string areaname)
+        [HttpGet("get-by-cntcode")]
+        public async Task<IActionResult> GetByCntcode(int cntcode)
         {
             var tenant_code = GetTenantCode();
             if (string.IsNullOrEmpty(tenant_code))
                 return BadRequest("tenant_code header is required");
 
-            var data = await cls.SearchByAreaName(areaname, tenant_code);
+            var data = await cls.GetByCntcode(cntcode, tenant_code);
             return Ok(data);
         }
 
-        [HttpGet("get-next-areacode")]
-        public async Task<IActionResult> GetNextAreaCode()
+        [HttpGet("get-open-shift")]
+        public async Task<IActionResult> GetOpenShift(int bhcode, int cntcode)
         {
             var tenant_code = GetTenantCode();
             if (string.IsNullOrEmpty(tenant_code))
                 return BadRequest("tenant_code header is required");
 
-            var data = await cls.GetNextAreaCode(tenant_code);
+            var data = await cls.GetOpenShift(bhcode, cntcode, tenant_code);
+
+            if (data == null)
+            {
+                return NotFound("No open shift found");
+            }
+
             return Ok(data);
         }
 
         [HttpPost("insert")]
-        public async Task<IActionResult> Insert([FromBody] AreaMasterModel data)
+        public async Task<IActionResult> Insert([FromBody] CounterTimingModel data)
         {
             var tenant_code = GetTenantCode();
             if (string.IsNullOrEmpty(tenant_code))
@@ -79,7 +88,7 @@ namespace Medico_Backend.Controllers
         }
 
         [HttpPost("update")]
-        public async Task<IActionResult> Update([FromBody] AreaMasterModel data)
+        public async Task<IActionResult> Update([FromBody] CounterTimingModel data)
         {
             var tenant_code = GetTenantCode();
             if (string.IsNullOrEmpty(tenant_code))
@@ -90,13 +99,13 @@ namespace Medico_Backend.Controllers
         }
 
         [HttpGet("delete")]
-        public async Task<IActionResult> Delete(int areacode)
+        public async Task<IActionResult> Delete(string cnttid)
         {
             var tenant_code = GetTenantCode();
             if (string.IsNullOrEmpty(tenant_code))
                 return BadRequest("tenant_code header is required");
 
-            var result = await cls.Delete(areacode, tenant_code);
+            var result = await cls.Delete(cnttid, tenant_code);
             return Ok(result);
         }
     }

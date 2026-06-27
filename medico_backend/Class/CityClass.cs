@@ -17,26 +17,28 @@ namespace Medico_Backend.Class
         // ─────────────────────────────────────────
         // GET NEXT CITYCODE
         // ─────────────────────────────────────────
-        public async Task<int> GetNextCityCode()
+        public async Task<int> GetNextCityCode(string tenant_code)
         {
             using IDbConnection db = new NpgsqlConnection(db_conn);
 
             string sql = @"SELECT COALESCE(MAX(citycode), 0) + 1
-                           FROM city_master";
+                           FROM city_master
+                           WHERE tenant_code = @tenant_code";
 
-            return await db.ExecuteScalarAsync<int>(sql);
+            return await db.ExecuteScalarAsync<int>(sql, new { tenant_code });
         }
 
         // ─────────────────────────────────────────
         // INSERT
         // ─────────────────────────────────────────
-        public async Task<string> Insert(CityMasterModel data)
+        public async Task<string> Insert(CityMasterModel data, string tenant_code)
         {
             try
             {
                 using IDbConnection db = new NpgsqlConnection(db_conn);
 
-                data.citycode = await GetNextCityCode();
+                data.tenant_code = tenant_code;
+                data.citycode = await GetNextCityCode(tenant_code);
                 data.entereddate = DateTime.UtcNow;
                 data.ibsdate = DateTime.UtcNow;
                 data.deleted = false;
@@ -45,6 +47,7 @@ namespace Medico_Backend.Class
                     INSERT INTO city_master
                     (
                         citycode,
+                        tenant_code,
                         orderno,
                         shortname,
                         cityname,
@@ -58,6 +61,7 @@ namespace Medico_Backend.Class
                     VALUES
                     (
                         @citycode,
+                        @tenant_code,
                         @orderno,
                         @shortname,
                         @cityname,
@@ -70,7 +74,6 @@ namespace Medico_Backend.Class
                     )";
 
                 await db.ExecuteAsync(sql, data);
-
                 return "Success";
             }
             catch (Exception ex)
@@ -82,29 +85,31 @@ namespace Medico_Backend.Class
         // ─────────────────────────────────────────
         // UPDATE
         // ─────────────────────────────────────────
-        public async Task<string> Update(CityMasterModel data)
+        public async Task<string> Update(CityMasterModel data, string tenant_code)
         {
             try
             {
                 using IDbConnection db = new NpgsqlConnection(db_conn);
 
+                data.tenant_code = tenant_code;
                 data.ibsdate = DateTime.UtcNow;
 
                 string sql = @"
                     UPDATE city_master
                     SET
-                        orderno = @orderno,
-                        shortname = @shortname,
-                        cityname = @cityname,
-                        description = @description,
-                        deleted = @deleted,
-                        usercode = @usercode,
+                        orderno      = @orderno,
+                        shortname    = @shortname,
+                        cityname     = @cityname,
+                        description  = @description,
+                        deleted      = @deleted,
+                        usercode     = @usercode,
                         computercode = @computercode,
-                        ibsdate = @ibsdate
-                    WHERE citycode = @citycode";
+                        ibsdate      = @ibsdate,
+                        tenant_code  = @tenant_code
+                    WHERE citycode = @citycode
+                    AND tenant_code = @tenant_code";
 
                 await db.ExecuteAsync(sql, data);
-
                 return "Success";
             }
             catch (Exception ex)
@@ -114,9 +119,9 @@ namespace Medico_Backend.Class
         }
 
         // ─────────────────────────────────────────
-        // DELETE (SOFT DELETE)
+        // DELETE
         // ─────────────────────────────────────────
-        public async Task<string> Delete(int citycode)
+        public async Task<string> Delete(int citycode, string tenant_code)
         {
             try
             {
@@ -125,10 +130,10 @@ namespace Medico_Backend.Class
                 string sql = @"UPDATE city_master
                                SET deleted = true,
                                    ibsdate = now()
-                               WHERE citycode = @citycode";
+                               WHERE citycode = @citycode
+                               AND tenant_code = @tenant_code";
 
-                await db.ExecuteAsync(sql, new { citycode });
-
+                await db.ExecuteAsync(sql, new { citycode, tenant_code });
                 return "Success";
             }
             catch (Exception ex)
@@ -138,56 +143,55 @@ namespace Medico_Backend.Class
         }
 
         // ─────────────────────────────────────────
-        // GET ALL
+        // GET ALL (tenant + global)
         // ─────────────────────────────────────────
-        public async Task<List<CityMasterModel>> Get()
+        public async Task<List<CityMasterModel>> Get(string tenant_code)
         {
             using IDbConnection db = new NpgsqlConnection(db_conn);
 
             string sql = @"SELECT *
                            FROM city_master
                            WHERE deleted = false
+                           AND (tenant_code = @tenant_code OR tenant_code IS NULL)
                            ORDER BY citycode";
 
-            var result = await db.QueryAsync<CityMasterModel>(sql);
-
+            var result = await db.QueryAsync<CityMasterModel>(sql, new { tenant_code });
             return result.ToList();
         }
 
         // ─────────────────────────────────────────
-        // GET BY CITYCODE
+        // GET BY CITYCODE (tenant + global)
         // ─────────────────────────────────────────
-        public async Task<CityMasterModel?> GetByCityCode(int citycode)
+        public async Task<CityMasterModel?> GetByCityCode(int citycode, string tenant_code)
         {
             using IDbConnection db = new NpgsqlConnection(db_conn);
 
             string sql = @"SELECT *
                            FROM city_master
                            WHERE deleted = false
-                           AND citycode = @citycode";
+                           AND citycode = @citycode
+                           AND (tenant_code = @tenant_code OR tenant_code IS NULL)";
 
             return await db.QueryFirstOrDefaultAsync<CityMasterModel>(
-                sql,
-                new { citycode });
+                sql, new { citycode, tenant_code });
         }
 
         // ─────────────────────────────────────────
-        // SEARCH BY CITY NAME
+        // SEARCH BY CITY NAME (tenant + global)
         // ─────────────────────────────────────────
-        public async Task<List<CityMasterModel>> SearchByCityName(string cityname)
+        public async Task<List<CityMasterModel>> SearchByCityName(string cityname, string tenant_code)
         {
             using IDbConnection db = new NpgsqlConnection(db_conn);
 
             string sql = @"SELECT *
                            FROM city_master
                            WHERE deleted = false
+                           AND (tenant_code = @tenant_code OR tenant_code IS NULL)
                            AND LOWER(cityname) LIKE LOWER(@cityname)
                            ORDER BY cityname";
 
             var result = await db.QueryAsync<CityMasterModel>(
-                sql,
-                new { cityname = $"%{cityname}%" });
-
+                sql, new { cityname = $"%{cityname}%", tenant_code });
             return result.ToList();
         }
     }

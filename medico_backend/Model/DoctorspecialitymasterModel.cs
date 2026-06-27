@@ -2,19 +2,19 @@
 
 namespace Medico_Backend.Model
 {
-    [Table("city_master")]
-    public class CityMasterModel
+    [Table("doctor_specialty_master")]
+    public class DoctorSpecialtyMasterModel
     {
         [ExplicitKey]
-        public int citycode { get; set; }
+        public int spcode { get; set; }
 
         public string? tenant_code { get; set; }
 
         public int orderno { get; set; }
 
-        public string? shortname { get; set; }
+        public string? name { get; set; }
 
-        public string? cityname { get; set; }
+        public string? shortname { get; set; }
 
         public string? description { get; set; }
 
