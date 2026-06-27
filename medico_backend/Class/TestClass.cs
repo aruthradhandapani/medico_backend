@@ -1,4 +1,5 @@
 ﻿using Dapper;
+using Dapper.Contrib.Extensions;
 using Npgsql;
 using System.Data;
 using Medico_Backend.Model;
@@ -11,227 +12,46 @@ namespace Medico_Backend.Class
 
         public TestMasterClass(IConfiguration configuration)
         {
-            db_conn = configuration.GetConnectionString("conn");
-        }
-
-        // ─────────────────────────────────────────
-        // GET NEXT TCODE
-        // ─────────────────────────────────────────
-        public async Task<decimal> GetNextTcode(string tenant_code)
-        {
-            using IDbConnection db = new NpgsqlConnection(db_conn);
-
-            string sql = @"
-                SELECT COALESCE(MAX(tcode),0) + 1
-                FROM test_master
-                WHERE tenant_code = @tenant_code";
-
-            return await db.ExecuteScalarAsync<decimal>(
-                sql,
-                new { tenant_code });
+            db_conn = configuration.GetConnectionString("conn")!;
         }
 
         // ─────────────────────────────────────────
         // INSERT
         // ─────────────────────────────────────────
-        public async Task<string> Insert(TestMasterModel data)
+        public async Task<(string result, long? tcode)> Insert(TestMasterModel data, string tenant_code)
         {
             try
             {
                 using IDbConnection db = new NpgsqlConnection(db_conn);
 
-                data.tcode = await GetNextTcode(data.tenant_code!);
-
-                data.entereddate = DateTime.UtcNow;
-                data.ibsdate = DateTime.UtcNow;
+                data.tenant_code = tenant_code;
+                data.entereddate = DateTimeOffset.UtcNow;
+                data.ibsdate = DateTimeOffset.UtcNow;
                 data.deleted = false;
 
-                string sql = @"
-                    INSERT INTO test_master
-                    (
-                        tcode,
-                        gcode,
-                        scode,
-                        rtcode,
-                        ucode,
-                        rtmcode,
-                        orderno,
-                        name,
-                        shortname,
-                        qty,
-                        amount,
-                        lockresult,
-                        locksms,
-                        textcontent,
-                        culturereport,
-                        ""Routine"",
-                        outlab,
-                        description,
-                        footer,
-                        deleted,
-                        usercode,
-                        computercode,
-                        entereddate,
-                        ibsdate,
-                        printinseparatepage,
-                        printgraphinreport,
-                        graphtype,
-                        istest,
-                        ispackage,
-                        packcode,
-                        gstlcode,
-                        gstper,
-                        gstamount,
-                        hsn,
-                        hsndescription,
-                        isnodiscount,
-                        ccf,
-                        ccv,
-                        csf,
-                        ""CSV"",
-                        hsf,
-                        hsv,
-                        isccv,
-                        iscsv,
-                        isncv,
-                        ncf,
-                        ncv,
-                        tcf,
-                        tenant_code
-                    )
-                    VALUES
-                    (
-                        @tcode,
-                        @gcode,
-                        @scode,
-                        @rtcode,
-                        @ucode,
-                        @rtmcode,
-                        @orderno,
-                        @name,
-                        @shortname,
-                        @qty,
-                        @amount,
-                        @lockresult,
-                        @locksms,
-                        @textcontent,
-                        @culturereport,
-                        @Routine,
-                        @outlab,
-                        @description,
-                        @footer,
-                        @deleted,
-                        @usercode,
-                        @computercode,
-                        @entereddate,
-                        @ibsdate,
-                        @printinseparatepage,
-                        @printgraphinreport,
-                        @graphtype,
-                        @istest,
-                        @ispackage,
-                        @packcode,
-                        @gstlcode,
-                        @gstper,
-                        @gstamount,
-                        @hsn,
-                        @hsndescription,
-                        @isnodiscount,
-                        @ccf,
-                        @ccv,
-                        @csf,
-                        @CSV,
-                        @hsf,
-                        @hsv,
-                        @isccv,
-                        @iscsv,
-                        @isncv,
-                        @ncf,
-                        @ncv,
-                        @tcf,
-                        @tenant_code
-                    )";
-
-                await db.ExecuteAsync(sql, data);
-
-                return "Success";
+                var insertedTcode = await db.InsertAsync(data);
+                return ("Success", insertedTcode);
             }
             catch (Exception ex)
             {
-                return ex.Message;
+                return (ex.Message, null);
             }
         }
 
         // ─────────────────────────────────────────
         // UPDATE
         // ─────────────────────────────────────────
-        public async Task<string> Update(TestMasterModel data)
+        public async Task<string> Update(TestMasterModel data, string tenant_code)
         {
             try
             {
                 using IDbConnection db = new NpgsqlConnection(db_conn);
 
-                data.ibsdate = DateTime.UtcNow;
+                data.tenant_code = tenant_code;
+                data.ibsdate = DateTimeOffset.UtcNow;
 
-                string sql = @"
-                    UPDATE test_master
-                    SET
-                        gcode = @gcode,
-                        scode = @scode,
-                        rtcode = @rtcode,
-                        ucode = @ucode,
-                        rtmcode = @rtmcode,
-                        orderno = @orderno,
-                        name = @name,
-                        shortname = @shortname,
-                        qty = @qty,
-                        amount = @amount,
-                        lockresult = @lockresult,
-                        locksms = @locksms,
-                        textcontent = @textcontent,
-                        culturereport = @culturereport,
-                        ""Routine"" = @Routine,
-                        outlab = @outlab,
-                        description = @description,
-                        footer = @footer,
-                        usercode = @usercode,
-                        computercode = @computercode,
-                        ibsdate = @ibsdate,
-                        printinseparatepage = @printinseparatepage,
-                        printgraphinreport = @printgraphinreport,
-                        graphtype = @graphtype,
-                        istest = @istest,
-                        ispackage = @ispackage,
-                        packcode = @packcode,
-                        gstlcode = @gstlcode,
-                        gstper = @gstper,
-                        gstamount = @gstamount,
-                        hsn = @hsn,
-                        hsndescription = @hsndescription,
-                        isnodiscount = @isnodiscount,
-                        ccf = @ccf,
-                        ccv = @ccv,
-                        csf = @csf,
-                        ""CSV"" = @CSV,
-                        hsf = @hsf,
-                        hsv = @hsv,
-                        isccv = @isccv,
-                        iscsv = @iscsv,
-                        isncv = @isncv,
-                        ncf = @ncf,
-                        ncv = @ncv,
-                        tcf = @tcf
-                    WHERE tcode = @tcode
-                    AND tenant_code = @tenant_code";
-
-                int result = await db.ExecuteAsync(sql, data);
-
-                if (result == 0)
-                {
-                    return "Data Not Found";
-                }
-
-                return "Success";
+                var updated = await db.UpdateAsync(data);
+                return updated ? "Success" : "Data Not Found";
             }
             catch (Exception ex)
             {
@@ -240,31 +60,23 @@ namespace Medico_Backend.Class
         }
 
         // ─────────────────────────────────────────
-        // DELETE
+        // SOFT DELETE
         // ─────────────────────────────────────────
-        public async Task<string> Delete(decimal tcode, string tenant_code)
+        public async Task<string> SoftDelete(long tcode, string tenant_code)
         {
             try
             {
                 using IDbConnection db = new NpgsqlConnection(db_conn);
 
-                string sql = @"
-                    UPDATE test_master
-                    SET deleted = true,
-                        ibsdate = now()
-                    WHERE tcode = @tcode
-                    AND tenant_code = @tenant_code";
-
                 int result = await db.ExecuteAsync(
-                    sql,
+                    @"UPDATE test_master
+                         SET deleted = true,
+                             ibsdate = now()
+                       WHERE tcode = @tcode
+                         AND tenant_code = @tenant_code",
                     new { tcode, tenant_code });
 
-                if (result == 0)
-                {
-                    return "Data Not Found";
-                }
-
-                return "Success";
+                return result == 0 ? "Data Not Found" : "Success";
             }
             catch (Exception ex)
             {
@@ -277,41 +89,41 @@ namespace Medico_Backend.Class
         // ─────────────────────────────────────────
         public async Task<List<TestMasterModel>> Get(string tenant_code)
         {
-            using IDbConnection db = new NpgsqlConnection(db_conn);
+            try
+            {
+                using IDbConnection db = new NpgsqlConnection(db_conn);
 
-            string sql = @"
-                SELECT *
+                var result = await db.QueryAsync<TestMasterModel>(
+                    @"SELECT *
                 FROM test_master
-                WHERE deleted = false
-                AND tenant_code = @tenant_code
-                ORDER BY tcode";
+               WHERE deleted = false
+                 AND tenant_code = @tenant_code
+               ORDER BY orderno",
+                    new { tenant_code });
 
-            var result = await db.QueryAsync<TestMasterModel>(
-                sql,
-                new { tenant_code });
-
-            return result.ToList();
+                return result.ToList();
+            }
+            catch { return []; }
         }
 
         // ─────────────────────────────────────────
         // GET BY TCODE
         // ─────────────────────────────────────────
-        public async Task<TestMasterModel?> GetByTcode(
-            decimal tcode,
-            string tenant_code)
+        public async Task<TestMasterModel?> GetByTcode(long tcode, string tenant_code)
         {
-            using IDbConnection db = new NpgsqlConnection(db_conn);
+            try
+            {
+                using IDbConnection db = new NpgsqlConnection(db_conn);
 
-            string sql = @"
-                SELECT *
+                return await db.QueryFirstOrDefaultAsync<TestMasterModel>(
+                    @"SELECT *
                 FROM test_master
-                WHERE deleted = false
-                AND tcode = @tcode
-                AND tenant_code = @tenant_code";
-
-            return await db.QueryFirstOrDefaultAsync<TestMasterModel>(
-                sql,
-                new { tcode, tenant_code });
+               WHERE deleted = false
+                 AND tcode = @tcode
+                 AND tenant_code = @tenant_code",
+                    new { tcode, tenant_code });
+            }
+            catch { return null; }
         }
     }
 }

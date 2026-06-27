@@ -2478,80 +2478,80 @@ LEFT JOIN doctor_master dm
             // ── STEP 2: full enrichment — balancecollectionby aggregation scoped
             //    ONLY to this page's receipt/bill guids, same pattern as list/paid-history.
             var rows = (await db.QueryAsync<HmsDueCollectionSummary>($@"
-        WITH adv_agg AS (
-            SELECT bcb.request_guid,
-                   SUM(bcb.collectedamount) AS advance_used
-              FROM balancecollectionby bcb
-             WHERE bcb.tenant_code     = @t
-               AND bcb.collection_type = 'ADVANCE'
-               AND bcb.request_guid    = ANY(@bguids)
-               AND COALESCE(bcb.deleted, false) = false
-             GROUP BY bcb.request_guid
-        ),
-        col_type AS (
-            SELECT DISTINCT ON (bcb.receipt_guid, bcb.request_guid)
-                   bcb.receipt_guid, bcb.request_guid, bcb.collection_type
-              FROM balancecollectionby bcb
-             WHERE bcb.tenant_code  = @t
-               AND bcb.receipt_guid = ANY(@rguids)
-               AND COALESCE(bcb.deleted, false) = false
-             ORDER BY bcb.receipt_guid, bcb.request_guid, bcb.collection_type
-        ),
-        col_fallback AS (
-            SELECT DISTINCT ON (bcb.receipt_guid)
-                   bcb.receipt_guid, bcb.collection_type
-              FROM balancecollectionby bcb
-             WHERE bcb.tenant_code  = @t
-               AND bcb.receipt_guid = ANY(@rguids)
-               AND COALESCE(bcb.deleted, false) = false
-             ORDER BY bcb.receipt_guid, bcb.collection_type
-        )
-        SELECT
-            rm.receiptguid                                               AS receipt_guid,
-            rm.receiptsnoprint                                           AS receipt_no,
-            lrm.name                                                     AS patient_name,
-            lrm.mobileno,
-            lrm.requestsnoprint                                          AS bill_no,
-            dm.name                                                      AS doctor_name,
+    WITH adv_agg AS (
+        SELECT bcb.request_guid,
+               SUM(bcb.collectedamount) AS advance_used
+          FROM balancecollectionby bcb
+         WHERE bcb.tenant_code     = @t
+           AND bcb.collection_type = 'ADVANCE'
+           AND bcb.request_guid    = ANY(@bguids)
+           AND COALESCE(bcb.deleted, false) = false
+         GROUP BY bcb.request_guid
+    ),
+    col_type AS (
+        SELECT DISTINCT ON (bcb.receipt_guid, bcb.request_guid)
+               bcb.receipt_guid, bcb.request_guid, bcb.collection_type
+          FROM balancecollectionby bcb
+         WHERE bcb.tenant_code  = @t
+           AND bcb.receipt_guid = ANY(@rguids)
+           AND COALESCE(bcb.deleted, false) = false
+         ORDER BY bcb.receipt_guid, bcb.request_guid, bcb.collection_type
+    ),
+    col_fallback AS (
+        SELECT DISTINCT ON (bcb.receipt_guid)
+               bcb.receipt_guid, bcb.collection_type
+          FROM balancecollectionby bcb
+         WHERE bcb.tenant_code  = @t
+           AND bcb.receipt_guid = ANY(@rguids)
+           AND COALESCE(bcb.deleted, false) = false
+         ORDER BY bcb.receipt_guid, bcb.collection_type
+    )
+    SELECT
+        rm.receiptguid                                               AS receipt_guid,
+        rm.receiptsnoprint                                           AS receipt_no,
+        rm.custid,                                                   -- ← ADD THIS
+        lrm.name                                                     AS patient_name,
+        lrm.mobileno,
+        lrm.requestsnoprint                                          AS bill_no,
+        dm.name                                                      AS doctor_name,
 
-            -- DUE → this bill's share; ADVANCE/ADVANCE_REFUND → receipt total
-            CASE WHEN rm.receipttype = 'DUE'
-                 THEN COALESCE(rd.receiptamount, 0)
-                 ELSE COALESCE(rm.amountpaid, 0) END                     AS amount_paid,
+        CASE WHEN rm.receipttype = 'DUE'
+             THEN COALESCE(rd.receiptamount, 0)
+             ELSE COALESCE(rm.amountpaid, 0) END                     AS amount_paid,
 
-            COALESCE(adv.advance_used, 0)                                AS advance_used,
-            COALESCE(ct.collection_type, cf.collection_type)             AS collection_type,
-            rm.receipttype                                               AS receipt_type,
-            rm.receiptdate                                               AS receipt_date,
-            COALESCE(lrm.totalamount, 0)                                 AS total_bill_amount,
-            CASE WHEN lrm.requestguid IS NOT NULL
-                 THEN GREATEST(COALESCE(lrm.totalamount, 0) - COALESCE(lrm.paidamount, 0), 0)
-                 ELSE 0 END                                              AS current_due,
-            CASE WHEN lrm.requestguid IS NOT NULL
-                 THEN (COALESCE(lrm.totalamount, 0) - COALESCE(lrm.paidamount, 0)) <= 0.05
-                 ELSE true END                                          AS is_fully_settled,
-            bm.name                                                      AS branch_name
-        FROM receipt_master rm
-        LEFT JOIN receipt_details rd
-               ON rd.receiptguid = rm.receiptguid AND rd.tenant_code = rm.tenant_code
-              AND COALESCE(rd.deleted, false) = false
-        LEFT JOIN lab_request_master lrm
-               ON lrm.requestguid = rd.requestguid AND lrm.tenant_code = rd.tenant_code
-        LEFT JOIN LATERAL (
-            SELECT name FROM doctor_master
-             WHERE dcode = lrm.dcode AND tenant_code = lrm.tenant_code
-             LIMIT 1
-        ) dm ON true
-        LEFT JOIN LATERAL (
-            SELECT name FROM mastertenant.branch_master
-             WHERE bh_code = rm.enteredbhcode AND tenant_code = rm.tenant_code
-             LIMIT 1
-        ) bm ON true
-        LEFT JOIN adv_agg adv ON adv.request_guid = rd.requestguid
-        LEFT JOIN col_type ct ON ct.receipt_guid = rm.receiptguid AND ct.request_guid = rd.requestguid
-        LEFT JOIN col_fallback cf ON cf.receipt_guid = rm.receiptguid
-        WHERE rm.receiptguid = ANY(@rguids)
-        ORDER BY rm.receiptdate DESC", p, commandTimeout: 30)).ToList();
+        COALESCE(adv.advance_used, 0)                                AS advance_used,
+        COALESCE(ct.collection_type, cf.collection_type)             AS collection_type,
+        rm.receipttype                                               AS receipt_type,
+        rm.receiptdate                                               AS receipt_date,
+        COALESCE(lrm.totalamount, 0)                                 AS total_bill_amount,
+        CASE WHEN lrm.requestguid IS NOT NULL
+             THEN GREATEST(COALESCE(lrm.totalamount, 0) - COALESCE(lrm.paidamount, 0), 0)
+             ELSE 0 END                                              AS current_due,
+        CASE WHEN lrm.requestguid IS NOT NULL
+             THEN (COALESCE(lrm.totalamount, 0) - COALESCE(lrm.paidamount, 0)) <= 0.05
+             ELSE true END                                           AS is_fully_settled,
+        bm.name                                                      AS branch_name
+    FROM receipt_master rm
+    LEFT JOIN receipt_details rd
+           ON rd.receiptguid = rm.receiptguid AND rd.tenant_code = rm.tenant_code
+          AND COALESCE(rd.deleted, false) = false
+    LEFT JOIN lab_request_master lrm
+           ON lrm.requestguid = rd.requestguid AND lrm.tenant_code = rd.tenant_code
+    LEFT JOIN LATERAL (
+        SELECT name FROM doctor_master
+         WHERE dcode = lrm.dcode AND tenant_code = lrm.tenant_code
+         LIMIT 1
+    ) dm ON true
+    LEFT JOIN LATERAL (
+        SELECT name FROM mastertenant.branch_master
+         WHERE bh_code = rm.enteredbhcode AND tenant_code = rm.tenant_code
+         LIMIT 1
+    ) bm ON true
+    LEFT JOIN adv_agg adv ON adv.request_guid = rd.requestguid
+    LEFT JOIN col_type ct ON ct.receipt_guid = rm.receiptguid AND ct.request_guid = rd.requestguid
+    LEFT JOIN col_fallback cf ON cf.receipt_guid = rm.receiptguid
+    WHERE rm.receiptguid = ANY(@rguids)
+    ORDER BY rm.receiptdate DESC", p, commandTimeout: 30)).ToList();
 
             // ── SUMMARY — scoped to the entire FILTERED id set (not just this page,
             //    and NOT the whole tenant table). Same WHERE as count, just used to

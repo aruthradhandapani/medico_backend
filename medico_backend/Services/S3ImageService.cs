@@ -16,7 +16,7 @@ namespace medico_backend.Services
             _logger = logger;
         }
 
-        private string GetBucket() => _config["S3:BucketName"] ?? "labcare";
+        private string GetBucket() => _config["S3:BucketName"] ?? "medico"; // was "labcare"
 
         /// <summary>
         /// Builds the S3 key based on entity type.
@@ -25,7 +25,7 @@ namespace medico_backend.Services
         /// </summary>
         public string BuildKey(string tenantCode, string entityType, long entityId, string prefix, string fileName)
         {
-            return $"LabCare/{tenantCode}/{entityType}/{entityId}/{prefix}_{fileName}";
+            return $"medico/{tenantCode}/{entityType}/{entityId}/{prefix}_{fileName}";
         }
 
         /// <summary>
@@ -121,7 +121,7 @@ namespace medico_backend.Services
         /// </summary>
         public async Task<List<S3FileInfo>> ListAsync(string tenantCode, string entityType, long entityId)
         {
-            var prefix = $"LabCare/{tenantCode}/{entityType}/{entityId}/";
+            var prefix = $"medico/{tenantCode}/{entityType}/{entityId}/";
 
             var response = await _s3.ListObjectsV2Async(new ListObjectsV2Request
             {

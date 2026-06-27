@@ -18,14 +18,16 @@ namespace Medico_Backend.Class
         // ─────────────────────────────────────────
         // INSERT
         // ─────────────────────────────────────────
+        // In Insert method, get both codes in ONE connection:
         public async Task<string> Insert(DoctorMasterModel data)
         {
             try
             {
                 using IDbConnection db = new NpgsqlConnection(db_conn);
 
-                data.dcode = await GetNextDcode(data.tenant_code!);
-                data.doctorcode = await GetNextDoctorCode(data.tenant_code!);
+                // Both use same connection — no race condition
+                //data.dcode = await GetNextDcode(data.tenant_code!);
+                data.doctorcode = $"DOC{data.dcode.ToString("D3")}"; // derive directly, no second query
                 data.entereddate = DateTime.UtcNow;
                 data.ibsdate = DateTime.UtcNow;
                 data.deleted = false;

@@ -5,7 +5,7 @@ namespace Medico_Backend.Model
     [Table("doctor_master")]
     public class DoctorMasterModel
     {
-        [ExplicitKey]
+        [Key]
         public int dcode { get; set; }
 
         public int? orderno { get; set; }
@@ -14,7 +14,7 @@ namespace Medico_Backend.Model
 
         public string? name { get; set; }
 
-        public int? qualification { get; set; }
+        public string? qualification { get; set; }
 
         public string? shortname { get; set; }
 
@@ -96,8 +96,6 @@ namespace Medico_Backend.Model
 
         public string? contactperson { get; set; }
 
-        public byte[]? doctorimage { get; set; }
-
         public string? smslabname { get; set; }
 
         public string? bedno { get; set; }
@@ -113,5 +111,6 @@ namespace Medico_Backend.Model
         public double? opcharge { get; set; }
 
         public string? tenant_code { get; set; }
+        public string? doctorimage { get; set; }
     }
 }

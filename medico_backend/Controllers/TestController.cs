@@ -1,6 +1,7 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿
 using Medico_Backend.Class;
 using Medico_Backend.Model;
+using Microsoft.AspNetCore.Mvc;
 
 namespace Medico_Backend.Controllers
 {
@@ -15,75 +16,85 @@ namespace Medico_Backend.Controllers
             cls = _cls;
         }
 
+        private string? TenantCode =>
+            Request.Headers.TryGetValue("tenant_code", out var v) && !string.IsNullOrWhiteSpace(v)
+                ? v.ToString() : null;
+
+
+        // ── GET ALL ───────────────────────────────────────────────────────────
+
         [HttpGet("get")]
         public async Task<IActionResult> Get()
         {
-            var tenant = Request.Headers["tenant_code"].ToString();
+            if (TenantCode is null)
+                return BadRequest(new { message = "tenant_code is required in header." });
 
-            var data = await cls.Get(tenant);
-
+            var data = await cls.Get(TenantCode);
             return Ok(data);
         }
+
+        // ── GET BY TCODE ──────────────────────────────────────────────────────
 
         [HttpGet("get-by-tcode")]
-        public async Task<IActionResult> GetByTcode(decimal tcode)
+        public async Task<IActionResult> GetByTcode([FromQuery] long tcode)
         {
-            var tenant = Request.Headers["tenant_code"].ToString();
+            if (tcode <= 0) return BadRequest(new { message = "Invalid tcode." });
+            if (TenantCode is null)
+                return BadRequest(new { message = "tenant_code is required in header." });
 
-            var data = await cls.GetByTcode(tcode, tenant);
-
-            if (data == null)
-            {
-                return NotFound("Data Not Found");
-            }
-
-            return Ok(data);
+            var data = await cls.GetByTcode(tcode, TenantCode);
+            return data is null ? NotFound(new { message = "Data Not Found" }) : Ok(data);
         }
 
-        [HttpGet("get-next-tcode")]
-        public async Task<IActionResult> GetNextTcode()
-        {
-            var tenant = Request.Headers["tenant_code"].ToString();
-
-            var data = await cls.GetNextTcode(tenant);
-
-            return Ok(data);
-        }
+        // ── INSERT ────────────────────────────────────────────────────────────
 
         [HttpPost("insert")]
-        public async Task<IActionResult> Insert(
-            [FromBody] TestMasterModel data)
+        public async Task<IActionResult> Insert([FromBody] TestMasterModel data)
         {
-            var tenant = Request.Headers["tenant_code"].ToString();
+            if (!ModelState.IsValid) return BadRequest(ModelState);
+            if (TenantCode is null)
+                return BadRequest(new { message = "tenant_code is required in header." });
 
-            data.tenant_code = tenant;
 
-            var result = await cls.Insert(data);
+            var (result, tcode) = await cls.Insert(data, TenantCode);
 
-            return Ok(result);
+            return result == "Success"
+                ? Ok(new { message = "Inserted Successfully", tcode })
+                : BadRequest(new { message = result });
         }
+
+        // ── UPDATE ────────────────────────────────────────────────────────────
 
         [HttpPost("update")]
-        public async Task<IActionResult> Update(
-            [FromBody] TestMasterModel data)
+        public async Task<IActionResult> Update([FromBody] TestMasterModel data)
         {
-            var tenant = Request.Headers["tenant_code"].ToString();
+            if (!ModelState.IsValid) return BadRequest(ModelState);
+            if (data.tcode <= 0) return BadRequest(new { message = "Invalid tcode." });
+            if (TenantCode is null)
+                return BadRequest(new { message = "tenant_code is required in header." });
 
-            data.tenant_code = tenant;
 
-            var result = await cls.Update(data);
+            var result = await cls.Update(data, TenantCode);
 
-            return Ok(result);
+            return result == "Success"
+                ? Ok(new { message = "Updated Successfully" })
+                : BadRequest(new { message = result });
         }
 
+        // ── SOFT DELETE ───────────────────────────────────────────────────────
+
         [HttpGet("delete")]
-        public async Task<IActionResult> Delete(decimal tcode)
+        public async Task<IActionResult> SoftDelete([FromQuery] long tcode)
         {
-            var tenant = Request.Headers["tenant_code"].ToString();
+            if (tcode <= 0) return BadRequest(new { message = "Invalid tcode." });
+            if (TenantCode is null)
+                return BadRequest(new { message = "tenant_code is required in header." });
 
-            var result = await cls.Delete(tcode, tenant);
+            var result = await cls.SoftDelete(tcode, TenantCode);
 
-            return Ok(result);
+            return result == "Success"
+                ? Ok(new { message = "Soft Deleted Successfully" })
+                : BadRequest(new { message = result });
         }
     }
 }

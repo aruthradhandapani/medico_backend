@@ -451,7 +451,7 @@ namespace medico_backend.Model
     {
         public string? receipt_guid { get; set; }
         public string? receipt_no { get; set; }
-
+        public int? custid { get; set; }
         public string? patient_name { get; set; }
         public string? mobileno { get; set; }
         public string? bill_no { get; set; }

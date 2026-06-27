@@ -36,8 +36,6 @@ builder.Services.AddScoped<PrescriptionClass>();
 builder.Services.AddScoped<PrescriptionController>();
 builder.Services.AddScoped<ItemMasterClass>();
 builder.Services.AddScoped<ItemMasterController>();
-builder.Services.AddScoped<TestMasterClass>();
-builder.Services.AddScoped<TestMasterController>();
 builder.Services.AddScoped<PrefixMasterClass>();
 builder.Services.AddScoped<PrefixMasterController>();
 builder.Services.AddScoped<UserMasterClass>();
@@ -86,6 +84,12 @@ builder.Services.AddScoped<CityMasterClass>();
 builder.Services.AddScoped<CityMasterController>();
 builder.Services.AddScoped<AreaMasterClass>();
 builder.Services.AddScoped<AreaMasterController>();
+builder.Services.AddScoped<FeeTypeMasterClass>();
+builder.Services.AddScoped<FeeTypeMasterController>();
+builder.Services.AddScoped<TestFeeMasterClass>();
+builder.Services.AddScoped<TestFeeMasterController>();
+builder.Services.AddScoped<TestMasterClass>();
+builder.Services.AddScoped<TestMasterController>();
 
 builder.Services.AddSingleton<IAmazonS3>(sp =>
 {
