@@ -90,6 +90,8 @@ builder.Services.AddScoped<TestFeeMasterClass>();
 builder.Services.AddScoped<TestFeeMasterController>();
 builder.Services.AddScoped<TestMasterClass>();
 builder.Services.AddScoped<TestMasterController>();
+builder.Services.AddScoped<TenantReportMethodClass>();
+builder.Services.AddScoped<TenantReportMethodController>();
 
 builder.Services.AddSingleton<IAmazonS3>(sp =>
 {

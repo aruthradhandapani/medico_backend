@@ -47,36 +47,44 @@ namespace Medico_Backend.Class
                 data.deleted = false;
 
                 string sql = @"
-                    INSERT INTO feetype_master
-                    (
-                        ftcode,
-                        orderno,
-                        shortname,
-                        name,
-                        description,
-                        commissionpercentage,
-                        deleted,
-                        usercode,
-                        computercode,
-                        entereddate,
-                        ibsdate,
-                        tenant_code
-                    )
-                    VALUES
-                    (
-                        @ftcode,
-                        @orderno,
-                        @shortname,
-                        @name,
-                        @description,
-                        @commissionpercentage,
-                        @deleted,
-                        @usercode,
-                        @computercode,
-                        @entereddate,
-                        @ibsdate,
-                        @tenant_code
-                    )";
+            INSERT INTO feetype_master
+            (
+                ftcode,
+                orderno,
+                shortname,
+                name,
+                description,
+                commissionpercentage,
+                iscommission,
+                isscheme,
+                isspecial,
+                isic,
+                deleted,
+                usercode,
+                computercode,
+                entereddate,
+                ibsdate,
+                tenant_code
+            )
+            VALUES
+            (
+                @ftcode,
+                @orderno,
+                @shortname,
+                @name,
+                @description,
+                @commissionpercentage,
+                @iscommission,
+                @isscheme,
+                @isspecial,
+                @isic,
+                @deleted,
+                @usercode,
+                @computercode,
+                @entereddate,
+                @ibsdate,
+                @tenant_code
+            )";
 
                 await db.ExecuteAsync(sql, data);
 
@@ -100,19 +108,23 @@ namespace Medico_Backend.Class
                 data.ibsdate = DateTime.UtcNow;
 
                 string sql = @"
-                    UPDATE feetype_master
-                    SET
-                        orderno = @orderno,
-                        shortname = @shortname,
-                        name = @name,
-                        description = @description,
-                        commissionpercentage = @commissionpercentage,
-                        deleted = @deleted,
-                        usercode = @usercode,
-                        computercode = @computercode,
-                        ibsdate = @ibsdate
-                    WHERE ftcode = @ftcode
-                    AND tenant_code = @tenant_code";
+            UPDATE feetype_master
+            SET
+                orderno = @orderno,
+                shortname = @shortname,
+                name = @name,
+                description = @description,
+                commissionpercentage = @commissionpercentage,
+                iscommission = @iscommission,
+                isscheme = @isscheme,
+                isspecial = @isspecial,
+                isic = @isic,
+                deleted = @deleted,
+                usercode = @usercode,
+                computercode = @computercode,
+                ibsdate = @ibsdate
+            WHERE ftcode = @ftcode
+            AND tenant_code = @tenant_code";
 
                 int result = await db.ExecuteAsync(sql, data);
 

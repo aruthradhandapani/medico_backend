@@ -29,5 +29,9 @@ namespace Medico_Backend.Model
         public DateTime ibsdate { get; set; }
 
         public string? tenant_code { get; set; }
+        public bool? iscommission { get; set; }
+        public bool? isscheme { get; set; }
+        public bool? isspecial { get; set; }
+        public bool? isic { get; set; }
     }
 }
