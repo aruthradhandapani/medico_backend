@@ -6,7 +6,7 @@ namespace Medico_Backend.Model
     public class CustomerMasterModel
     {
         [ExplicitKey]
-        public decimal custid { get; set; }
+        public decimal? custid { get; set; }
 
         public string? custcode { get; set; }
 

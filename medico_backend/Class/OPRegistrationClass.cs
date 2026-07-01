@@ -886,5 +886,63 @@ AND b.tenant_code = @tenant_code
 
             return result.ToList();
         }
+        // ─────────────────────────────────────────
+        // GET ALL OP REGISTRATIONS WITH CUSTOMER DETAILS
+        // Anchored on op_registration so every OP always shows,
+        // even if the matching customer record can't be found.
+        // ─────────────────────────────────────────
+        public async Task<List<dynamic>> GetAllCustomersWithOp(string tenant_code)
+        {
+            using IDbConnection db = new NpgsqlConnection(_db_conn);
+
+            string sql = @"
+        SELECT 
+            op.op_id,
+            op.op_no,
+            op.booking_id,
+            op.booking_no,
+            op.slot_detail_id,
+            op.custid,
+            op.dcode              AS op_dcode,
+            op.department_code,
+            op.visit_type,
+            op.reg_type,
+            op.visit_date,
+            op.token_no,
+            op.queue_no,
+            op.visit_status,
+            op.notes,
+            op.is_direct_walkin,
+            op.duty_dcode,
+            op.transferred_to_dcode,
+            op.transfer_reason,
+            op.created_at         AS op_created_at,
+            op.updated_at         AS op_updated_at,
+            c.custcode,
+            c.name,
+            c.mobile,
+            c.email,
+            c.gender,
+            c.dateofbirth,
+            c.ageyears,
+            c.agemonths,
+            c.agedays,
+            c.city,
+            c.area,
+            c.street,
+            c.customerimage,
+            c.tenant_code         AS cust_tenant_code
+        FROM op_registration op
+        LEFT JOIN customerdb.customer_master c
+               ON c.custid::numeric      = op.custid::numeric
+              AND TRIM(c.tenant_code)    = TRIM(op.tenant_code)
+              AND c.deleted              = false
+        WHERE op.isdeleted          = false
+        AND   TRIM(op.tenant_code)  = TRIM(@tenant_code)
+        ORDER BY op.visit_date DESC, op.created_at DESC";
+
+            var res = await db.QueryAsync<dynamic>(sql, new { tenant_code });
+            return res.ToList();
+        }
     }
 }

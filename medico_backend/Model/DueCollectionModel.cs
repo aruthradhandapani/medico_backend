@@ -455,6 +455,7 @@ namespace medico_backend.Model
         public string? patient_name { get; set; }
         public string? mobileno { get; set; }
         public string? bill_no { get; set; }
+        public int? dcode { get; set; }   // add this near doctor_name
         public string? doctor_name { get; set; }
         public double amount_paid { get; set; }
         public double advance_used { get; set; }

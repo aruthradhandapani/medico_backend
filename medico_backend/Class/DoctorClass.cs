@@ -26,7 +26,7 @@ namespace Medico_Backend.Class
                 using IDbConnection db = new NpgsqlConnection(db_conn);
 
                 // Both use same connection — no race condition
-                //data.dcode = await GetNextDcode(data.tenant_code!);
+                data.dcode = await GetNextDcode(data.tenant_code!);
                 data.doctorcode = $"DOC{data.dcode.ToString("D3")}"; // derive directly, no second query
                 data.entereddate = DateTime.UtcNow;
                 data.ibsdate = DateTime.UtcNow;
@@ -185,5 +185,6 @@ namespace Medico_Backend.Class
 
             return $"DOC{nextNo.ToString("D3")}";
         }
+        
     }
 }

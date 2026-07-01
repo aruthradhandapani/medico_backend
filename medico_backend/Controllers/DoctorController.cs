@@ -127,5 +127,7 @@ namespace Medico_Backend.Controllers
 
             return Ok(new { message = "Doctor deleted successfully" });
         }
+        // ─── Get Consultants ──────────────────────────────────────
+        
     }
 }

@@ -1263,7 +1263,7 @@ namespace medico_backend.Class
         // ═══════════════════════════════════════════════════════════════════════
 
         public async Task<string> CancelDueCollection(
-            string receiptGuid, int? usercode, string? reason, string tenantCode)
+    string receiptGuid, int? usercode, string? reason, string tenantCode)
         {
             using var db = GetConnection();
             db.Open();
@@ -1273,130 +1273,101 @@ namespace medico_backend.Class
             {
                 var receipt = await db.QueryFirstOrDefaultAsync<HmsDueReceiptMaster>(
                     @"SELECT * FROM receipt_master
-                       WHERE receiptguid = @rg AND tenant_code = @t",
+               WHERE receiptguid = @rg AND tenant_code = @t",
                     new { rg = receiptGuid, t = tenantCode }, tx);
 
                 if (receipt == null) return "Receipt not found.";
                 if (receipt.isdeleted == true) return "Receipt is already cancelled.";
                 if (receipt.receipttype != "DUE")
-                    return "Only DUE receipts can be cancelled through this endpoint. " +
-                           "Use the advance refund endpoint for ADVANCE receipts.";
+                    return "Only DUE receipts can be cancelled through this endpoint.";
 
-                // Get bill linkage
-                var detail = await db.QueryFirstOrDefaultAsync<HmsDueReceiptDetail>(
+                // ── Get ALL bill linkages under this receipt (bulk = multiple rows) ──
+                var details = (await db.QueryAsync<HmsDueReceiptDetail>(
                     @"SELECT * FROM receipt_details
-                       WHERE receiptguid = @rg AND tenant_code = @t
-                         AND COALESCE(deleted, false) = false
-                       LIMIT 1",
-                    new { rg = receiptGuid, t = tenantCode }, tx);
+               WHERE receiptguid = @rg AND tenant_code = @t
+                 AND COALESCE(deleted, false) = false",
+                    new { rg = receiptGuid, t = tenantCode }, tx)).ToList();
 
-                string? requestGuid = detail?.requestguid;
-
-                // ── 1. Restore advance usage rows ─────────────────────────────
-                //
-                //  Find all ADVANCE balancecollectionby rows for this bill that
-                //  were written during this collection, then soft-delete the
-                //  corresponding receipt_advances usage rows.
-                //
-                //  After soft-delete:
-                //    GetPatientAdvanceBalance → deposits unchanged, used reduced
-                //    → available balance is automatically restored
-                // ─────────────────────────────────────────────────────────────
-                if (requestGuid != null)
+                // ── Process each bill individually ────────────────────────────────────
+                foreach (var detail in details)
                 {
-                    // Find advance balancecollectionby rows written for this bill
-                    // We identify them by: collection_type=ADVANCE AND request_guid=bill AND
-                    // they were written at the same time as the DUE receipt
-                    // (the receipt_guid in those rows points to the original deposit receipt)
+                    string? requestGuid = detail.requestguid;
+                    if (requestGuid == null) continue;
+
+                    // Step 1: Restore advance usage rows for THIS bill only
                     var advanceRows = await db.QueryAsync<dynamic>(
                         @"SELECT receipt_guid, collectedamount
-                            FROM balancecollectionby
-                           WHERE request_guid    = @rg
-                             AND tenant_code     = @t
-                             AND collection_type = 'ADVANCE'
-                             AND COALESCE(deleted, false) = false",
+                    FROM balancecollectionby
+                   WHERE request_guid    = @rg
+                     AND tenant_code     = @t
+                     AND collection_type = 'ADVANCE'
+                     AND COALESCE(deleted, false) = false",
                         new { rg = requestGuid, t = tenantCode }, tx);
 
                     foreach (var adv in advanceRows)
                     {
-                        // Soft-delete the usage row — this restores the advance balance
                         await db.ExecuteAsync(
                             @"UPDATE receipt_advances
-                                 SET deleted = true
-                               WHERE receiptguid = @advRg
-                                 AND requestguid = @billRg
-                                 AND COALESCE(deleted, false) = false",
+                         SET deleted = true
+                       WHERE receiptguid = @advRg
+                         AND requestguid = @billRg
+                         AND COALESCE(deleted, false) = false",
                             new { advRg = (string)adv.receipt_guid, billRg = requestGuid }, tx);
                     }
-                }
 
-                // ── 2. Soft-delete receipt_master, receipt_details, balancecollectionby ──
-                await db.ExecuteAsync(
-                    @"UPDATE receipt_master
-                         SET isdeleted = true, deleted = true
-                       WHERE receiptguid = @rg AND tenant_code = @t",
-                    new { rg = receiptGuid, t = tenantCode }, tx);
+                    // Step 2: Get cash amount for THIS bill only (scoped to request_guid)
+                    // ✅ FIX: use rd.receiptamount directly — this is per-bill share
+                    double cashAmount = detail.receiptamount ?? 0;
 
-                await db.ExecuteAsync(
-                    @"UPDATE receipt_details
-                         SET deleted = true
-                       WHERE receiptguid = @rg AND tenant_code = @t",
-                    new { rg = receiptGuid, t = tenantCode }, tx);
-
-                await db.ExecuteAsync(
-                    @"UPDATE balancecollectionby
-                         SET deleted = true
-                       WHERE receipt_guid = @rg AND tenant_code = @t",
-                    new { rg = receiptGuid, t = tenantCode }, tx);
-
-                // ── 3. Revert lab_request_master paid amounts ─────────────────
-                //
-                //  We reconstruct exact amounts from balancecollectionby
-                //  (already marked deleted above, so read with deleted=true check)
-                //  to be precise about what cash vs advance was involved.
-                // ─────────────────────────────────────────────────────────────
-                if (requestGuid != null)
-                {
-                    // Cash amount: non-ADVANCE rows tied to this receipt
-                    var cashAmount = await db.ExecuteScalarAsync<double>(
+                    // Step 3: Get advance amount for THIS bill only
+                    double advanceAmount = await db.ExecuteScalarAsync<double>(
                         @"SELECT COALESCE(SUM(collectedamount), 0)
-                            FROM balancecollectionby
-                           WHERE receipt_guid    = @rg
-                             AND tenant_code     = @t
-                             AND collection_type <> 'ADVANCE'",
-                        new { rg = receiptGuid, t = tenantCode }, tx);
-
-                    // Advance amount: ADVANCE rows tied to this bill
-                    var advanceAmount = await db.ExecuteScalarAsync<double>(
-                        @"SELECT COALESCE(SUM(collectedamount), 0)
-                            FROM balancecollectionby
-                           WHERE request_guid    = @rg
-                             AND tenant_code     = @t
-                             AND collection_type = 'ADVANCE'",
+                    FROM balancecollectionby
+                   WHERE request_guid    = @rg
+                     AND tenant_code     = @t
+                     AND collection_type = 'ADVANCE'",
                         new { rg = requestGuid, t = tenantCode }, tx);
 
                     double totalRevert = Math.Round(cashAmount + advanceAmount, 2);
 
-                    // Revert paidamount (total) and paidviareceipt (cash only)
-                    // GREATEST prevents going negative from double-cancel or data issues
+                    // Step 4: Revert lab_request_master for THIS bill only
                     await db.ExecuteAsync(
                         @"UPDATE lab_request_master
-                             SET paidamount     = GREATEST(COALESCE(paidamount,     0) - @total, 0),
-                                 paidviareceipt = GREATEST(COALESCE(paidviareceipt, 0) - @cash,  0)
-                           WHERE requestguid = @rg AND tenant_code = @t",
+                     SET paidamount     = GREATEST(COALESCE(paidamount,     0) - @total, 0),
+                         paidviareceipt = GREATEST(COALESCE(paidviareceipt, 0) - @cash,  0)
+                   WHERE requestguid = @rg AND tenant_code = @t",
                         new { total = totalRevert, cash = cashAmount, rg = requestGuid, t = tenantCode }, tx);
 
-                    // ── 4. Un-settle balancecollectionbytest ──────────────────
+                    // Step 5: Un-settle balancecollectionbytest for THIS bill only
                     await db.ExecuteAsync(
                         @"UPDATE balancecollectionbytest
-                             SET requeststatus = false
-                           WHERE balancecollectionbyid IN (
-                               SELECT balancecollectionbyid
-                                 FROM balancecollectionby
-                                WHERE request_guid = @rg AND tenant_code = @t
-                           )",
+                     SET requeststatus = false
+                   WHERE balancecollectionbyid IN (
+                       SELECT balancecollectionbyid
+                         FROM balancecollectionby
+                        WHERE request_guid = @rg AND tenant_code = @t
+                   )",
                         new { rg = requestGuid, t = tenantCode }, tx);
                 }
+
+                // ── Soft-delete receipt_master, receipt_details, balancecollectionby ──
+                await db.ExecuteAsync(
+                    @"UPDATE receipt_master
+                 SET isdeleted = true, deleted = true
+               WHERE receiptguid = @rg AND tenant_code = @t",
+                    new { rg = receiptGuid, t = tenantCode }, tx);
+
+                await db.ExecuteAsync(
+                    @"UPDATE receipt_details
+                 SET deleted = true
+               WHERE receiptguid = @rg AND tenant_code = @t",
+                    new { rg = receiptGuid, t = tenantCode }, tx);
+
+                await db.ExecuteAsync(
+                    @"UPDATE balancecollectionby
+                 SET deleted = true
+               WHERE receipt_guid = @rg AND tenant_code = @t",
+                    new { rg = receiptGuid, t = tenantCode }, tx);
 
                 tx.Commit();
                 return "SUCCESS";
@@ -2362,7 +2333,7 @@ LEFT JOIN LATERAL (
         // ═══════════════════════════════════════════════════════════════════════
 
         public async Task<(List<HmsDueCollectionSummary> data, int totalCount, HmsPaidHistorySummary summary)>
-            GetDailyCollectionReport(HmsDailyCollectionReportFilterRequest filter, string tenantCode)
+     GetDailyCollectionReport(HmsDailyCollectionReportFilterRequest filter, string tenantCode)
         {
             using var db = GetConnection();
             var p = new DynamicParameters();
@@ -2509,10 +2480,11 @@ LEFT JOIN doctor_master dm
     SELECT
         rm.receiptguid                                               AS receipt_guid,
         rm.receiptsnoprint                                           AS receipt_no,
-        rm.custid,                                                   -- ← ADD THIS
+        rm.custid,
         lrm.name                                                     AS patient_name,
         lrm.mobileno,
         lrm.requestsnoprint                                          AS bill_no,
+        lrm.dcode                                                    AS dcode,
         dm.name                                                      AS doctor_name,
 
         CASE WHEN rm.receipttype = 'DUE'

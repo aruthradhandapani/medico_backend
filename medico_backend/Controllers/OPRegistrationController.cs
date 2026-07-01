@@ -130,5 +130,16 @@ namespace medico_backend.Controllers
 
             return Ok(data);
         }
+        // GET api/OpRegistration/customers-with-op
+        [HttpGet("customers-with-op")]
+        public async Task<IActionResult> GetAllCustomersWithOp()
+        {
+            var tenant = Request.Headers["tenant_code"].ToString();
+            if (string.IsNullOrEmpty(tenant))
+                return BadRequest(new { message = "Tenant code required" });
+
+            var data = await cls.GetAllCustomersWithOp(tenant);
+            return Ok(data);
+        }
     }
 }

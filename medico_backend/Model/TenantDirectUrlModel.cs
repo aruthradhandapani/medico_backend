@@ -11,7 +11,7 @@ namespace Medico_Backend.Model
         public string? tenant_code { get; set; }
 
         public string? tenant_name { get; set; }
-
+         
         public string? title { get; set; }
 
         public string? url { get; set; }

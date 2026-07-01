@@ -14,6 +14,18 @@ using Minio;
 using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
+builder.WebHost.ConfigureKestrel(options =>
+{
+    options.Limits.MaxRequestBodySize = 100 * 1024 * 1024; // 100 MB
+});
+
+// 2. Multipart form parsing limit
+builder.Services.Configure<Microsoft.AspNetCore.Http.Features.FormOptions>(options =>
+{
+    options.MultipartBodyLengthLimit = 100 * 1024 * 1024;
+    options.ValueLengthLimit = int.MaxValue;
+    options.MultipartHeadersLengthLimit = int.MaxValue;
+});
 
 // Add services to the container.
 
@@ -92,6 +104,10 @@ builder.Services.AddScoped<TestMasterClass>();
 builder.Services.AddScoped<TestMasterController>();
 builder.Services.AddScoped<TenantReportMethodClass>();
 builder.Services.AddScoped<TenantReportMethodController>();
+builder.Services.AddScoped<MachineMasterClass>();
+builder.Services.AddScoped<MachineMasterController>();
+builder.Services.AddScoped<TestClass>();
+builder.Services.AddScoped<TestController>();
 
 builder.Services.AddSingleton<IAmazonS3>(sp =>
 {
