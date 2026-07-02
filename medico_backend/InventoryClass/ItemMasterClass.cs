@@ -240,149 +240,253 @@ namespace medico_backend.InventoryClass
         // ─── PURCHASE MASTER ──────────────────────────────────────────────────────────
 
         public async Task<long> InsertPurchase(purchase_request request)
-        {
-            using (IDbConnection db = new NpgsqlConnection(con))
-            {
-                db.Open();
+ {
+     using (IDbConnection db = new NpgsqlConnection(con))
+     {
+         db.Open();
 
-                using (var transaction = db.BeginTransaction())
-                {
-                    try
-                    {
-                        string masterQuery = @"
-                INSERT INTO public.purchase_master
-                (
-                    billno,
-                    billdate,
-                    invoiceno,
-                    invoicedate,
-                    vendorcode,
-                    grossamount,
-                    discountamount,
-                    taxamount,
-                    netamount,
-                    transportationcharges,
-                    roundoff,
-                    paymentmode,
-                    paymentstatus,
-                    currencycode,
-                    isactive,
-                    deleted,
-                    remarks,
-                    createddate,
-                    usercode,
-                    tenantcode,
-                    branchcode,
-                    companycode,
-                    grncode
-                )
-                VALUES
-                (
-                    @billno,
-                    @billdate,
-                    @invoiceno,
-                    @invoicedate,
-                    @vendorcode,
-                    @grossamount,
-                    @discountamount,
-                    @taxamount,
-                    @netamount,
-                    @transportationcharges,
-                    @roundoff,
-                    @paymentmode,
-                    @paymentstatus,
-                    @currencycode,
-                    @isactive,
-                    @deleted,
-                    @remarks,
-                    CURRENT_TIMESTAMP,
-                    @usercode,
-                    @tenantcode,
-                    @branchcode,
-                    @companycode,
-                    @grncode
-                )
-                RETURNING purchasecode;";
+         using (var transaction = db.BeginTransaction())
+         {
+             try
+             {
+                 // Purchase Master Insert
+                 string masterQuery = @"
+         INSERT INTO purchase_master
+         (
+             billno,
+             billdate,
+             invoiceno,
+             invoicedate,
+             vendorcode,
+             grossamount,
+             discountamount,
+             taxamount,
+             netamount,
+             paymentmode,
+             paymentstatus,
+             currencycode,
+             remarks,
+             isactive,
+             deleted,
+             createddate,
+             usercode,
+             tenantcode,
+             branchcode,
+             companycode
+         )
+         VALUES
+         (
+             @billno,
+             @billdate,
+             @invoiceno,
+             @invoicedate,
+             @vendorcode,
+             @grossamount,
+             @discountamount,
+             @taxamount,
+             @netamount,
+             @paymentmode,
+             @paymentstatus,
+             @currencycode,
+             @remarks,
+             @isactive,
+             @deleted,
+             CURRENT_TIMESTAMP,
+             @usercode,
+             @tenantcode,
+             @branchcode,
+             @companycode
+         )
+         RETURNING purchasecode;";
 
-                        long purchasecode = await db.ExecuteScalarAsync<long>(
-                            masterQuery,
-                            request.master,
-                            transaction);
+                 long purchasecode = await db.ExecuteScalarAsync<long>(
+                     masterQuery,
+                     request.master,
+                     transaction);
 
-                        string detailQuery = @"
-                INSERT INTO public.purchase_detail
-                (
-                    purchasecode,
-                    itemcode,
-                    quantity,
-                    freequantity,
-                    uomcode,
-                    rate,
-                    discountpercentage,
-                    discountamount,
-                    taxpercentage,
-                    taxamount,
-                    amount,
-                    totalamount,
-                    batchno,
-                    manufacturingdate,
-                    expirydate,
-                    orderedqty,
-                    receivedqty,
-                    rejectedqty,
-                    warehousecode,
-                    packaging,
-                    manufacturercode,
-                    tenantcode
-                )
-                VALUES
-                (
-                    @purchasecode,
-                    @itemcode,
-                    @quantity,
-                    @freequantity,
-                    @uomcode,
-                    @rate,
-                    @discountpercentage,
-                    @discountamount,
-                    @taxpercentage,
-                    @taxamount,
-                    @amount,
-                    @totalamount,
-                    @batchno,
-                    @manufacturingdate,
-                    @expirydate,
-                    @orderedqty,
-                    @receivedqty,
-                    @rejectedqty,
-                    @warehousecode,
-                    @packaging,
-                    @manufacturercode,
-                    @tenantcode
-                );";
+                 // Purchase Detail Insert
+                 string detailQuery = @"
+         INSERT INTO purchase_detail
+         (
+             purchasecode,
+             itemcode,
+             quantity,
+             freequantity,
+             uomcode,
+             rate,
+             discountpercentage,
+             discountamount,
+             taxpercentage,
+             taxamount,
+             amount,
+             totalamount,
+             batchno,
+             manufacturingdate,
+             expirydate,
+             orderedqty,
+             receivedqty,
+             rejectedqty,
+             warehousecode,
+             tenantcode
+         )
+         VALUES
+         (
+             @purchasecode,
+             @itemcode,
+             @quantity,
+             @freequantity,
+             @uomcode,
+             @rate,
+             @discountpercentage,
+             @discountamount,
+             @taxpercentage,
+             @taxamount,
+             @amount,
+             @totalamount,
+             @batchno,
+             @manufacturingdate,
+             @expirydate,
+             @orderedqty,
+             @receivedqty,
+             @rejectedqty,
+             @warehousecode,
+             @tenantcode
+         );";
 
-                        foreach (var item in request.details)
-                        {
-                            item.purchasecode = purchasecode;
+                 foreach (var item in request.details)
+                 {
+                     item.purchasecode = purchasecode;
 
-                            await db.ExecuteAsync(
-                                detailQuery,
-                                item,
-                                transaction);
-                        }
+                     await db.ExecuteAsync(
+                         detailQuery,
+                         item,
+                         transaction);
 
-                        transaction.Commit();
+                     // Check stock exists
+                     string checkStockQuery = @"
+             SELECT stockcode
+             FROM stock_master
+             WHERE itemcode = @itemcode
+             AND warehousecode = @warehousecode
+             AND batchno = @batchno;";
 
-                        return purchasecode;
-                    }
-                    catch (Exception ex)
-                    {
-                        transaction.Rollback();
-                        throw new Exception($"Purchase insert failed: {ex.Message}");
-                    }
-                }
-            }
-        }
+                     var stockcode = await db.ExecuteScalarAsync<long?>(
+                         checkStockQuery,
+                         new
+                         {
+                             item.itemcode,
+                             item.warehousecode,
+                             item.batchno
+                         },
+                         transaction);
+
+                     // Update Existing Stock
+                     if (stockcode.HasValue)
+                     {
+                         string updateStockQuery = @"
+                 UPDATE stock_master
+                 SET
+                     purchasedqty = purchasedqty + @receivedqty,
+                     closingstock = closingstock + @receivedqty,
+                     unitcost = @rate,
+                     stockvalue =
+                         (closingstock + @receivedqty) * @rate,
+                     modifieddate = CURRENT_TIMESTAMP
+                 WHERE stockcode = @stockcode;";
+
+                         await db.ExecuteAsync(
+                             updateStockQuery,
+                             new
+                             {
+                                 stockcode = stockcode.Value,
+                                 item.receivedqty,
+                                 item.rate
+                             },
+                             transaction);
+                     }
+                     else
+                     {
+                         // Insert New Stock Record
+                         string insertStockQuery = @"
+                 INSERT INTO stock_master
+                 (
+                     itemcode,
+                     warehousecode,
+                     branchcode,
+                     openingstock,
+                     purchasedqty,
+                     soldqty,
+                     damagedqty,
+                     returnqty,
+                     closingstock,
+                     unitcost,
+                     stockvalue,
+                     batchno,
+                     manufacturingdate,
+                     expirydate,
+                     isactive,
+                     deleted,
+                     createddate,
+                     usercode,
+                     tenantcode,
+                     companycode
+                 )
+                 VALUES
+                 (
+                     @itemcode,
+                     @warehousecode,
+                     @branchcode,
+                     0,
+                     @receivedqty,
+                     0,
+                     0,
+                     0,
+                     @receivedqty,
+                     @rate,
+                     (@receivedqty * @rate),
+                     @batchno,
+                     @manufacturingdate,
+                     @expirydate,
+                     true,
+                     false,
+                     CURRENT_TIMESTAMP,
+                     @usercode,
+                     @tenantcode,
+                     @companycode
+                 );";
+
+                         await db.ExecuteAsync(
+                             insertStockQuery,
+                             new
+                             {
+                                 item.itemcode,
+                                 item.warehousecode,
+                                 branchcode = request.master.branchcode,
+                                 item.receivedqty,
+                                 item.rate,
+                                 item.batchno,
+                                 item.manufacturingdate,
+                                 item.expirydate,
+                                 usercode = request.master.usercode,
+                                 tenantcode = request.master.tenantcode,
+                                 companycode = request.master.companycode
+                             },
+                             transaction);
+                     }
+                 }
+
+                 transaction.Commit();
+
+                 return purchasecode;
+             }
+             catch (Exception ex)
+             {
+                 transaction.Rollback();
+                 throw new Exception("Purchase Insert Failed : " + ex.Message);
+             }
+         }
+     }
+ }
 
         public async Task<long> UpdatePurchase(purchase_request request)
         {
