@@ -72,7 +72,7 @@ namespace medico_backend.Class
 
                 string requestGuid = Guid.NewGuid().ToString();
                 double lineGrossTotal = req.items.Sum(x => (x.amount ?? 0));
-                double aggregateDiscount = (req.discountamount ?? 0) + (req.specialdiscount ?? 0);
+                double aggregateDiscount = (req.discountamount ?? 0) + (req.specialdiscount ?? 0) + (req.ourdiscount ?? 0);
                 double calculativeNetAmount = lineGrossTotal - aggregateDiscount;
                 if (calculativeNetAmount < 0) calculativeNetAmount = 0;
 
@@ -110,6 +110,8 @@ namespace medico_backend.Class
                     discountper = req.discountper,
                     discountamount = req.discountamount,
                     specialdiscount = req.specialdiscount,
+                    ourdispercentage = req.ourdispercentage,   // <-- ADD
+                    ourdiscount = req.ourdiscount,
                     totalamount = calculativeNetAmount,
                     paidamount = req.paidamount ?? 0,
                     paidviareceipt = req.paidamount ?? 0,
@@ -178,6 +180,28 @@ namespace medico_backend.Class
                     activeReceiptInfo = await GenerateReceiptLog(db, tx, masterRecord, req.paidamount ?? 0, req.collection_type, tenantCode);
                 }
 
+                // If billing from unbilled charges, mark them billed in the same tx
+                if (req.unbilled_charge_ids != null && req.unbilled_charge_ids.Any())
+                {
+                    await db.ExecuteAsync(
+                        @"UPDATE unbilledcharges
+                          SET billedstatus   = true,
+                              billno         = @billno,
+                              billid         = @billid,
+                              billeddate     = @now,
+                              billedquantity = quantity,
+                              billedamount   = amount
+                          WHERE unbilledid = ANY(@ids) AND tenant_code = @tenantCode",
+                        new
+                        {
+                            billno = billNumInfo.snoprint,
+                            billid = requestGuid,
+                            now = DateTime.UtcNow,
+                            ids = req.unbilled_charge_ids.ToArray(),
+                            tenantCode
+                        }, tx);
+                }
+
                 tx.Commit();
                 var result = await FetchBillRecordByGuid(requestGuid, tenantCode);
                 return ("SUCCESS", result);
@@ -206,11 +230,12 @@ namespace medico_backend.Class
                 if (existingMaster.isdeleted == true || existingMaster.deleted == true) return ("Modification criteria locked against deleted profiles.", null);
 
                 double lineGrossTotal = req.items.Sum(x => (x.amount ?? 0));
-                double aggregateDiscount = (req.discountamount ?? 0) + (req.specialdiscount ?? 0);
+                double aggregateDiscount = (req.discountamount ?? 0) + (req.specialdiscount ?? 0) + (req.ourdiscount ?? 0);  // add ourdiscount
                 double calculativeNetAmount = lineGrossTotal - aggregateDiscount;
                 if (calculativeNetAmount < 0) calculativeNetAmount = 0;
 
                 existingMaster.custid = req.custid;
+                existingMaster.opvisitid = req.op_id;
                 existingMaster.name = req.patient_name;
                 existingMaster.gender = req.gender;
                 existingMaster.dateofbirth = req.dateofbirth;
@@ -230,6 +255,8 @@ namespace medico_backend.Class
                 existingMaster.discountper = req.discountper;
                 existingMaster.discountamount = req.discountamount;
                 existingMaster.specialdiscount = req.specialdiscount;
+                existingMaster.ourdispercentage = req.ourdispercentage;   // <-- ADD
+                existingMaster.ourdiscount = req.ourdiscount;
                 existingMaster.totalamount = calculativeNetAmount;
                 existingMaster.pmc1 = req.pmc1 ?? 0;
                 existingMaster.pmc2 = req.pmc2 ?? 0;
@@ -576,6 +603,7 @@ namespace medico_backend.Class
             return new HmsBillResponse
             {
                 requestguid = master.requestguid,
+                op_id = master.opvisitid,
                 bill_no = master.requestsnoprint,
                 barcode = master.requestbarcode,
                 bill_date = master.requestdatetime,
@@ -589,7 +617,11 @@ namespace medico_backend.Class
                 cnttid = master.cnttid,
                 tmcode = master.tmcode,
                 gross_amount = master.requestamount,
-                discount_amount = (double)(master.discountamount ?? 0.0) + (double)(master.specialdiscount ?? 0.0),
+                discount_amount = (double)(master.discountamount ?? 0.0) + (double)(master.specialdiscount ?? 0.0) + (double)(master.ourdiscount ?? 0.0),  // add ourdiscount
+                general_concession_per = master.discountper,          // <-- ADD
+                general_concession_amount = master.discountamount,    // <-- ADD
+                referral_concession_per = master.ourdispercentage,     // <-- ADD
+                referral_concession_amount = master.ourdiscount,       // <-- ADD
                 tax_amount = master.taxamount,
                 net_amount = totalInvoiceLimit,
                 paid_amount = recognizedCollections,
@@ -838,14 +870,14 @@ namespace medico_backend.Class
                 }
 
                 // Generate next bncode for this tenant (locked to avoid race conditions)
-               // decimal nextCode = await db.ExecuteScalarAsync<decimal>(
-               //     @"SELECT COALESCE(MAX(bncode), 0) + 1 FROM billno_master
-               //WHERE tenant_code = @t FOR UPDATE",
-               //     new { t = tenantCode }, tx);
+                // decimal nextCode = await db.ExecuteScalarAsync<decimal>(
+                //     @"SELECT COALESCE(MAX(bncode), 0) + 1 FROM billno_master
+                //WHERE tenant_code = @t FOR UPDATE",
+                //     new { t = tenantCode }, tx);
 
-                 await db.ExecuteAsync(
-    "SELECT pg_advisory_xact_lock(hashtext(@t))",
-    new { t = tenantCode }, tx);
+                await db.ExecuteAsync(
+   "SELECT pg_advisory_xact_lock(hashtext(@t))",
+   new { t = tenantCode }, tx);
 
                 // Safe MAX after lock acquired
                 decimal nextCode = await db.ExecuteScalarAsync<decimal>(
@@ -1126,11 +1158,12 @@ namespace medico_backend.Class
 
                 // ── Recalculate amounts ───────────────────────────────────────
                 double lineGrossTotal = req.items.Sum(x => x.amount ?? 0);
-                double aggregateDiscount = (req.discountamount ?? 0) + (req.specialdiscount ?? 0);
+                double aggregateDiscount = (req.discountamount ?? 0) + (req.specialdiscount ?? 0) + (req.ourdiscount ?? 0);  // add ourdiscount
                 double netAmount = Math.Max(lineGrossTotal - aggregateDiscount, 0);
 
                 // ── Apply changes to master ───────────────────────────────────
                 existing.custid = req.custid ?? existing.custid;
+
                 existing.name = req.patient_name ?? existing.name;
                 existing.gender = req.gender ?? existing.gender;
                 existing.dateofbirth = req.dateofbirth ?? existing.dateofbirth;
@@ -1149,6 +1182,8 @@ namespace medico_backend.Class
                 existing.discountper = req.discountper ?? existing.discountper;
                 existing.discountamount = req.discountamount ?? existing.discountamount;
                 existing.specialdiscount = req.specialdiscount ?? existing.specialdiscount;
+                existing.ourdispercentage = req.ourdispercentage ?? existing.ourdispercentage;   // <-- ADD
+                existing.ourdiscount = req.ourdiscount ?? existing.ourdiscount;
                 existing.pmc1 = req.pmc1 ?? existing.pmc1;
                 existing.pmc2 = req.pmc2 ?? existing.pmc2;
                 existing.pmc3 = req.pmc3 ?? existing.pmc3;
@@ -1211,6 +1246,7 @@ namespace medico_backend.Class
                 return ("SUCCESS", new UpdateHmsBillResponse
                 {
                     requestguid = updated?.requestguid ?? req.requestguid,
+                    op_id = updated?.op_id,
                     bill_no = updated?.bill_no,
                     barcode = updated?.barcode,
                     bill_date = updated?.bill_date,
@@ -1223,6 +1259,10 @@ namespace medico_backend.Class
                     cntcode = updated?.cntcode,
                     gross_amount = updated?.gross_amount,
                     discount_amount = updated?.discount_amount,
+                    general_concession_per = updated?.general_concession_per,          // <-- ADD
+                    general_concession_amount = updated?.general_concession_amount,    // <-- ADD
+                    referral_concession_per = updated?.referral_concession_per,        // <-- ADD
+                    referral_concession_amount = updated?.referral_concession_amount,
                     net_amount = updated?.net_amount,
                     paid_amount = updated?.paid_amount,
                     balance_amount = updated?.balance_amount,

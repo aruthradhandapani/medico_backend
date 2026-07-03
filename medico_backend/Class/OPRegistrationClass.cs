@@ -1,4 +1,5 @@
 ﻿using Dapper;
+using medico_backend.Model;
 using Medico_Backend.Model;
 using Npgsql;
 using System.Data;
@@ -9,10 +10,12 @@ namespace medico_backend.Class
     public class OpRegistrationClass
     {
         private readonly string _db_conn;
+        private readonly UnbilledChargesClass _unbilledCls;   // ADD
 
-        public OpRegistrationClass(IConfiguration configuration)
+        public OpRegistrationClass(IConfiguration configuration, UnbilledChargesClass unbilledCls)
         {
             _db_conn = configuration.GetConnectionString("conn")!;
+            _unbilledCls = unbilledCls;
         }
 
         // ─────────────────────────────────────────
@@ -142,6 +145,24 @@ namespace medico_backend.Class
                     data.created_at,
                     data.updated_at
                 });
+
+                // ── 5. Auto-add consultation fee to unbilledcharges ─────
+                // NOTE: you'll need a source for tcode/rate/amount — either
+                // hardcode a default, pull from a doctor-fee master table,
+                // or accept it as an optional field on OpRegistrationModel.
+                // Placeholder below uses a fixed rate; replace with your actual lookup.
+                // ── 5. Auto-add consultation fee to unbilledcharges ─────
+                var (feeTcode, feeRate, feeAmount) = await GetDoctorConsultationFee(db, data.dcode, data.tenant_code!);
+
+                await _unbilledCls.AddConsultationCharge(new AddUnbilledConsultationRequest
+                {
+                    op_id = data.op_id.ToString(),
+                    custid = data.custid,
+                    tcode = feeTcode,
+                    rate = feeRate,
+                    amount = feeAmount,
+                    quantity = 1
+                }, data.tenant_code!);
 
                 return $"Success|OpNo:{data.op_no}|OpId:{data.op_id}|Token:{data.token_no}|RegType:{data.reg_type}";
             }
@@ -567,6 +588,19 @@ namespace medico_backend.Class
                     data.created_at,
                     data.updated_at
                 });
+                // ── Auto-add consultation fee to unbilledcharges ─────
+                var (feeTcode, feeRate, feeAmount) = await GetDoctorConsultationFee(db, assignedDcode, tenant_code);
+
+                await _unbilledCls.AddConsultationCharge(new AddUnbilledConsultationRequest
+                {
+                    op_id = data.op_id.ToString(),
+                    custid = data.custid,
+                    tcode = feeTcode,
+                    rate = feeRate,
+                    amount = feeAmount,
+                    quantity = 1
+                }, tenant_code);
+
 
                 // Update slot counters
                 await db.ExecuteAsync(@"
@@ -943,6 +977,19 @@ AND b.tenant_code = @tenant_code
 
             var res = await db.QueryAsync<dynamic>(sql, new { tenant_code });
             return res.ToList();
+        }
+        private async Task<(int? tcode, double rate, double amount)> GetDoctorConsultationFee(
+     IDbConnection db, int dcode, string tenant_code)
+        {
+            var doctor = await db.QueryFirstOrDefaultAsync<DoctorMasterModel>(
+                @"SELECT tcode, opcharge FROM doctor_master
+          WHERE dcode = @dcode AND tenant_code = @tenant_code AND deleted = false",
+                new { dcode, tenant_code });
+
+            double fee = doctor?.opcharge ?? 0;
+            int? tcode = doctor?.tcode;   // already int? — no cast needed
+
+            return (tcode, fee, fee);
         }
     }
 }

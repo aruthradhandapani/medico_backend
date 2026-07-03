@@ -304,6 +304,8 @@ namespace medico_backend.Model
         public double? discountper { get; set; }
         public double? discountamount { get; set; }
         public double? specialdiscount { get; set; }
+        public double? ourdispercentage { get; set; }     // referral concession %   <-- ADD
+        public double? ourdiscount { get; set; }
         public double? paidamount { get; set; }
         public double? pmc1 { get; set; }
         public double? pmc2 { get; set; }
@@ -318,6 +320,7 @@ namespace medico_backend.Model
         public string? card_refno { get; set; }
         public string? bank_app { get; set; }
         public List<HmsBillLineItemDto> items { get; set; } = new();
+        public List<string>? unbilled_charge_ids { get; set; }
     }
 
     public class HmsBillLineItemDto
@@ -384,6 +387,7 @@ namespace medico_backend.Model
     public class HmsBillResponse
     {
         public string? requestguid { get; set; }
+        public string? op_id { get; set; }
         public string? bill_no { get; set; }
         public string? barcode { get; set; }
         public DateTime? bill_date { get; set; }
@@ -402,6 +406,10 @@ namespace medico_backend.Model
         public decimal? tmcode { get; set; }
         public double? gross_amount { get; set; }
         public double? discount_amount { get; set; }
+        public double? general_concession_per { get; set; }    // <-- ADD (= discountper)
+        public double? general_concession_amount { get; set; } // <-- ADD (= discountamount)
+        public double? referral_concession_per { get; set; }    // <-- ADD (= ourdispercentage)
+        public double? referral_concession_amount { get; set; }
         public double? tax_amount { get; set; }
         public double? net_amount { get; set; }
         public double? paid_amount { get; set; }
@@ -676,6 +684,8 @@ namespace medico_backend.Model
         public double? discountper { get; set; }
         public double? discountamount { get; set; }
         public double? specialdiscount { get; set; }
+        public double? ourdispercentage { get; set; }     // referral concession %   <-- ADD
+        public double? ourdiscount { get; set; }
         public double? pmc1 { get; set; }
         public double? pmc2 { get; set; }
         public double? pmc3 { get; set; }
@@ -693,6 +703,7 @@ namespace medico_backend.Model
     public class UpdateHmsBillResponse
     {
         public string requestguid { get; set; } = string.Empty;
+        public string? op_id { get; set; }
         public string? bill_no { get; set; }
         public string? barcode { get; set; }
         public DateTime? bill_date { get; set; }
@@ -705,6 +716,10 @@ namespace medico_backend.Model
         public int? cntcode { get; set; }
         public double? gross_amount { get; set; }
         public double? discount_amount { get; set; }
+        public double? general_concession_per { get; set; }    // <-- ADD (= discountper)
+        public double? general_concession_amount { get; set; } // <-- ADD (= discountamount)
+        public double? referral_concession_per { get; set; }    // <-- ADD (= ourdispercentage)
+        public double? referral_concession_amount { get; set; }
         public double? net_amount { get; set; }
         public double? paid_amount { get; set; }
         public double? balance_amount { get; set; }

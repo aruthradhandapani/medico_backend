@@ -8,10 +8,12 @@ namespace medico_backend.Class
     public class NewOPCaseSheetClass
     {
         private readonly string _db_conn;
+        private readonly UnbilledChargesClass _unbilledCls;
 
-        public NewOPCaseSheetClass(IConfiguration configuration)
+        public NewOPCaseSheetClass(IConfiguration configuration, UnbilledChargesClass unbilledCls)
         {
             _db_conn = configuration.GetConnectionString("conn")!;
+            _unbilledCls = unbilledCls;
         }
 
         // ─────────────────────────────────────────────────────────
@@ -437,6 +439,17 @@ namespace medico_backend.Class
                     new { inv_id = invId, req.notes, is_urgent = req.is_urgent, tenant_code });
             }
 
+            // Clear stale unbilled INVESTIGATION rows for this visit BEFORE deleting
+            // op_investigation_detail (only pending/unbilled ones — already-billed
+            // rows are untouched since they belong to a bill already generated)
+            await db.ExecuteAsync(
+                @"DELETE FROM unbilledcharges
+                  WHERE entrytype = 'INVESTIGATION'
+                  AND opvisitid = @op_id
+                  AND tenant_code = @tenant_code
+                  AND (billedstatus = false OR billedstatus IS NULL)",
+                new { op_id, tenant_code });
+
             // Delete + re-insert test rows
             await db.ExecuteAsync(
                 "DELETE FROM op_investigation_detail WHERE inv_id = @inv_id",
@@ -448,6 +461,8 @@ namespace medico_backend.Class
                     ? null
                     : Guid.Parse(test.diag_id);
 
+                Guid invDetId = Guid.NewGuid();   // generated here so we can link unbilledcharges
+
                 await db.ExecuteAsync(
                     @"INSERT INTO op_investigation_detail
                       (inv_det_id, inv_id, diag_id, sno,
@@ -455,12 +470,13 @@ namespace medico_backend.Class
                        quantity, rate, amount,
                        result_status, is_billed, tenant_code, isdeleted, created_at, updated_at)
                       VALUES
-                      (gen_random_uuid(), @inv_id, @diag_id, @sno,
+                      (@inv_det_id, @inv_id, @diag_id, @sno,
                        @test_name, @test_code, @test_category,
                        @quantity, @rate, @amount,
                        'PENDING', false, @tenant_code, false, NOW(), NOW())",
                     new
                     {
+                        inv_det_id = invDetId,
                         inv_id = invId,
                         diag_id = diagId,
                         test.sno,
@@ -472,6 +488,11 @@ namespace medico_backend.Class
                         test.amount,
                         tenant_code
                     });
+
+                // Push into unbilledcharges so it shows up on the billing screen
+                await _unbilledCls.AddInvestigationChargeRow(
+                    db, op_id, custid, tenant_code,
+                    invDetId.ToString(), test.test_code, test.quantity, test.rate, test.amount);
             }
 
             return invCode;
