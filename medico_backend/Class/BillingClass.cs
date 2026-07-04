@@ -762,24 +762,30 @@ namespace medico_backend.Class
 
         private async Task<HmsNumberResult> GetNextSequenceNumber(IDbConnection db, IDbTransaction tx, decimal engineCode, int branchReference, int counterReference, string tenantCode)
         {
-            // Lock row sequentially via SELECT FOR UPDATE to eliminate racing criteria conditions 
-            var sequentialRecord = await db.QueryFirstOrDefaultAsync<HmsBillNoSequence>(
-    @"SELECT seq_id, bncode, bhcode, cntcode, orderno,
-             last_used_date::timestamp AS last_used_date,
-             tenant_code, snoprint
-      FROM billno_sequence
-      WHERE bncode = @engineCode AND bhcode = @branchReference AND cntcode = @counterReference AND tenant_code = @tenantCode
-      FOR UPDATE", new { engineCode, branchReference, counterReference, tenantCode }, tx);
+            // Lock the master config first — its restart* flags decide how this sequence behaves
+            var masterConfig = await db.QueryFirstOrDefaultAsync<HmsBillNoMaster>(
+                "SELECT * FROM billno_master WHERE bncode = @engineCode AND tenant_code = @tenantCode",
+                new { engineCode, tenantCode }, tx);
 
-            int targetedProgressiveOrder = 1;
+            if (masterConfig == null)
+                throw new InvalidOperationException($"Billno master configuration bncode={engineCode} not found.");
+
+            // Lock row sequentially via SELECT FOR UPDATE to eliminate racing conditions
+            var sequentialRecord = await db.QueryFirstOrDefaultAsync<HmsBillNoSequence>(
+                @"SELECT seq_id, bncode, bhcode, cntcode, orderno,
+                 last_used_date::timestamp AS last_used_date,
+                 tenant_code, snoprint
+          FROM billno_sequence
+          WHERE bncode = @engineCode AND bhcode = @branchReference AND cntcode = @counterReference AND tenant_code = @tenantCode
+          FOR UPDATE", new { engineCode, branchReference, counterReference, tenantCode }, tx);
+
+            DateTime today = DateTime.UtcNow.Date;
+            int targetedProgressiveOrder;
 
             if (sequentialRecord == null)
             {
-                var definitionMaster = await db.QueryFirstOrDefaultAsync<HmsBillNoMaster>(
-                    "SELECT orderno FROM billno_master WHERE bncode = @engineCode AND tenant_code = @tenantCode",
-                    new { engineCode, tenantCode }, tx);
-
-                if (definitionMaster != null) targetedProgressiveOrder = definitionMaster.orderno;
+                // First ever bill for this bncode/branch/counter — start from configured base
+                targetedProgressiveOrder = masterConfig.orderno;
 
                 var initialRow = new HmsBillNoSequence
                 {
@@ -787,24 +793,25 @@ namespace medico_backend.Class
                     bhcode = branchReference,
                     cntcode = counterReference,
                     orderno = targetedProgressiveOrder,
-                    last_used_date = DateTime.UtcNow.Date,
+                    last_used_date = today,
                     tenant_code = tenantCode
                 };
                 await db.InsertAsync(initialRow, tx);
             }
             else
             {
-                targetedProgressiveOrder = sequentialRecord.orderno + 1;
+                bool shouldReset = ShouldResetSequence(sequentialRecord.last_used_date, today, masterConfig);
+
+                targetedProgressiveOrder = shouldReset
+                    ? masterConfig.orderno          // restart the count
+                    : sequentialRecord.orderno + 1; // continue as before
+
                 sequentialRecord.orderno = targetedProgressiveOrder;
-                sequentialRecord.last_used_date = DateTime.UtcNow.Date;
+                sequentialRecord.last_used_date = today;
                 await db.UpdateAsync(sequentialRecord, tx);
             }
 
-            var identityPrefixMeta = await db.QueryFirstOrDefaultAsync<dynamic>(
-                "SELECT shortname, name FROM billno_master WHERE bncode = @engineCode AND tenant_code = @tenantCode",
-                new { engineCode, tenantCode }, tx);
-
-            string compositeShortToken = identityPrefixMeta?.shortname ?? "INV";
+            string compositeShortToken = masterConfig.shortname ?? "INV";
             string printRepresentation = $"{compositeShortToken}-{DateTime.UtcNow:yyMM}-{targetedProgressiveOrder:D5}";
             string trackingBarcode = $"{engineCode}{branchReference}{counterReference}{targetedProgressiveOrder}";
 
@@ -816,6 +823,36 @@ namespace medico_backend.Class
                 used_bncode = engineCode
             };
         }
+
+        /// <summary>
+        /// Decides whether the running sequence should restart, based on which restart* flag
+        /// is configured on billno_master and the gap between last_used_date and "today".
+        /// Precedence when more than one flag is set: daily > monthly > financial year > calendar year.
+        /// </summary>
+        private static bool ShouldResetSequence(DateTime? lastUsedDate, DateTime today, HmsBillNoMaster master)
+        {
+            if (lastUsedDate == null) return false;
+            var last = lastUsedDate.Value.Date;
+
+            if (master.restartdaily == true)
+                return last != today;
+
+            if (master.restartmonthly == true)
+                return last.Year != today.Year || last.Month != today.Month;
+
+            if (master.restartfinancialyear == true)
+                return FinancialYearOf(last) != FinancialYearOf(today);
+
+            if (master.restartcalendaryear == true)
+                return last.Year != today.Year;
+
+            return false; // no restart policy set -> sequence runs indefinitely, as it does today
+        }
+
+        private const int FY_START_MONTH = 4; // assumes April–March FY (India); change if different
+
+        private static int FinancialYearOf(DateTime date)
+            => date.Month >= FY_START_MONTH ? date.Year : date.Year - 1;
 
         private string? ValidateBillRequest(CreateHmsBillRequest requestPayload)
         {
