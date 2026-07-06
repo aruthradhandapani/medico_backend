@@ -110,6 +110,8 @@ builder.Services.AddScoped<TestClass>();
 builder.Services.AddScoped<TestController>();
 builder.Services.AddScoped<UnbilledChargesClass>();
 builder.Services.AddScoped<UnbilledChargesController>();
+builder.Services.AddScoped<ProductListClass>();
+builder.Services.AddScoped<ProductListController>(); 
 
 builder.Services.AddSingleton<IAmazonS3>(sp =>
 {
