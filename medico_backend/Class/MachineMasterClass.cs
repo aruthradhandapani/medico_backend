@@ -1,7 +1,8 @@
 ﻿using Dapper;
+using Dapper.Contrib.Extensions;
+using Medico_Backend.Model;
 using Npgsql;
 using System.Data;
-using Medico_Backend.Model;
 
 namespace Medico_Backend.Class
 {
@@ -60,6 +61,7 @@ namespace Medico_Backend.Class
         }
 
         // ─── Insert ───────────────────────────────────────────────────
+
         public async Task<string> Insert(MachineMasterModel data)
         {
             try
@@ -71,21 +73,8 @@ namespace Medico_Backend.Class
                 data.ibsdate = DateTime.UtcNow;
                 data.deleted = false;
 
-                const string sql = @"
-                    INSERT INTO machine_master
-                        (mccode, orderno, shortname, name, description,
-                         manufacturer, model, portnumber, baudrate,
-                         parity, stopbits, databits,
-                         deleted, usercode, computercode,
-                         entereddate, ibsdate, tenant_code)
-                    VALUES
-                        (@mccode, @orderno, @shortname, @name, @description,
-                         @manufacturer, @model, @portnumber, @baudrate,
-                         @parity, @stopbits, @databits,
-                         @deleted, @usercode, @computercode,
-                         @entereddate, @ibsdate, @tenant_code)";
+                await db.InsertAsync(data);
 
-                await db.ExecuteAsync(sql, data);
                 return "Success";
             }
             catch (Exception ex)
@@ -103,26 +92,9 @@ namespace Medico_Backend.Class
 
                 data.ibsdate = DateTime.UtcNow;
 
-                const string sql = @"
-                    UPDATE machine_master SET
-                        orderno       = @orderno,
-                        shortname     = @shortname,
-                        name          = @name,
-                        description   = @description,
-                        manufacturer  = @manufacturer,
-                        model         = @model,
-                        portnumber    = @portnumber,
-                        baudrate      = @baudrate,
-                        parity        = @parity,
-                        stopbits      = @stopbits,
-                        databits      = @databits,
-                        usercode      = @usercode,
-                        ibsdate       = @ibsdate
-                    WHERE mccode      = @mccode
-                    AND tenant_code   = @tenant_code";
+                bool updated = await db.UpdateAsync(data);
 
-                int rows = await db.ExecuteAsync(sql, data);
-                return rows > 0 ? "Success" : "No data found";
+                return updated ? "Success" : "No data found";
             }
             catch (Exception ex)
             {

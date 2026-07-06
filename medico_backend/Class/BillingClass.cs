@@ -59,11 +59,8 @@ namespace medico_backend.Class
                     return ("Selected billing counter shift session is not open.", null);
 
                 // Fetch Sequential Master Record Configurations 
-                var masterBillConfig = await db.QueryFirstOrDefaultAsync<HmsBillNoMaster>(
-                    @"SELECT * FROM billno_master 
-                      WHERE isreceiptno = false AND issampleno = false AND deleted = false AND tenant_code = @tenantCode 
-                      LIMIT 1", new { tenantCode }, tx);
-
+                // CreateBill
+                var masterBillConfig = await ResolveBillNoConfig(db, tx, tenantCode, req.enteredbhcode, req.cntcode, isReceipt: false);
                 if (masterBillConfig == null)
                     return ("Bill Number sequential configuration master rule not found.", null);
 
@@ -321,102 +318,267 @@ namespace medico_backend.Class
         //  2. RECEIPT LOGGING ENGINE
         // ════════════════════════════════════════════════════════════════════════
 
-        private async Task<HmsReceiptInserted> GenerateReceiptLog(IDbConnection db, IDbTransaction tx, HmsLabRequestMaster bill, double collectionValue, string channelType, string tenantCode)
+        // ────────────────────────────────────────────────────────────────────────
+        // ResolveBillNoConfig — single source of truth for picking which
+        // billno_master row governs a given numbering request.
+        //
+        // Business rules:
+        //   • isReceipt = true  → Receipt numbering is ALWAYS global
+        //     (allbranch = true AND allcounter = true) and is enforced to restart
+        //     yearly at config save-time (see EnforceBillNoBusinessRules). No
+        //     branch/counter fallback chain is needed here because a receipt
+        //     config can never be scoped to a branch/counter in the first place.
+        //   • isReceipt = false → Bill / Sample numbering (issampleno = true).
+        //     Resolution order: exact branch+counter match → branch-only
+        //     (allcounter=true) match → fully global (allbranch=true AND
+        //     allcounter=true) match. Whatever restart* flag (daily / monthly /
+        //     financial year / calendar year) is set on the matched row is
+        //     honoured by GetNextSequenceNumber.
+        // ────────────────────────────────────────────────────────────────────────
+        private static async Task<HmsBillNoMaster?> ResolveBillNoConfig(
+            IDbConnection db, IDbTransaction tx, string tenantCode,
+            int? bhcode, int? cntcode, bool isReceipt)
         {
-            var masterReceiptConfig = await db.QueryFirstOrDefaultAsync<HmsBillNoMaster>(
-                @"SELECT * FROM billno_master 
-                  WHERE isreceiptno = true AND deleted = false AND tenant_code = @tenantCode LIMIT 1", new { tenantCode }, tx);
+            if (isReceipt)
+            {
+                // Receipt numbers are ALWAYS global (allbranch+allcounter) and reset yearly.
+                // Enforced at config-creation/update time — no fallback chain needed.
+                return await db.QueryFirstOrDefaultAsync<HmsBillNoMaster>(
+                    @"SELECT * FROM billno_master
+                      WHERE tenant_code = @t
+                        AND isreceiptno = true
+                        AND deleted = false
+                        AND allbranch = true
+                        AND allcounter = true
+                      ORDER BY isdefault DESC NULLS LAST, entereddate DESC
+                      LIMIT 1 FOR UPDATE",
+                    new { t = tenantCode }, tx);
+            }
 
-            if (masterReceiptConfig == null)
-                throw new InvalidOperationException("Receipt generation sequence layout configs missing.");
+            // Bill / Sample numbering (issampleno = true)
+            HmsBillNoMaster? cfg = null;
 
-            var seqReceipt = await GetNextSequenceNumber(db, tx, masterReceiptConfig.bncode, bill.enteredbhcode ?? 0, (int?)bill.cntcode ?? 0, tenantCode);
+            if (bhcode.HasValue && cntcode.HasValue)
+                cfg = await db.QueryFirstOrDefaultAsync<HmsBillNoMaster>(
+                    @"SELECT * FROM billno_master
+                      WHERE tenant_code=@t AND issampleno = true AND deleted=false
+                        AND (allbranch IS NULL OR allbranch=false)
+                        AND (allcounter IS NULL OR allcounter=false)
+                        AND bhcode=@bh AND cntcode=@cn
+                      ORDER BY isdefault DESC NULLS LAST, entereddate DESC
+                      LIMIT 1 FOR UPDATE",
+                    new { t = tenantCode, bh = bhcode.Value, cn = cntcode.Value }, tx);
+
+            if (cfg == null && bhcode.HasValue)
+                cfg = await db.QueryFirstOrDefaultAsync<HmsBillNoMaster>(
+                    @"SELECT * FROM billno_master
+                      WHERE tenant_code=@t AND issampleno = true AND deleted=false
+                        AND (allbranch IS NULL OR allbranch=false) AND allcounter=true AND bhcode=@bh
+                      ORDER BY isdefault DESC NULLS LAST, entereddate DESC
+                      LIMIT 1 FOR UPDATE",
+                    new { t = tenantCode, bh = bhcode.Value }, tx);
+
+            // allbranch=true AND allcounter=true → the GLOBAL bill/sample numbering config
+            cfg ??= await db.QueryFirstOrDefaultAsync<HmsBillNoMaster>(
+                @"SELECT * FROM billno_master
+                  WHERE tenant_code=@t AND issampleno = true AND deleted=false
+                    AND allbranch=true AND allcounter=true
+                  ORDER BY isdefault DESC NULLS LAST, entereddate DESC
+                  LIMIT 1 FOR UPDATE",
+                new { t = tenantCode }, tx);
+
+            return cfg;
+        }
+
+        // ────────────────────────────────────────────────────────────────────────
+        // GetNextSequenceNumber — locks (or creates) the billno_sequence row and
+        // advances/restarts the running number based on masterConfig's restart*
+        // flag. NULL-safe on bhcode/cntcode so a "shared" sequence (allbranch or
+        // allcounter = true) resolves to a single row instead of fragmenting into
+        // one row per branch/counter.
+        // ────────────────────────────────────────────────────────────────────────
+        private async Task<HmsNumberResult> GetNextSequenceNumber(
+            IDbConnection db, IDbTransaction tx, decimal engineCode,
+            int branchReference, int counterReference, string tenantCode)
+        {
+            var masterConfig = await db.QueryFirstOrDefaultAsync<HmsBillNoMaster>(
+                "SELECT * FROM billno_master WHERE bncode = @engineCode AND tenant_code = @tenantCode",
+                new { engineCode, tenantCode }, tx);
+
+            if (masterConfig == null)
+                throw new InvalidOperationException($"Billno master configuration bncode={engineCode} not found.");
+
+            // allbranch=true  -> sequence shared across ALL branches  (bhcode key = NULL)
+            // allcounter=true -> sequence shared across ALL counters  (cntcode key = NULL)
+            // If allbranch=true, branch stops being a distinguishing key, so counter isn't either.
+            int? seqBhKey = masterConfig.allbranch == true ? (int?)null : branchReference;
+            decimal? seqCntKey = (masterConfig.allbranch == true || masterConfig.allcounter == true)
+                ? (decimal?)null
+                : counterReference;
+
+            // NULL-safe lookup so shared sequences resolve to a single row instead of
+            // silently creating one row per branch/counter.
+            var sequentialRecord = await db.QueryFirstOrDefaultAsync<HmsBillNoSequence>(
+                @"SELECT seq_id, bncode, bhcode, cntcode, orderno,
+                 last_used_date::timestamp AS last_used_date,
+                 tenant_code, snoprint
+          FROM billno_sequence
+          WHERE bncode = @engineCode AND tenant_code = @tenantCode
+            AND (bhcode  = @seqBh  OR (bhcode  IS NULL AND @seqBh  IS NULL))
+            AND (cntcode = @seqCnt OR (cntcode IS NULL AND @seqCnt IS NULL))
+          FOR UPDATE",
+                new { engineCode, tenantCode, seqBh = seqBhKey, seqCnt = seqCntKey }, tx);
+
+            DateTime today = DateTime.UtcNow.Date;
+            int targetedProgressiveOrder;
+
+            if (sequentialRecord == null)
+            {
+                targetedProgressiveOrder = masterConfig.orderno;
+
+                var initialRow = new HmsBillNoSequence
+                {
+                    bncode = engineCode,
+                    bhcode = seqBhKey,
+                    cntcode = seqCntKey,
+                    orderno = targetedProgressiveOrder,
+                    last_used_date = today,
+                    tenant_code = tenantCode
+                };
+                await db.InsertAsync(initialRow, tx);
+            }
+            else
+            {
+                bool shouldReset = ShouldResetSequence(sequentialRecord.last_used_date, today, masterConfig);
+
+                targetedProgressiveOrder = shouldReset
+                    ? masterConfig.orderno          // restart the count
+                    : sequentialRecord.orderno + 1; // continue as before
+
+                sequentialRecord.orderno = targetedProgressiveOrder;
+                sequentialRecord.last_used_date = today;
+                await db.UpdateAsync(sequentialRecord, tx);
+            }
+
+            string compositeShortToken = masterConfig.shortname ?? "INV";
+            string printRepresentation = $"{compositeShortToken}-{DateTime.UtcNow:yyMM}-{targetedProgressiveOrder:D5}";
+            string trackingBarcode = $"{engineCode}{branchReference}{counterReference}{targetedProgressiveOrder}";
+
+            return new HmsNumberResult
+            {
+                sno = targetedProgressiveOrder,
+                snoprint = printRepresentation,
+                barcode = trackingBarcode,
+                used_bncode = engineCode
+            };
+        }
+
+        // ────────────────────────────────────────────────────────────────────────
+        // GenerateReceiptLog — creates the receipt_master / receipt_details /
+        // balancecollectionby rows for a payment against a bill. Always pulls
+        // the receipt numbering config via ResolveBillNoConfig(isReceipt: true),
+        // which (per EnforceBillNoBusinessRules) is always global + yearly reset.
+        // Called from CreateBill (immediate payment at creation) and AddPayment
+        // (later balance settlement).
+        // ────────────────────────────────────────────────────────────────────────
+        private async Task<HmsReceiptInserted> GenerateReceiptLog(
+            IDbConnection db, IDbTransaction tx,
+            HmsLabRequestMaster master, double amount,
+            string collectionType, string tenantCode)
+        {
+            var receiptConfig = await ResolveBillNoConfig(
+                db, tx, tenantCode, master.enteredbhcode, (int?)master.cntcode, isReceipt: true);
+
+            if (receiptConfig == null)
+                throw new InvalidOperationException("Receipt Number sequential configuration master rule not found.");
+
+            var receiptNumInfo = await GetNextSequenceNumber(
+                db, tx, receiptConfig.bncode,
+                master.enteredbhcode ?? 0, (int)(master.cntcode ?? 0), tenantCode);
 
             string receiptGuid = Guid.NewGuid().ToString();
+            var now = DateTime.UtcNow;
 
-            var masterReceipt = new HmsReceiptMaster
+            var receiptMaster = new HmsReceiptMaster
             {
                 receiptguid = receiptGuid,
-                receiptdate = DateTime.UtcNow,
-                receiptsno = seqReceipt.sno,
-                receiptsnoprint = seqReceipt.snoprint,
-                receiptbarcode = seqReceipt.barcode,
-                receiptcovertedbarcode = seqReceipt.barcode,
-                cntcode = bill.cntcode,
-                cnttid = bill.cnttid,
-                tmcode = bill.tmcode,
-                pmcode = bill.pmcode,
-                ctcode = bill.ctcode,
-                bankname = bill.bank_app,
-                paymentreference = bill.card_refno,
-                amountpaid = collectionValue,
-                amountadjusted = collectionValue,
-                amounttotal = collectionValue,
+                receiptdate = now,
+                receiptsno = receiptNumInfo.sno,
+                receiptsnoprint = receiptNumInfo.snoprint,
+                receiptbarcode = receiptNumInfo.barcode,
+                receiptcovertedbarcode = receiptNumInfo.barcode,
+                cntcode = master.cntcode,
+                cnttid = master.cnttid,
+                tmcode = master.tmcode,
+                pmcode = master.pmcode,
+                ctcode = master.ctcode,
+                amountpaid = amount,
+                amountadjusted = 0,
+                amounttotal = amount,
                 deleted = false,
                 isdeleted = false,
                 isbill = true,
                 ispatient = true,
-                receipttype = "HMS",
-                custid = (int?)bill.custid,
-                opvisitid = bill.opvisitid,
-                enteredbhcode = bill.enteredbhcode,
-                usercode = bill.usercode,
-                computercode = bill.computercode,
-                entereddate = DateTime.UtcNow,
-                ibsdate = DateTime.UtcNow,
+                isrefund = false,
+                isrefferal = false,
+                ismonthly = false,
+                receipttype = collectionType,
+                custid = master.custid.HasValue ? (int?)master.custid.Value : null,
+                opvisitid = master.opvisitid,
+                enteredbhcode = master.enteredbhcode,
+                usercode = master.usercode,
+                computercode = master.computercode,
+                entereddate = now,
+                ibsdate = now,
                 tenant_code = tenantCode
             };
+            await db.InsertAsync(receiptMaster, tx);
 
-            await db.InsertAsync(masterReceipt, tx);
-
-            var receiptLine = new HmsReceiptDetail
+            var receiptDetail = new HmsReceiptDetail
             {
                 receiptdetailsid = Guid.NewGuid().ToString(),
                 receiptguid = receiptGuid,
-                requestguid = bill.requestguid,
-                receiptamount = collectionValue,
+                requestguid = master.requestguid,
+                receiptamount = amount,
                 discount_amount = 0,
                 refund_amount = 0,
                 deleted = false,
-                usercode = bill.usercode,
-                computercode = bill.computercode,
-                entereddate = DateTime.UtcNow,
-                ibsdate = DateTime.UtcNow,
+                usercode = master.usercode,
+                computercode = master.computercode,
+                entereddate = now,
+                ibsdate = now,
                 tenant_code = tenantCode
             };
+            await db.InsertAsync(receiptDetail, tx);
 
-            await db.InsertAsync(receiptLine, tx);
-
-            string balanceCollectionGuid = Guid.NewGuid().ToString();
-            var balancingContext = new HmsBalanceCollectionBy
+            var balanceCollection = new HmsBalanceCollectionBy
             {
-                balancecollectionbyid = balanceCollectionGuid,
-                bhcode = bill.enteredbhcode,
-                collected_date = DateTime.UtcNow,
-                collection_type = channelType.ToUpper(),
+                balancecollectionbyid = Guid.NewGuid().ToString(),
+                bhcode = master.enteredbhcode,
+                collected_date = now,
+                collection_type = collectionType,
                 receipt_guid = receiptGuid,
-                request_guid = bill.requestguid,
-                collectedamount = collectionValue,
-                tmcode = bill.tmcode,
-                cntcode = bill.cntcode,
-                cnttid = bill.cnttid,
-                ctcode = bill.ctcode,
-                pmcode = bill.pmcode,
+                request_guid = master.requestguid,
+                collectedamount = amount,
+                tmcode = master.tmcode,
+                cntcode = master.cntcode,
+                cnttid = master.cnttid,
+                ctcode = master.ctcode,
+                pmcode = master.pmcode,
                 deleted = false,
-                usercode = bill.usercode,
-                computercode = bill.computercode,
-                entereddate = DateTime.UtcNow,
-                ibsdate = DateTime.UtcNow,
+                usercode = master.usercode,
+                computercode = master.computercode,
+                entereddate = now,
+                ibsdate = now,
                 tenant_code = tenantCode
             };
-
-            await db.InsertAsync(balancingContext, tx);
+            await db.InsertAsync(balanceCollection, tx);
 
             return new HmsReceiptInserted
             {
                 guid = receiptGuid,
-                barcode = seqReceipt.barcode,
-                snoprint = seqReceipt.snoprint
+                barcode = receiptNumInfo.barcode,
+                snoprint = receiptNumInfo.snoprint
             };
         }
 
@@ -757,71 +919,68 @@ namespace medico_backend.Class
         }
 
         // ════════════════════════════════════════════════════════════════════════
-        //  7. SEQUENTIAL NUMBERING GENERATOR (SELECT FOR UPDATE)
+        //  7. RESTART-FLAG HELPERS
         // ════════════════════════════════════════════════════════════════════════
 
-        private async Task<HmsNumberResult> GetNextSequenceNumber(IDbConnection db, IDbTransaction tx, decimal engineCode, int branchReference, int counterReference, string tenantCode)
+        // put this in HmsBillingClass, call it right before InsertAsync/UpdateAsync
+        private static void EnforceSingleRestartMode(HmsBillNoMaster row)
         {
-            // Lock the master config first — its restart* flags decide how this sequence behaves
-            var masterConfig = await db.QueryFirstOrDefaultAsync<HmsBillNoMaster>(
-                "SELECT * FROM billno_master WHERE bncode = @engineCode AND tenant_code = @tenantCode",
-                new { engineCode, tenantCode }, tx);
-
-            if (masterConfig == null)
-                throw new InvalidOperationException($"Billno master configuration bncode={engineCode} not found.");
-
-            // Lock row sequentially via SELECT FOR UPDATE to eliminate racing conditions
-            var sequentialRecord = await db.QueryFirstOrDefaultAsync<HmsBillNoSequence>(
-                @"SELECT seq_id, bncode, bhcode, cntcode, orderno,
-                 last_used_date::timestamp AS last_used_date,
-                 tenant_code, snoprint
-          FROM billno_sequence
-          WHERE bncode = @engineCode AND bhcode = @branchReference AND cntcode = @counterReference AND tenant_code = @tenantCode
-          FOR UPDATE", new { engineCode, branchReference, counterReference, tenantCode }, tx);
-
-            DateTime today = DateTime.UtcNow.Date;
-            int targetedProgressiveOrder;
-
-            if (sequentialRecord == null)
+            // Precedence order mirrors ShouldResetSequence: daily > monthly > FY > CY
+            if (row.restartdaily == true)
             {
-                // First ever bill for this bncode/branch/counter — start from configured base
-                targetedProgressiveOrder = masterConfig.orderno;
+                row.restartmonthly = false;
+                row.restartfinancialyear = false;
+                row.restartcalendaryear = false;
+            }
+            else if (row.restartmonthly == true)
+            {
+                row.restartdaily = false;
+                row.restartfinancialyear = false;
+                row.restartcalendaryear = false;
+            }
+            else if (row.restartfinancialyear == true)
+            {
+                row.restartdaily = false;
+                row.restartmonthly = false;
+                row.restartcalendaryear = false;
+            }
+            else if (row.restartcalendaryear == true)
+            {
+                row.restartdaily = false;
+                row.restartmonthly = false;
+                row.restartfinancialyear = false;
+            }
+        }
 
-                var initialRow = new HmsBillNoSequence
-                {
-                    bncode = engineCode,
-                    bhcode = branchReference,
-                    cntcode = counterReference,
-                    orderno = targetedProgressiveOrder,
-                    last_used_date = today,
-                    tenant_code = tenantCode
-                };
-                await db.InsertAsync(initialRow, tx);
+        // ────────────────────────────────────────────────────────────────────────
+        // EnforceBillNoBusinessRules — the single gate that CreateBillNoConfig /
+        // UpdateBillNoConfig run every row through before saving.
+        //
+        //   • Receipt configs (isreceiptno = true): forced to allbranch=true,
+        //     allcounter=true, bhcode/cntcode cleared, and restartcalendaryear=true
+        //     (all other restart flags cleared) — receipts always number
+        //     globally and reset once a year, no matter what the caller sent.
+        //   • Bill/Sample configs (issampleno = true): left as configured by the
+        //     caller (branch/counter scoped or global), just normalized so only
+        //     ONE restart* flag is active at a time via EnforceSingleRestartMode.
+        // ────────────────────────────────────────────────────────────────────────
+        private static void EnforceBillNoBusinessRules(HmsBillNoMaster row)
+        {
+            if (row.isreceiptno == true)
+            {
+                row.allbranch = true;
+                row.allcounter = true;
+                row.bhcode = null;
+                row.cntcode = null;
+                row.restartcalendaryear = true;
+                row.restartfinancialyear = false;
+                row.restartmonthly = false;
+                row.restartdaily = false;
             }
             else
             {
-                bool shouldReset = ShouldResetSequence(sequentialRecord.last_used_date, today, masterConfig);
-
-                targetedProgressiveOrder = shouldReset
-                    ? masterConfig.orderno          // restart the count
-                    : sequentialRecord.orderno + 1; // continue as before
-
-                sequentialRecord.orderno = targetedProgressiveOrder;
-                sequentialRecord.last_used_date = today;
-                await db.UpdateAsync(sequentialRecord, tx);
+                EnforceSingleRestartMode(row);
             }
-
-            string compositeShortToken = masterConfig.shortname ?? "INV";
-            string printRepresentation = $"{compositeShortToken}-{DateTime.UtcNow:yyMM}-{targetedProgressiveOrder:D5}";
-            string trackingBarcode = $"{engineCode}{branchReference}{counterReference}{targetedProgressiveOrder}";
-
-            return new HmsNumberResult
-            {
-                sno = targetedProgressiveOrder,
-                snoprint = printRepresentation,
-                barcode = trackingBarcode,
-                used_bncode = engineCode
-            };
         }
 
         /// <summary>
@@ -906,12 +1065,6 @@ namespace medico_backend.Class
                                 $"(bncode={clashing.bncode}). Update or delete it first, or set isdefault=false.", null);
                 }
 
-                // Generate next bncode for this tenant (locked to avoid race conditions)
-                // decimal nextCode = await db.ExecuteScalarAsync<decimal>(
-                //     @"SELECT COALESCE(MAX(bncode), 0) + 1 FROM billno_master
-                //WHERE tenant_code = @t FOR UPDATE",
-                //     new { t = tenantCode }, tx);
-
                 await db.ExecuteAsync(
    "SELECT pg_advisory_xact_lock(hashtext(@t))",
    new { t = tenantCode }, tx);
@@ -945,6 +1098,10 @@ namespace medico_backend.Class
                     entereddate = DateTime.UtcNow,
                     ibsdate = DateTime.UtcNow
                 };
+
+                // Enforces: receipt configs => allbranch+allcounter+restartcalendaryear;
+                // bill/sample configs => single active restart flag as configured.
+                EnforceBillNoBusinessRules(row);
 
                 await db.InsertAsync(row, tx);
                 tx.Commit();
@@ -989,6 +1146,10 @@ namespace medico_backend.Class
                 if (req.restartdaily.HasValue) existing.restartdaily = req.restartdaily;
                 if (req.issampleno.HasValue) existing.issampleno = req.issampleno;
                 if (req.isreceiptno.HasValue) existing.isreceiptno = req.isreceiptno;
+
+                // Enforces: receipt configs => allbranch+allcounter+restartcalendaryear;
+                // bill/sample configs => single active restart flag as configured.
+                EnforceBillNoBusinessRules(existing);
 
                 // Re-check default clash if isdefault is being turned on
                 if (existing.isdefault == true)
@@ -1327,5 +1488,6 @@ namespace medico_backend.Class
           WHERE c.bhcode = @bhcode AND c.cntcode = @cntcode AND c.todate IS NULL AND c.tenant_code = @tenantCode
           LIMIT 1", new { bhcode, cntcode, tenantCode });
         }
+
     }
 }

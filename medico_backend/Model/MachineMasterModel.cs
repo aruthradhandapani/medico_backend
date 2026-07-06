@@ -5,7 +5,7 @@ namespace Medico_Backend.Model
     [Table("machine_master")]
     public class MachineMasterModel
     {
-        [Key]
+        [ExplicitKey]
         public int mccode { get; set; }
         public int orderno { get; set; }
         public string? shortname { get; set; }
@@ -23,6 +23,13 @@ namespace Medico_Backend.Model
         public int computercode { get; set; } = 1;
         public DateTime entereddate { get; set; }
         public DateTime ibsdate { get; set; }
+        public bool? opttcp { get; set; }
+        public bool? optlmport { get; set; }
+        public string? inputpath { get; set; }
+        public string? outputpath { get; set; }
+        public bool? optrs232 { get; set; }
+        public bool? opttcpclient { get; set; }
+        public bool? opttcpserver { get; set; }
         public string? tenant_code { get; set; }
     }
 }

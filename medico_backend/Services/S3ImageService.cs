@@ -1,5 +1,7 @@
 ﻿using Amazon.S3;
 using Amazon.S3.Model;
+using Minio;
+using Minio.DataModel.Args;
 
 namespace medico_backend.Services
 {
@@ -14,6 +16,18 @@ namespace medico_backend.Services
             _s3 = s3;
             _config = config;
             _logger = logger;
+
+            var s3Config = new AmazonS3Config
+            {
+                ServiceURL = _config["S3:ServiceUrl"],
+                ForcePathStyle = true,
+                UseHttp = false
+            };
+
+            _s3 = new AmazonS3Client(
+                _config["S3:AccessKey"],
+                _config["S3:SecretKey"],
+                s3Config);
         }
 
         private string GetBucket() => _config["S3:BucketName"] ?? "medico"; // was "labcare"
@@ -54,6 +68,7 @@ namespace medico_backend.Services
             });
 
             _logger.LogInformation("S3 Upload [{EntityType}:{EntityId}] → {Key}", entityType, entityId, key);
+            key = key.Replace("http://127.0.0.1:9000", "https://s3.seyotechnologies.com");
             return key;
         }
 
@@ -102,17 +117,68 @@ namespace medico_backend.Services
         /// </summary>
         public async Task<(byte[] Data, string ContentType, string FileName)?> DownloadAsync(string key)
         {
+            //try
+            //{
+
+            //    var config = new AmazonS3Config
+            //    {
+            //        ServiceURL = _config["S3:ServiceUrl"],
+            //        ForcePathStyle = true,
+            //        UseHttp = false // because you're using HTTPS
+            //    };
+
+            //    _s3 = new AmazonS3Client(
+            //        _config["S3:AccessKey"],
+            //        _config["S3:SecretKey"],
+            //        config)?? new AmazonS3Client();
+
+
+            //    using var response = await _s3.GetObjectAsync(request);
+            //    using var ms = new MemoryStream();
+            //    await response.ResponseStream.CopyToAsync(ms);
+            //    return (ms.ToArray(), response.Headers.ContentType, Path.GetFileName(key));
+            //}
             try
             {
-                using var response = await _s3.GetObjectAsync(GetBucket(), key);
-                using var ms = new MemoryStream();
-                await response.ResponseStream.CopyToAsync(ms);
-                return (ms.ToArray(), response.Headers.ContentType, Path.GetFileName(key));
+               
             }
             catch (AmazonS3Exception ex) when (ex.StatusCode == System.Net.HttpStatusCode.NotFound)
             {
                 return null;
             }
+
+            try
+            {
+                var minio = new MinioClient()
+     .WithEndpoint("127.0.0.1:9000")
+     .WithCredentials("minioadmin", "minioadmin")
+     .Build();
+
+                var url = await minio.PresignedGetObjectAsync(
+                    new PresignedGetObjectArgs()
+                        .WithBucket("medico")
+                        .WithObject($"{key}")
+                        .WithExpiry(3600));
+
+                url = url.Replace("http://127.0.0.1:9000", "https://s3.seyotechnologies.com");
+
+                return (ImageUrlToBase64Async(url).Result,"image/png", Path.GetFileName(key));
+
+            }
+            catch (Exception ex)
+            {
+                Console.Write(ex.Message.ToString());
+                return null;
+            }
+        }
+
+        public async Task<byte[]> ImageUrlToBase64Async(string imageUrl)
+        {
+            using var httpClient = new HttpClient();
+
+            byte[] imageBytes = await httpClient.GetByteArrayAsync(imageUrl);
+
+            return imageBytes;
         }
 
         /// <summary>
