@@ -111,7 +111,15 @@ builder.Services.AddScoped<TestController>();
 builder.Services.AddScoped<UnbilledChargesClass>();
 builder.Services.AddScoped<UnbilledChargesController>();
 builder.Services.AddScoped<ProductListClass>();
-builder.Services.AddScoped<ProductListController>(); 
+builder.Services.AddScoped<ProductListController>();
+builder.Services.AddScoped<WaAppointmentSessionClass>();
+builder.Services.AddScoped<WaAppointmentSessionController>();
+builder.Services.AddScoped<DoctorProfileClass>();
+builder.Services.AddScoped<DoctorProfileController>();
+builder.Services.AddScoped<WaAppointmentSessionClass>();
+builder.Services.AddScoped<WaAppointmentSessionController>();
+builder.Services.AddScoped<AppointmentBotClass>();
+builder.Services.AddScoped<AppointmentBotController>();
 
 builder.Services.AddSingleton<IAmazonS3>(sp =>
 {
