@@ -17,5 +17,7 @@ namespace Medico_Backend.Model
         public string? whatsapp_phonenum_id { get; set; }
 
         public string? whatsapp_access_token { get; set; }
+        public string? whatsapp_number { get; set; }
+
     }
 }

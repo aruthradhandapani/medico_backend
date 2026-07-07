@@ -772,18 +772,20 @@ namespace medico_backend.Class
                 custid = master.custid,
                 patient_name = master.name,
                 gender = master.gender,
+                dateofbirth = master.dateofbirth,   
                 mobileno = master.mobileno,
                 ageyears = master.ageyears,
+                dcode = (int?)master.dcode,
                 enteredbhcode = master.enteredbhcode,
                 cntcode = (int?)master.cntcode,
                 cnttid = master.cnttid,
                 tmcode = master.tmcode,
                 gross_amount = master.requestamount,
-                discount_amount = (double)(master.discountamount ?? 0.0) + (double)(master.specialdiscount ?? 0.0) + (double)(master.ourdiscount ?? 0.0),  // add ourdiscount
-                general_concession_per = master.discountper,          // <-- ADD
-                general_concession_amount = master.discountamount,    // <-- ADD
-                referral_concession_per = master.ourdispercentage,     // <-- ADD
-                referral_concession_amount = master.ourdiscount,       // <-- ADD
+                discount_amount = (double)(master.discountamount ?? 0.0) + (double)(master.specialdiscount ?? 0.0) + (double)(master.ourdiscount ?? 0.0),
+                general_concession_per = master.discountper,
+                general_concession_amount = master.discountamount,
+                referral_concession_per = master.ourdispercentage,
+                referral_concession_amount = master.ourdiscount,
                 tax_amount = master.taxamount,
                 net_amount = totalInvoiceLimit,
                 paid_amount = recognizedCollections,
@@ -851,15 +853,16 @@ namespace medico_backend.Class
             parameters.Add("offset", rowsOffset);
 
             string structuralFetchQuery = $@"
-                SELECT m.requestguid, m.requestsnoprint as bill_no, m.name as patient_name, m.mobileno, 
-                       m.requestdatetime as bill_date, m.requestamount as gross_amount, 
-                       (COALESCE(m.discountamount,0) + COALESCE(m.specialdiscount,0)) as discount_amount,
-                       m.totalamount as net_amount, m.paidamount as paid_amount, 
-                       m.enteredbhcode, m.cntcode
-                FROM lab_request_master m
-                {queryConditions}
-                ORDER BY m.requestdatetime DESC 
-                LIMIT @limit OFFSET @offset";
+    SELECT m.requestguid, m.requestsnoprint as bill_no, m.name as patient_name, m.mobileno, 
+           m.requestdatetime as bill_date, m.requestamount as gross_amount, 
+           (COALESCE(m.discountamount,0) + COALESCE(m.specialdiscount,0)) as discount_amount,
+           m.totalamount as net_amount, m.paidamount as paid_amount, 
+           m.enteredbhcode, m.cntcode,
+           m.opvisitid, m.dateofbirth, m.dcode
+    FROM lab_request_master m
+    {queryConditions}
+    ORDER BY m.requestdatetime DESC 
+    LIMIT @limit OFFSET @offset";
 
             var dataRows = await db.QueryAsync<HmsBillSummary>(structuralFetchQuery, parameters);
             var listings = dataRows.Select(x => {

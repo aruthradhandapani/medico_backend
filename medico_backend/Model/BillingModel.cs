@@ -395,7 +395,9 @@ namespace medico_backend.Model
         public string? patient_name { get; set; }
         public string? gender { get; set; }
         public string? mobileno { get; set; }
+        public string? dateofbirth { get; set; }
         public string? ageyears { get; set; }
+        public int? dcode { get; set; }
         public string? doctor_name { get; set; }
         public string? fee_type { get; set; }
         public string? pay_mode { get; set; }
@@ -456,6 +458,9 @@ namespace medico_backend.Model
         public bool is_settled { get; set; }
         public int? enteredbhcode { get; set; }
         public int? cntcode { get; set; }
+        public string? opvisitid { get; set; }
+        public string? dateofbirth { get; set; }
+        public int? dcode { get; set; }
     }
 
     public class HmsUnbilledChargesResponse
