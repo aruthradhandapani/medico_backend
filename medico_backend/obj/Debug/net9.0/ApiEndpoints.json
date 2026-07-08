@@ -5892,6 +5892,38 @@
   },
   {
     "ContainingType": "medico_backend.Controllers.ReportController",
+    "Method": "GetIPCasesheet",
+    "RelativePath": "api/Report/getipcasesheet",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "sheet_id",
+        "Type": "System.Guid",
+        "IsRequired": false
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "medico_backend.Controllers.ReportController",
+    "Method": "GetOPCasesheet",
+    "RelativePath": "api/Report/getopcasesheet",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "sheet_id",
+        "Type": "System.Guid",
+        "IsRequired": false
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "medico_backend.Controllers.ReportController",
     "Method": "PatientReceipt",
     "RelativePath": "api/Report/getpatientreceipt",
     "HttpMethod": "GET",

@@ -937,4 +937,100 @@ namespace medico_backend.Model
         public string? AuthorizedSign { get; set; }
         public string? AuthorizedSign2 { get; set; }
     }
+
+    public class CasesheetReportRequest
+    {
+        public CasesheetReportPdfModel? CasesheetData { get; set; }
+        public byte[]? LogoImage { get; set; }
+    }
+
+    public class CasesheetReportPdfModel
+    {
+        public string? ReportHeader { get; set; } // "OUT PATIENT CASE SHEET" or "IN PATIENT CASE SHEET"
+        public string? VisitNo { get; set; } // OP No or IP No
+        public DateTime? VisitDate { get; set; } // Visit date or Admission date
+        public string? BedNo { get; set; } // For IP
+        public string? WardNo { get; set; } // For IP
+
+        // Patient demographics
+        public string? PatientId { get; set; }
+        public string? PatientName { get; set; }
+        public string? Age { get; set; }
+        public string? Gender { get; set; }
+        public int ageyears { get; set; }
+        public int agemonths { get; set; }
+        public int agedays { get; set; }
+        public string? MobileNo { get; set; }
+        public string? Address { get; set; }
+
+        // Doctor
+        public string? DoctorName { get; set; }
+
+        // Clinical notes
+        public string? ChiefComplaint { get; set; }
+        public string? Symptoms { get; set; }
+        public string? Examination { get; set; }
+        public string? Advise { get; set; }
+        public string? Notes { get; set; }
+        public DateTime? FollowupDate { get; set; }
+        public string? FollowupNotes { get; set; }
+
+        // Structured lists
+        public List<CasesheetSymptomItemDto> SymptomsList { get; set; } = new();
+        public List<CasesheetDiagnosisItemDto> DiagnosisList { get; set; } = new();
+        public List<CasesheetPrescriptionItemDto> PrescriptionList { get; set; } = new();
+        public List<CasesheetInvestigationItemDto> InvestigationList { get; set; } = new();
+
+        // Branch/Company details
+        public string? BranchName { get; set; }
+        public string? CompanyName { get; set; }
+        public string? CompanyAddress { get; set; }
+        public string? CompanyContactNo { get; set; }
+        public string? CompanyEmail { get; set; }
+    }
+
+    public class CasesheetSymptomItemDto
+    {
+        public int Sno { get; set; }
+        public string SymptomText { get; set; } = "";
+        public string? Duration { get; set; }
+        public string? Severity { get; set; }
+        public string? Notes { get; set; }
+    }
+
+    public class CasesheetDiagnosisItemDto
+    {
+        public int Sno { get; set; }
+        public string? IcdCode { get; set; }
+        public string? IcdDescription { get; set; }
+        public string? DiagnosisText { get; set; }
+        public string? DiagnosisType { get; set; }
+        public string? ConditionType { get; set; }
+        public string? Severity { get; set; }
+        public string Status { get; set; } = "ACTIVE";
+    }
+
+    public class CasesheetPrescriptionItemDto
+    {
+        public int Sno { get; set; }
+        public string DrugName { get; set; } = "";
+        public string Morning { get; set; } = "0";
+        public string Afternoon { get; set; } = "0";
+        public string Evening { get; set; } = "0";
+        public string Night { get; set; } = "0";
+        public bool BeforeFood { get; set; }
+        public bool AfterFood { get; set; }
+        public int? Days { get; set; }
+        public decimal? Qty { get; set; }
+        public string? Route { get; set; }
+        public string? Notes { get; set; }
+    }
+
+    public class CasesheetInvestigationItemDto
+    {
+        public int Sno { get; set; }
+        public string TestName { get; set; } = "";
+        public string? TestCategory { get; set; }
+        public decimal Quantity { get; set; }
+    }
 }

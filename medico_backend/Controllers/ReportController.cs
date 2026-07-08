@@ -171,5 +171,25 @@ namespace medico_backend.Controllers
             var res = await _reportClass.PayModeSummaryPDF(fromdate, todate, T, periodtype);
             return Ok(res);
         }
+
+        [HttpGet("getopcasesheet")]
+        public async Task<IActionResult> GetOPCasesheet([FromQuery] Guid sheet_id)
+        {
+            if (string.IsNullOrWhiteSpace(T))
+                return BadRequest(new { success = false, message = "tenant_code header required" });
+
+            var res = await _reportClass.OPCasesheetPDF(sheet_id, T);
+            return Ok(res);
+        }
+
+        [HttpGet("getipcasesheet")]
+        public async Task<IActionResult> GetIPCasesheet([FromQuery] Guid sheet_id)
+        {
+            if (string.IsNullOrWhiteSpace(T))
+                return BadRequest(new { success = false, message = "tenant_code header required" });
+
+            var res = await _reportClass.IPCasesheetPDF(sheet_id, T);
+            return Ok(res);
+        }
     }
 }

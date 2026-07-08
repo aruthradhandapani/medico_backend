@@ -3680,5 +3680,224 @@ WHERE lrd.requestguid = @requestguid
                 throw;
             }
         }
+
+        public async Task<string> OPCasesheetPDF(Guid sheet_id, string tenant_code)
+        {
+            try
+            {
+                using IDbConnection db = new NpgsqlConnection(_conn);
+
+                string mainSql = @"
+                    SELECT 
+                        cs.sheet_id, cs.op_id, cs.custid, cs.dcode, cs.visit_date::timestamp AS visit_date,
+                        cs.chief_complaint, cs.symptoms, cs.examination, cs.advise, cs.notes, cs.followup_date::timestamp AS followup_date, cs.followup_notes,
+                        c.name AS PatientName, c.gender, c.mobile AS MobileNo,
+                        CONCAT_WS(', ', NULLIF(c.street, ''), NULLIF(c.city, ''), NULLIF(c.state, ''), NULLIF(c.zipcode, '')) AS Address,
+                        c.ageyears, c.agemonths, c.agedays,
+                        c.custcode AS PatientId,
+                        opr.op_no AS VisitNo,
+                        opr.visit_date::timestamp AS VisitDate,
+                        dm.doctorfullname AS DoctorName,
+                        bm.name AS BranchName,
+                        t.legal_name AS CompanyName,
+                        CONCAT_WS(', ', NULLIF(t.address_line1, ''), NULLIF(t.address_line2, ''), NULLIF(t.city, ''), NULLIF(t.state, ''), NULLIF(t.pincode, '')) AS CompanyAddress,
+                        t.contact_number AS CompanyContactNo,
+                        t.contact_email AS CompanyEmail
+                    FROM op_case_sheet cs
+                    LEFT JOIN customerdb.customer_master c ON c.custid = cs.custid
+                    LEFT JOIN op_registration opr ON opr.op_id = cs.op_id
+                    LEFT JOIN doctor_master dm ON dm.dcode = cs.dcode
+                    LEFT JOIN mastertenant.tenants t ON t.tenant_code = cs.tenant_code
+                    LEFT JOIN mastertenant.branch_master bm ON bm.bh_code = c.bhcode
+                    WHERE cs.sheet_id = CAST(@sheet_id AS uuid)
+                      AND cs.tenant_code = @tenant_code
+                      AND cs.isdeleted = false
+                    LIMIT 1";
+
+                var casesheet = await db.QueryFirstOrDefaultAsync<CasesheetReportPdfModel>(
+                    mainSql, new { sheet_id = sheet_id.ToString(), tenant_code });
+
+                if (casesheet == null)
+                    throw new Exception("Casesheet not found");
+
+                casesheet.ReportHeader = "OUT PATIENT CASE SHEET";
+                casesheet.Age = $"{casesheet.ageyears} Y / {casesheet.agemonths} M / {casesheet.agedays} D";
+
+                // Child Lists
+                string symptomsSql = @"
+                    SELECT sno, symptom_text AS SymptomText, duration, severity, notes
+                    FROM op_case_sheet_symptoms
+                    WHERE sheet_id = CAST(@sheet_id AS uuid) AND tenant_code = @tenant_code
+                    ORDER BY sno";
+                casesheet.SymptomsList = (await db.QueryAsync<CasesheetSymptomItemDto>(
+                    symptomsSql, new { sheet_id = sheet_id.ToString(), tenant_code })).ToList();
+
+                string diagSql = @"
+                    SELECT sno, icd_code AS IcdCode, icd_description AS IcdDescription, diagnosis_text AS DiagnosisText,
+                           diagnosis_type AS DiagnosisType, condition_type AS ConditionType, severity, status
+                    FROM op_case_sheet_diagnosis
+                    WHERE sheet_id = CAST(@sheet_id AS uuid) AND tenant_code = @tenant_code
+                    ORDER BY sno";
+                casesheet.DiagnosisList = (await db.QueryAsync<CasesheetDiagnosisItemDto>(
+                    diagSql, new { sheet_id = sheet_id.ToString(), tenant_code })).ToList();
+
+                string presSql = @"
+                    SELECT sno, drug_name AS DrugName, morning, afternoon, evening, night,
+                           before_food AS BeforeFood, after_food AS AfterFood, days, qty, route, notes
+                    FROM op_prescription_detail
+                    WHERE pr_id IN (
+                        SELECT pr_id FROM op_prescription_master 
+                        WHERE sheet_id = CAST(@sheet_id AS uuid) AND tenant_code = @tenant_code AND isdeleted = false
+                    )
+                    AND isdeleted = false
+                    ORDER BY sno";
+                casesheet.PrescriptionList = (await db.QueryAsync<CasesheetPrescriptionItemDto>(
+                    presSql, new { sheet_id = sheet_id.ToString(), tenant_code })).ToList();
+
+                string invSql = @"
+                    SELECT sno, test_name AS TestName, test_category AS TestCategory, quantity
+                    FROM op_investigation_detail
+                    WHERE inv_id IN (
+                        SELECT inv_id FROM op_investigation_master 
+                        WHERE sheet_id = CAST(@sheet_id AS uuid) AND tenant_code = @tenant_code AND isdeleted = false
+                    )
+                    AND isdeleted = false
+                    ORDER BY sno";
+                casesheet.InvestigationList = (await db.QueryAsync<CasesheetInvestigationItemDto>(
+                    invSql, new { sheet_id = sheet_id.ToString(), tenant_code })).ToList();
+
+                byte[] logoImage = null;
+
+                var payload = new CasesheetReportRequest
+                {
+                    CasesheetData = casesheet,
+                    LogoImage = logoImage
+                };
+
+                var client = _httpClientFactory.CreateClient("ReportServer");
+                var json = JsonSerializer.Serialize(payload);
+                var content = new StringContent(json, Encoding.UTF8, "application/json");
+
+                var response = await client.PostAsync("/api/casesheet/getopcasesheet", content);
+                response.EnsureSuccessStatusCode();
+
+                return await response.Content.ReadAsStringAsync();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error in ReportClass.OPCasesheetPDF: {ex.Message}");
+                throw;
+            }
+        }
+
+        public async Task<string> IPCasesheetPDF(Guid sheet_id, string tenant_code)
+        {
+            try
+            {
+                using IDbConnection db = new NpgsqlConnection(_conn);
+
+                string mainSql = @"
+                    SELECT 
+                        cs.sheet_id, cs.op_id, cs.custid, cs.dcode, cs.visit_date::timestamp AS visit_date,
+                        cs.chief_complaint, cs.symptoms, cs.examination, cs.advise, cs.notes, cs.followup_date::timestamp AS followup_date, cs.followup_notes,
+                        c.name AS PatientName, c.gender, c.mobile AS MobileNo,
+                        CONCAT_WS(', ', NULLIF(c.street, ''), NULLIF(c.city, ''), NULLIF(c.state, ''), NULLIF(c.zipcode, '')) AS Address,
+                        c.ageyears, c.agemonths, c.agedays,
+                        c.custcode AS PatientId,
+                        COALESCE(ipm.patcode, c.custcode) AS VisitNo,
+                        COALESCE(ipm.regdate, cs.visit_date)::timestamp AS VisitDate,
+                        ipm.bedcode::text AS BedNo,
+                        dm.doctorfullname AS DoctorName,
+                        bm.name AS BranchName,
+                        t.legal_name AS CompanyName,
+                        CONCAT_WS(', ', NULLIF(t.address_line1, ''), NULLIF(t.address_line2, ''), NULLIF(t.city, ''), NULLIF(t.state, ''), NULLIF(t.pincode, '')) AS CompanyAddress,
+                        t.contact_number AS CompanyContactNo,
+                        t.contact_email AS CompanyEmail
+                    FROM op_case_sheet cs
+                    LEFT JOIN customerdb.customer_master c ON c.custid = cs.custid
+                    LEFT JOIN inpatient_master ipm ON ipm.patcode = c.custcode
+                    LEFT JOIN doctor_master dm ON dm.dcode = cs.dcode
+                    LEFT JOIN mastertenant.tenants t ON t.tenant_code = cs.tenant_code
+                    LEFT JOIN mastertenant.branch_master bm ON bm.bh_code = c.bhcode
+                    WHERE cs.sheet_id = CAST(@sheet_id AS uuid)
+                      AND cs.tenant_code = @tenant_code
+                      AND cs.isdeleted = false
+                    LIMIT 1";
+
+                var casesheet = await db.QueryFirstOrDefaultAsync<CasesheetReportPdfModel>(
+                    mainSql, new { sheet_id = sheet_id.ToString(), tenant_code });
+
+                if (casesheet == null)
+                    throw new Exception("Casesheet not found");
+
+                casesheet.ReportHeader = "IN PATIENT CASE SHEET";
+                casesheet.Age = $"{casesheet.ageyears} Y / {casesheet.agemonths} M / {casesheet.agedays} D";
+
+                // Child Lists
+                string symptomsSql = @"
+                    SELECT sno, symptom_text AS SymptomText, duration, severity, notes
+                    FROM op_case_sheet_symptoms
+                    WHERE sheet_id = CAST(@sheet_id AS uuid) AND tenant_code = @tenant_code
+                    ORDER BY sno";
+                casesheet.SymptomsList = (await db.QueryAsync<CasesheetSymptomItemDto>(
+                    symptomsSql, new { sheet_id = sheet_id.ToString(), tenant_code })).ToList();
+
+                string diagSql = @"
+                    SELECT sno, icd_code AS IcdCode, icd_description AS IcdDescription, diagnosis_text AS DiagnosisText,
+                           diagnosis_type AS DiagnosisType, condition_type AS ConditionType, severity, status
+                    FROM op_case_sheet_diagnosis
+                    WHERE sheet_id = CAST(@sheet_id AS uuid) AND tenant_code = @tenant_code
+                    ORDER BY sno";
+                casesheet.DiagnosisList = (await db.QueryAsync<CasesheetDiagnosisItemDto>(
+                    diagSql, new { sheet_id = sheet_id.ToString(), tenant_code })).ToList();
+
+                string presSql = @"
+                    SELECT sno, drug_name AS DrugName, morning, afternoon, evening, night,
+                           before_food AS BeforeFood, after_food AS AfterFood, days, qty, route, notes
+                    FROM op_prescription_detail
+                    WHERE pr_id IN (
+                        SELECT pr_id FROM op_prescription_master 
+                        WHERE sheet_id = CAST(@sheet_id AS uuid) AND tenant_code = @tenant_code AND isdeleted = false
+                    )
+                    AND isdeleted = false
+                    ORDER BY sno";
+                casesheet.PrescriptionList = (await db.QueryAsync<CasesheetPrescriptionItemDto>(
+                    presSql, new { sheet_id = sheet_id.ToString(), tenant_code })).ToList();
+
+                string invSql = @"
+                    SELECT sno, test_name AS TestName, test_category AS TestCategory, quantity
+                    FROM op_investigation_detail
+                    WHERE inv_id IN (
+                        SELECT inv_id FROM op_investigation_master 
+                        WHERE sheet_id = CAST(@sheet_id AS uuid) AND tenant_code = @tenant_code AND isdeleted = false
+                    )
+                    AND isdeleted = false
+                    ORDER BY sno";
+                casesheet.InvestigationList = (await db.QueryAsync<CasesheetInvestigationItemDto>(
+                    invSql, new { sheet_id = sheet_id.ToString(), tenant_code })).ToList();
+
+                byte[] logoImage = null;
+
+                var payload = new CasesheetReportRequest
+                {
+                    CasesheetData = casesheet,
+                    LogoImage = logoImage
+                };
+
+                var client = _httpClientFactory.CreateClient("ReportServer");
+                var json = JsonSerializer.Serialize(payload);
+                var content = new StringContent(json, Encoding.UTF8, "application/json");
+
+                var response = await client.PostAsync("/api/casesheet/getipcasesheet", content);
+                response.EnsureSuccessStatusCode();
+
+                return await response.Content.ReadAsStringAsync();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error in ReportClass.IPCasesheetPDF: {ex.Message}");
+                throw;
+            }
+        }
     }
 }
