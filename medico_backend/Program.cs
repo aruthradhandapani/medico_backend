@@ -121,6 +121,14 @@ builder.Services.AddScoped<WaAppointmentSessionController>();
 builder.Services.AddScoped<AppointmentBotClass>();
 builder.Services.AddScoped<AppointmentBotController>();
 
+builder.Services.AddScoped<ReportClass>();
+builder.Services.AddScoped<ReportController>();
+builder.Services.AddHttpClient("ReportServer", client =>
+{
+    client.BaseAddress = new Uri(builder.Configuration.GetConnectionString("reportserver")!);
+    client.Timeout = TimeSpan.FromSeconds(60);
+});
+
 builder.Services.AddSingleton<IAmazonS3>(sp =>
 {
     var config = sp.GetRequiredService<IConfiguration>();
