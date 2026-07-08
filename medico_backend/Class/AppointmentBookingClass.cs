@@ -89,9 +89,9 @@ namespace Medico_Backend.Class
                 using IDbConnection db = new NpgsqlConnection(_db_conn);
 
                 // Validate booking_type
-                var allowedTypes = new[] { "WALKIN", "ONLINE" };
+                var allowedTypes = new[] { "WALKIN", "ONLINE", "WHATSAPP" };
                 if (!allowedTypes.Contains(data.booking_type.ToUpper()))
-                    return "Invalid booking_type. Allowed: WALKIN, ONLINE";
+                    return "Invalid booking_type. Allowed: WALKIN, ONLINE,WHATSAPP";
 
                 data.booking_type = data.booking_type.ToUpper();
 
@@ -115,7 +115,8 @@ namespace Medico_Backend.Class
                 if (data.booking_type == "WALKIN" && slot.walkin_count >= slot.max_walkin)
                     return "Walk-in limit reached for this slot";
 
-                if (data.booking_type == "ONLINE" && slot.online_count >= slot.max_online)
+                if ((data.booking_type == "ONLINE" || data.booking_type == "WHATSAPP")
+                 && slot.online_count >= slot.max_online)
                     return "Online booking limit reached for this slot";
 
                 data.booking_id = Guid.NewGuid();

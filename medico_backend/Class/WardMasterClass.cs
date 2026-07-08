@@ -1,0 +1,139 @@
+﻿using Dapper;
+using Dapper.Contrib.Extensions;
+using Npgsql;
+using System.Data;
+using Medico_Backend.Model;
+
+namespace Medico_Backend.Class
+{
+    public class WardMasterClass
+    {
+        private readonly string db_conn;
+
+        public WardMasterClass(IConfiguration configuration)
+        {
+            db_conn = configuration.GetConnectionString("conn");
+        }
+
+        // ─────────────────────────────────────────
+        // INSERT
+        // ─────────────────────────────────────────
+        public async Task<string> Insert(WardMasterModel data)
+        {
+            try
+            {
+                using IDbConnection db = new NpgsqlConnection(db_conn);
+
+                data.entereddate = DateTime.UtcNow;
+                data.ibsdate = DateTime.UtcNow;
+                data.deleted = false;
+
+                var id = await db.InsertAsync(data);
+                data.wrdcode = id;
+
+                return "Success";
+            }
+            catch (Exception ex)
+            {
+                return ex.Message;
+            }
+        }
+
+        // ─────────────────────────────────────────
+        // UPDATE
+        // ─────────────────────────────────────────
+        public async Task<string> Update(WardMasterModel data)
+        {
+            try
+            {
+                using IDbConnection db = new NpgsqlConnection(db_conn);
+
+                data.ibsdate = DateTime.UtcNow;
+
+                var res = await db.UpdateAsync(data);
+                return res ? "Success" : "No data found";
+            }
+            catch (Exception ex)
+            {
+                return ex.Message;
+            }
+        }
+
+        // ─────────────────────────────────────────
+        // SOFT DELETE
+        // ─────────────────────────────────────────
+        public async Task<string> Delete(int wrdcode, string tenant_code)
+        {
+            try
+            {
+                using IDbConnection db = new NpgsqlConnection(db_conn);
+
+                string sql = @"UPDATE public.ward_master
+                               SET deleted  = true,
+                                   ibsdate  = now()
+                               WHERE wrdcode      = @wrdcode
+                               AND tenant_code    = @tenant_code";
+
+                await db.ExecuteAsync(sql, new { wrdcode, tenant_code });
+                return "Success";
+            }
+            catch (Exception ex)
+            {
+                return ex.Message;
+            }
+        }
+
+        // ─────────────────────────────────────────
+        // GET ALL
+        // ─────────────────────────────────────────
+        public async Task<List<WardMasterModel>> Get(string tenant_code)
+        {
+            using IDbConnection db = new NpgsqlConnection(db_conn);
+
+            string sql = @"SELECT *
+                           FROM public.ward_master
+                           WHERE deleted      = false
+                           AND tenant_code    = @tenant_code
+                           ORDER BY orderno";
+
+            var res = await db.QueryAsync<WardMasterModel>(sql, new { tenant_code });
+            return res.ToList();
+        }
+
+        // ─────────────────────────────────────────
+        // GET BY WRDCODE
+        // ─────────────────────────────────────────
+        public async Task<WardMasterModel?> GetByWrdcode(int wrdcode, string tenant_code)
+        {
+            using IDbConnection db = new NpgsqlConnection(db_conn);
+
+            string sql = @"SELECT *
+                           FROM public.ward_master
+                           WHERE deleted    = false
+                           AND wrdcode      = @wrdcode
+                           AND tenant_code  = @tenant_code";
+
+            var res = await db.QueryFirstOrDefaultAsync<WardMasterModel>(
+                sql, new { wrdcode, tenant_code });
+            return res;
+        }
+
+        // ─────────────────────────────────────────
+        // GET BY BRANCH
+        // ─────────────────────────────────────────
+        public async Task<List<WardMasterModel>> GetByBranch(int branchcode, string tenant_code)
+        {
+            using IDbConnection db = new NpgsqlConnection(db_conn);
+
+            string sql = @"SELECT *
+                           FROM public.ward_master
+                           WHERE deleted      = false
+                           AND branchcode     = @branchcode
+                           AND tenant_code    = @tenant_code
+                           ORDER BY orderno";
+
+            var res = await db.QueryAsync<WardMasterModel>(sql, new { branchcode, tenant_code });
+            return res.ToList();
+        }
+    }
+}

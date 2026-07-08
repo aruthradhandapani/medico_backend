@@ -2,6 +2,7 @@
 using Npgsql;
 using System.Data;
 using Medico_Backend.Model;
+using Dapper.Contrib.Extensions;
 
 namespace Medico_Backend.Class
 {
@@ -59,40 +60,18 @@ namespace Medico_Backend.Class
             {
                 using IDbConnection db = new NpgsqlConnection(db_conn);
 
+                // Explicitly fetch next id from the sequence
+                data.id = await db.ExecuteScalarAsync<long>(
+                    "SELECT nextval('mastertenant.tenant_direct_url_id_seq')");
+
                 data.entered_date = DateTime.UtcNow;
-                data.ibsd_date = DateTime.UtcNow;
                 data.isdeleted = false;
 
-                string sql = @"
-                    INSERT INTO mastertenant.tenant_direct_url
-                    (
-                        tenant_code,
-                        tenant_name,
-                        title,
-                        url,
-                        entered_date,
-                        ibsd_date,
-                        isdeleted
-                    )
-                    VALUES
-                    (
-                        @tenant_code,
-                        @tenant_name,
-                        @title,
-                        @url,
-                        @entered_date,
-                        @ibsd_date,
-                        @isdeleted
-                    )";
-
-                await db.ExecuteAsync(sql, data);
+                await db.InsertAsync(data);  // Dapper.Contrib — works now that id is set
 
                 return "Success";
             }
-            catch (Exception ex)
-            {
-                return ex.Message;
-            }
+            catch (Exception ex) { return ex.Message; }
         }
 
         // ─────────────────────────────────────────

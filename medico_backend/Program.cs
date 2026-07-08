@@ -120,14 +120,22 @@ builder.Services.AddScoped<WaAppointmentSessionClass>();
 builder.Services.AddScoped<WaAppointmentSessionController>();
 builder.Services.AddScoped<AppointmentBotClass>();
 builder.Services.AddScoped<AppointmentBotController>();
-
-builder.Services.AddScoped<ReportClass>();
-builder.Services.AddScoped<ReportController>();
-builder.Services.AddHttpClient("ReportServer", client =>
-{
-    client.BaseAddress = new Uri(builder.Configuration.GetConnectionString("reportserver")!);
-    client.Timeout = TimeSpan.FromSeconds(60);
-});
+builder.Services.AddScoped<RoomTypeMasterClass>();
+builder.Services.AddScoped<RoomTypeMasterController>();
+builder.Services.AddScoped<FloorMasterClass>();
+builder.Services.AddScoped<FloorMasterController>();
+builder.Services.AddScoped<WardMasterClass>();
+builder.Services.AddScoped<WardMasterController>();
+builder.Services.AddScoped<BedMasterClass>();
+builder.Services.AddScoped<BedMasterController>();
+builder.Services.AddScoped<BedTransferClass>();
+builder.Services.AddScoped<BedTransferController>();
+builder.Services.AddScoped<NurseMasterClass>();
+builder.Services.AddScoped<NurseMasterController>();
+builder.Services.AddScoped<BlockMasterClass>();
+builder.Services.AddScoped<BlockMasterController>();
+builder.Services.AddScoped<IpRegistrationClass>();
+builder.Services.AddScoped<IpRegistrationController>();
 
 builder.Services.AddSingleton<IAmazonS3>(sp =>
 {
