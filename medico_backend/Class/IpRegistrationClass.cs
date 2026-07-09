@@ -339,5 +339,115 @@ namespace medico_backend.Class
             var res = await db.QueryAsync<dynamic>(sql, new { tenant_code });
             return res.ToList();
         }
+        // ─────────────────────────────────────────
+        // UPDATE (partial — only non-null fields applied)
+        // ─────────────────────────────────────────
+        public async Task<string> Update(UpdateIpRegistrationRequest req, string tenant_code)
+        {
+            using IDbConnection db = new NpgsqlConnection(_db_conn);
+
+            var existing = await db.QueryFirstOrDefaultAsync<IpRegistrationModel>(
+                "SELECT * FROM ip_registration WHERE ip_id = @ip_id AND tenant_code = @tenant_code AND isdeleted = false",
+                new { req.ip_id, tenant_code });
+
+            if (existing == null) return "IP Registration not found";
+            if (existing.ip_status == "DISCHARGED") return "Cannot update a discharged record";
+            if (existing.ip_status == "CANCELLED") return "Cannot update a cancelled record";
+
+            existing.dcode = req.dcode ?? existing.dcode;
+            existing.referring_dcode = req.referring_dcode ?? existing.referring_dcode;
+            existing.department_code = req.department_code ?? existing.department_code;
+            existing.admission_reason = req.admission_reason ?? existing.admission_reason;
+            existing.expected_dischargedate = req.expected_dischargedate ?? existing.expected_dischargedate;
+            existing.isinsurancepatient = req.isinsurancepatient ?? existing.isinsurancepatient;
+            existing.insurance_company = req.insurance_company ?? existing.insurance_company;
+            existing.policyno = req.policyno ?? existing.policyno;
+            existing.authorizationno = req.authorizationno ?? existing.authorizationno;
+            existing.tpa_name = req.tpa_name ?? existing.tpa_name;
+            existing.insurance_approved_amount = req.insurance_approved_amount ?? existing.insurance_approved_amount;
+            existing.insurance_status = req.insurance_status ?? existing.insurance_status;
+            existing.guardian_name = req.guardian_name ?? existing.guardian_name;
+            existing.guardian_relation = req.guardian_relation ?? existing.guardian_relation;
+            existing.guardian_contact = req.guardian_contact ?? existing.guardian_contact;
+            existing.notes = req.notes ?? existing.notes;
+            existing.updated_at = DateTime.SpecifyKind(DateTime.UtcNow, DateTimeKind.Utc);
+
+            string sql = @"UPDATE ip_registration SET
+        dcode = @dcode, referring_dcode = @referring_dcode, department_code = @department_code,
+        admission_reason = @admission_reason, expected_dischargedate = @expected_dischargedate,
+        isinsurancepatient = @isinsurancepatient, insurance_company = @insurance_company,
+        policyno = @policyno, authorizationno = @authorizationno, tpa_name = @tpa_name,
+        insurance_approved_amount = @insurance_approved_amount, insurance_status = @insurance_status,
+        guardian_name = @guardian_name, guardian_relation = @guardian_relation, guardian_contact = @guardian_contact,
+        notes = @notes, updated_at = @updated_at
+        WHERE ip_id = @ip_id AND tenant_code = @tenant_code";
+
+            int rows = await db.ExecuteAsync(sql, new
+            {
+                existing.dcode,
+                existing.referring_dcode,
+                existing.department_code,
+                existing.admission_reason,
+                existing.expected_dischargedate,
+                existing.isinsurancepatient,
+                existing.insurance_company,
+                existing.policyno,
+                existing.authorizationno,
+                existing.tpa_name,
+                existing.insurance_approved_amount,
+                existing.insurance_status,
+                existing.guardian_name,
+                existing.guardian_relation,
+                existing.guardian_contact,
+                existing.notes,
+                existing.updated_at,
+                req.ip_id,
+                tenant_code
+            });
+
+            return rows > 0 ? "Success" : "Update failed";
+        }
+
+        // ─────────────────────────────────────────
+        // CANCEL ADMISSION (soft delete — only if never actually admitted/occupied)
+        // Frees the bed if one was reserved. Cannot cancel once discharged.
+        // ─────────────────────────────────────────
+        public async Task<string> CancelAdmission(CancelAdmissionRequest req, string tenant_code)
+        {
+            using IDbConnection db = new NpgsqlConnection(_db_conn);
+            db.Open();
+            using var tx = db.BeginTransaction();
+
+            try
+            {
+                var existing = await db.QueryFirstOrDefaultAsync<IpRegistrationModel>(
+                    "SELECT * FROM ip_registration WHERE ip_id = @ip_id AND tenant_code = @tenant_code AND isdeleted = false FOR UPDATE",
+                    new { req.ip_id, tenant_code }, tx);
+
+                if (existing == null) { tx.Rollback(); return "IP Registration not found"; }
+                if (existing.ip_status == "DISCHARGED") { tx.Rollback(); return "Cannot cancel a discharged admission"; }
+
+                await db.ExecuteAsync(@"
+            UPDATE ip_registration
+            SET ip_status = 'CANCELLED', isdeleted = true, notes = COALESCE(notes || ' | ', '') || @reason, updated_at = now()
+            WHERE ip_id = @ip_id AND tenant_code = @tenant_code",
+                    new { ip_id = req.ip_id, reason = "Cancelled: " + (req.reason ?? "No reason given"), tenant_code }, tx);
+
+                // Free up the bed_transfer record too
+                await db.ExecuteAsync(@"
+            UPDATE public.bed_transfer
+            SET ischeckout = true, transferdate = now()
+            WHERE lastvisitid = @lastvisitid AND tenant_code = @tenant_code",
+                    new { lastvisitid = req.ip_id.ToString(), tenant_code }, tx);
+
+                tx.Commit();
+                return "Success";
+            }
+            catch (Exception ex)
+            {
+                tx.Rollback();
+                return ex.Message;
+            }
+        }
     }
 }

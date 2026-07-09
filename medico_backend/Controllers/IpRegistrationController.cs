@@ -63,5 +63,20 @@ namespace medico_backend.Controllers
             var res = await cls.GetActiveAdmissions(tenant);
             return Ok(res);
         }
+        [HttpPost("update")]
+        public async Task<IActionResult> Update([FromBody] UpdateIpRegistrationRequest req)
+        {
+            var tenant = Request.Headers["tenant_code"].ToString();
+            var res = await cls.Update(req, tenant);
+            return Ok(res);
+        }
+
+        [HttpPost("cancel")]
+        public async Task<IActionResult> Cancel([FromBody] CancelAdmissionRequest req)
+        {
+            var tenant = Request.Headers["tenant_code"].ToString();
+            var res = await cls.CancelAdmission(req, tenant);
+            return Ok(res);
+        }
     }
 }

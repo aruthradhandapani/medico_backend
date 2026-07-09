@@ -113,5 +113,31 @@ namespace medico_backend.Model
             public string? reason { get; set; }
             public string? transferedby { get; set; }
         }
+        public class UpdateIpRegistrationRequest
+        {
+            public Guid ip_id { get; set; }
+            public int? dcode { get; set; }
+            public int? referring_dcode { get; set; }
+            public int? department_code { get; set; }
+            public string? admission_reason { get; set; }
+            public DateTime? expected_dischargedate { get; set; }
+            public bool? isinsurancepatient { get; set; }
+            public string? insurance_company { get; set; }
+            public string? policyno { get; set; }
+            public string? authorizationno { get; set; }
+            public string? tpa_name { get; set; }
+            public double? insurance_approved_amount { get; set; }
+            public string? insurance_status { get; set; }
+            public string? guardian_name { get; set; }
+            public string? guardian_relation { get; set; }
+            public string? guardian_contact { get; set; }
+            public string? notes { get; set; }
+        }
+
+        public class CancelAdmissionRequest
+        {
+            public Guid ip_id { get; set; }
+            public string? reason { get; set; }
+        }
     }
 }
