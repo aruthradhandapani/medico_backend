@@ -173,6 +173,12 @@ namespace Medico_Backend.Class
         }
         // ─────────────────────────────────────────
         // GET AVAILABLE BEDS (not currently occupied)
+        // A bed is "occupied" only if an ip_registration row references it
+        // with ip_status = 'ADMITTED' and isdeleted = false.
+        // The moment that patient is discharged (ip_status -> 'DISCHARGED')
+        // or transferred to another bed, this bed automatically becomes
+        // available again — no separate "free the bed" step needed.
+        //
         // Optional filters: branchcode, blockcode, flrcode, wrdcode, rmtcode
         // ─────────────────────────────────────────
         public async Task<List<dynamic>> GetAvailableBeds(
@@ -215,6 +221,62 @@ namespace Medico_Backend.Class
                 AND ip.ip_status = 'ADMITTED'
                 AND ip.isdeleted = false
           )
+        ORDER BY fm.orderno, wm.orderno, bm.orderno";
+
+            var res = await db.QueryAsync<dynamic>(sql, new
+            {
+                tenant_code,
+                branchcode,
+                blockcode,
+                flrcode,
+                wrdcode,
+                rmtcode
+            });
+
+            return res.ToList();
+        }
+
+        // ─────────────────────────────────────────
+        // GET OCCUPIED BEDS (optional companion endpoint —
+        // useful for a "current occupancy" dashboard view)
+        // ─────────────────────────────────────────
+        public async Task<List<dynamic>> GetOccupiedBeds(
+            string tenant_code,
+            int? branchcode = null,
+            int? blockcode = null,
+            int? flrcode = null,
+            int? wrdcode = null,
+            int? rmtcode = null)
+        {
+            using IDbConnection db = new NpgsqlConnection(db_conn);
+
+            string sql = @"
+        SELECT
+            bm.bedcode, bm.bedname, bm.shortname,
+            bm.branchcode, bm.rmtcode, bm.wrdcode, bm.flrcode,
+            rm.name  AS roomtype_name,
+            wm.name  AS ward_name,
+            fm.name  AS floor_name,
+            fm.blockcode,
+            bk.name  AS block_name,
+            ip.ip_id, ip.ip_no, ip.custid, ip.dcode, ip.admitdate
+        FROM public.bed_master bm
+        INNER JOIN ip_registration ip
+            ON ip.bedcode = bm.bedcode
+           AND ip.tenant_code = bm.tenant_code
+           AND ip.ip_status = 'ADMITTED'
+           AND ip.isdeleted = false
+        LEFT JOIN public.roomtype_master rm ON rm.rmtcode = bm.rmtcode AND rm.tenant_code = bm.tenant_code
+        LEFT JOIN public.ward_master wm ON wm.wrdcode = bm.wrdcode AND wm.tenant_code = bm.tenant_code
+        LEFT JOIN public.floor_master fm ON fm.flrcode = bm.flrcode AND fm.tenant_code = bm.tenant_code
+        LEFT JOIN public.block_master bk ON bk.blockcode = fm.blockcode AND bk.tenant_code = bm.tenant_code
+        WHERE (bm.deleted IS NULL OR bm.deleted = false)
+          AND bm.tenant_code = @tenant_code
+          AND (@branchcode IS NULL OR bm.branchcode = @branchcode)
+          AND (@blockcode  IS NULL OR fm.blockcode  = @blockcode)
+          AND (@flrcode    IS NULL OR bm.flrcode    = @flrcode)
+          AND (@wrdcode    IS NULL OR bm.wrdcode    = @wrdcode)
+          AND (@rmtcode    IS NULL OR bm.rmtcode    = @rmtcode)
         ORDER BY fm.orderno, wm.orderno, bm.orderno";
 
             var res = await db.QueryAsync<dynamic>(sql, new

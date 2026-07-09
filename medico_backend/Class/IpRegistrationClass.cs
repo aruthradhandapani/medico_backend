@@ -139,26 +139,6 @@ namespace medico_backend.Class
                      @notes, @tenant_code, @isdeleted, @created_at, @updated_at)",
                     data, tx);
 
-                // ── Log initial bed allocation in bed_transfer ──────────
-                await db.ExecuteAsync(@"
-                    INSERT INTO public.bed_transfer
-                    (lastvisitid, custid, admitteddate, currentfloor, currentroom, currentbed,
-                     transferdate, transfloor, transroom, transbed, transferedby, reason,
-                     ischeckout, tenant_code, entereddate)
-                    VALUES
-                    (@lastvisitid, @custid, @admitteddate, @flrcode, @rmtcode, @bedcode,
-                     @admitteddate, @flrcode, @rmtcode, @bedcode, 'SYSTEM', 'Initial Admission',
-                     false, @tenant_code, now())",
-                    new
-                    {
-                        lastvisitid = data.ip_id.ToString(),
-                        data.custid,
-                        admitteddate = data.admitdate,
-                        data.flrcode,
-                        data.rmtcode,
-                        data.bedcode,
-                        tenant_code
-                    }, tx);
 
                 tx.Commit();
                 return $"Success|IpNo:{data.ip_no}|IpId:{data.ip_id}";
