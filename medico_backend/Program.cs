@@ -138,6 +138,8 @@ builder.Services.AddScoped<IpRegistrationClass>();
 builder.Services.AddScoped<IpRegistrationController>();
 builder.Services.AddScoped<TenantClass>();
 builder.Services.AddScoped<TenantController>();
+builder.Services.AddScoped<ReportClass>();
+builder.Services.AddScoped<ReportController>();
 
 builder.Services.AddSingleton<IAmazonS3>(sp =>
 {
@@ -213,7 +215,11 @@ builder.Services.AddAuthorization(options =>
 
 AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", true);
 
-builder.Services.AddControllers();
+builder.Services.AddHttpClient("ReportServer", client =>
+{
+    var url = builder.Configuration.GetConnectionString("reportserver");
+    client.BaseAddress = new Uri(url ?? "https://localhost:7053");
+});
 builder.Services.AddOpenApi();
 
 var app = builder.Build();

@@ -1142,7 +1142,7 @@ namespace medico_backend.Class
             }
         }
 
-        public async Task<string?> ReferralReceiptPDF(Guid receiptguid, string tenant_code)
+        public async Task<string?> ReferralReceiptPDF(Guid receiptguid, string tenant_code, bool? isletterhead = false)
         {
             try
             {
@@ -1373,7 +1373,13 @@ namespace medico_backend.Class
                 if (receiptData == null)
                     return null;
 
-                var payload = new ReceiptRequest { ReceiptData = receiptData, LogoImage = null };
+                var payload = new ReceiptRequest
+                {
+                    ReceiptData = receiptData,
+                    LogoImage = null,
+                    IsLetterhead = isletterhead ?? false,
+                    TenantId = tenant_code
+                };
                 var json = JsonSerializer.Serialize(payload);
                 var content = new StringContent(json, Encoding.UTF8, "application/json");
                 var response = await client.PostAsync("/api/receipt/getreferralreceipt", content);
@@ -1392,7 +1398,7 @@ namespace medico_backend.Class
             }
         }
 
-        public async Task<string?> PatientReceiptPDF(Guid receiptguid, string tenant_code)
+        public async Task<string?> PatientReceiptPDF(Guid receiptguid, string tenant_code, bool? isletterhead = false)
         {
             try
             {
@@ -1562,7 +1568,13 @@ namespace medico_backend.Class
                     return null;
 
                 var client = _httpClientFactory.CreateClient("ReportServer");
-                var payload = new PatientReceiptRequest { ReceiptData = receiptData, LogoImage = null };
+                var payload = new PatientReceiptRequest
+                {
+                    ReceiptData = receiptData,
+                    LogoImage = null,
+                    IsLetterhead = isletterhead ?? false,
+                    TenantId = tenant_code
+                };
                 var json = JsonSerializer.Serialize(payload);
                 var content = new StringContent(json, Encoding.UTF8, "application/json");
                 var response = await client.PostAsync("/api/receipt/getpatientreceipt", content);
@@ -1581,7 +1593,7 @@ namespace medico_backend.Class
             }
         }
 
-        public async Task<string> BillPDF(Guid requestguid, string tenant_code)
+        public async Task<string> BillPDF(Guid requestguid, string tenant_code, bool? isletterhead = false)
         {
             try
             {
@@ -1716,6 +1728,7 @@ namespace medico_backend.Class
                 ).ToList();
 
                 // ─── Step 4: POST to report server ────────────────────────────────
+                bill.isletterhead = isletterhead ?? false;
                 var client = _httpClientFactory.CreateClient("ReportServer");
                 var json = JsonSerializer.Serialize(bill);
                 var content = new StringContent(json, Encoding.UTF8, "application/json");
@@ -1873,10 +1886,10 @@ namespace medico_backend.Class
                         )
                     ).GroupBy(i => i.TCode)
                      .Select((g, index) => {
-                          var firstItem = g.First();
-                          firstItem.SNo = index + 1;
-                          return firstItem;
-                      })
+                         var firstItem = g.First();
+                         firstItem.SNo = index + 1;
+                         return firstItem;
+                     })
                      .ToList();
 
                     // Query sub-parameters
@@ -2139,7 +2152,7 @@ namespace medico_backend.Class
                                         .Select(sp => (string)sp.subtestname)
                                         .Distinct()
                                         .ToList()
-                                    };
+                                };
                             }).ToList();
                     }
 
@@ -3354,7 +3367,7 @@ WHERE lrd.requestguid = @requestguid
                     WHERE tenant_code = @tenant_code 
                       AND COALESCE(deleted, false) = false 
                     ORDER BY orderno, pmcode";
-                
+
                 var paymodes = (await db.QueryAsync<PayModeHeader>(
                     paymodeSql,
                     new { tenant_code })).ToList();
@@ -3514,7 +3527,7 @@ WHERE lrd.requestguid = @requestguid
                     WHERE tenant_code = @tenant_code 
                       AND COALESCE(deleted, false) = false 
                     ORDER BY orderno, pmcode";
-                
+
                 var paymodes = (await db.QueryAsync<PayModeHeader>(
                     paymodeSql,
                     new { tenant_code })).ToList();
@@ -3681,7 +3694,7 @@ WHERE lrd.requestguid = @requestguid
             }
         }
 
-        public async Task<string> OPCasesheetPDF(Guid sheet_id, string tenant_code)
+        public async Task<string> OPCasesheetPDF(Guid sheet_id, string tenant_code, bool? isletterhead = false)
         {
             try
             {
@@ -3689,8 +3702,9 @@ WHERE lrd.requestguid = @requestguid
 
                 string mainSql = @"
                     SELECT 
-                        cs.sheet_id, cs.op_id, cs.custid, cs.dcode, cs.visit_date::timestamp AS visit_date,
-                        cs.chief_complaint, cs.symptoms, cs.examination, cs.advise, cs.notes, cs.followup_date::timestamp AS followup_date, cs.followup_notes,
+                        cs.sheet_id, cs.op_id, cs.custid, cs.dcode, cs.visit_date::timestamp AS CaseSheetVisitDate,
+                        cs.chief_complaint AS ChiefComplaint, cs.symptoms AS Symptoms, cs.examination AS Examination, 
+                        cs.advise AS Advise, cs.notes AS Notes, cs.followup_date::timestamp AS FollowupDate, cs.followup_notes AS FollowupNotes,
                         c.name AS PatientName, c.gender, c.mobile AS MobileNo,
                         CONCAT_WS(', ', NULLIF(c.street, ''), NULLIF(c.city, ''), NULLIF(c.state, ''), NULLIF(c.zipcode, '')) AS Address,
                         c.ageyears, c.agemonths, c.agedays,
@@ -3766,12 +3780,98 @@ WHERE lrd.requestguid = @requestguid
                 casesheet.InvestigationList = (await db.QueryAsync<CasesheetInvestigationItemDto>(
                     invSql, new { sheet_id = sheet_id.ToString(), tenant_code })).ToList();
 
+                // Fetch patient vitals
+                CasesheetReportPdfModel? vitals = null;
+                if (casesheet.op_id.HasValue && casesheet.op_id != Guid.Empty)
+                {
+                    string vitalsSql = @"
+                        SELECT 
+                            height_cm, weight_kg, bmi, temperature_f, pulse_rate, respiratory_rate, bp_systolic, bp_diastolic, spo2,
+                            sugar_level, pain_scale, waist_cm, hip_cm, pedal_oedema, jvp, cvs, rs, cns, abdomen,
+                            cardiac_monitor, cd_echo, blood_chemistry, allergy_notes, hba1c, ecg_notes, head_circumference_cm
+                        FROM patient_vitals
+                        WHERE op_id = CAST(@op_id AS uuid) AND tenant_code = @tenant_code AND isdeleted = false
+                        LIMIT 1";
+                    vitals = await db.QueryFirstOrDefaultAsync<CasesheetReportPdfModel>(
+                        vitalsSql, new { op_id = casesheet.op_id, tenant_code });
+                }
+
+                // Fallback to fetch by custid if not found by op_id
+                if (vitals == null && casesheet.custid > 0)
+                {
+                    string fallbackVitalsSql = @"
+                        SELECT 
+                            height_cm, weight_kg, bmi, temperature_f, pulse_rate, respiratory_rate, bp_systolic, bp_diastolic, spo2,
+                            sugar_level, pain_scale, waist_cm, hip_cm, pedal_oedema, jvp, cvs, rs, cns, abdomen,
+                            cardiac_monitor, cd_echo, blood_chemistry, allergy_notes, hba1c, ecg_notes, head_circumference_cm
+                        FROM patient_vitals
+                        WHERE custid = @custid AND tenant_code = @tenant_code AND isdeleted = false
+                        ORDER BY created_at DESC
+                        LIMIT 1";
+                    vitals = await db.QueryFirstOrDefaultAsync<CasesheetReportPdfModel>(
+                        fallbackVitalsSql, new { custid = casesheet.custid, tenant_code });
+                }
+
+                if (vitals != null)
+                {
+                    casesheet.height_cm = vitals.height_cm;
+                    casesheet.weight_kg = vitals.weight_kg;
+                    casesheet.bmi = vitals.bmi;
+                    casesheet.temperature_f = vitals.temperature_f;
+                    casesheet.pulse_rate = vitals.pulse_rate;
+                    casesheet.respiratory_rate = vitals.respiratory_rate;
+                    casesheet.bp_systolic = vitals.bp_systolic;
+                    casesheet.bp_diastolic = vitals.bp_diastolic;
+                    casesheet.spo2 = vitals.spo2;
+                    casesheet.sugar_level = vitals.sugar_level;
+                    casesheet.pain_scale = vitals.pain_scale;
+                    casesheet.waist_cm = vitals.waist_cm;
+                    casesheet.hip_cm = vitals.hip_cm;
+                    casesheet.pedal_oedema = vitals.pedal_oedema;
+                    casesheet.jvp = vitals.jvp;
+                    casesheet.cvs = vitals.cvs;
+                    casesheet.rs = vitals.rs;
+                    casesheet.cns = vitals.cns;
+                    casesheet.abdomen = vitals.abdomen;
+                    casesheet.cardiac_monitor = vitals.cardiac_monitor;
+                    casesheet.cd_echo = vitals.cd_echo;
+                    casesheet.blood_chemistry = vitals.blood_chemistry;
+                    casesheet.allergy_notes = vitals.allergy_notes;
+                    casesheet.hba1c = vitals.hba1c;
+                    casesheet.ecg_notes = vitals.ecg_notes;
+                    casesheet.head_circumference_cm = vitals.head_circumference_cm;
+                }
+
+                // Fetch Prescription Remarks
+                var presMst = await db.QueryFirstOrDefaultAsync<CasesheetReportPdfModel>(
+                    @"SELECT topremarks, bottonremarks FROM op_prescription_master 
+                      WHERE sheet_id = CAST(@sheet_id AS uuid) AND tenant_code = @tenant_code AND isdeleted = false 
+                      LIMIT 1", new { sheet_id = sheet_id.ToString(), tenant_code });
+                if (presMst != null)
+                {
+                    casesheet.topremarks = presMst.topremarks;
+                    casesheet.bottonremarks = presMst.bottonremarks;
+                }
+
+                // Fetch Investigation Remarks/Urgency
+                var invMst = await db.QueryFirstOrDefaultAsync<CasesheetReportPdfModel>(
+                    @"SELECT notes AS InvestigationNotes, is_urgent AS IsInvestigationUrgent FROM op_investigation_master 
+                      WHERE sheet_id = CAST(@sheet_id AS uuid) AND tenant_code = @tenant_code AND isdeleted = false 
+                      LIMIT 1", new { sheet_id = sheet_id.ToString(), tenant_code });
+                if (invMst != null)
+                {
+                    casesheet.InvestigationNotes = invMst.InvestigationNotes;
+                    casesheet.IsInvestigationUrgent = invMst.IsInvestigationUrgent;
+                }
+
                 byte[] logoImage = null;
 
                 var payload = new CasesheetReportRequest
                 {
                     CasesheetData = casesheet,
-                    LogoImage = logoImage
+                    LogoImage = logoImage,
+                    IsLetterhead = isletterhead ?? false,
+                    TenantId = tenant_code
                 };
 
                 var client = _httpClientFactory.CreateClient("ReportServer");
@@ -3790,7 +3890,7 @@ WHERE lrd.requestguid = @requestguid
             }
         }
 
-        public async Task<string> IPCasesheetPDF(Guid sheet_id, string tenant_code)
+        public async Task<string> IPCasesheetPDF(Guid sheet_id, string tenant_code, bool? isletterhead = false)
         {
             try
             {
@@ -3798,8 +3898,9 @@ WHERE lrd.requestguid = @requestguid
 
                 string mainSql = @"
                     SELECT 
-                        cs.sheet_id, cs.op_id, cs.custid, cs.dcode, cs.visit_date::timestamp AS visit_date,
-                        cs.chief_complaint, cs.symptoms, cs.examination, cs.advise, cs.notes, cs.followup_date::timestamp AS followup_date, cs.followup_notes,
+                        cs.sheet_id, cs.op_id, cs.custid, cs.dcode, cs.visit_date::timestamp AS CaseSheetVisitDate,
+                        cs.chief_complaint AS ChiefComplaint, cs.symptoms AS Symptoms, cs.examination AS Examination, 
+                        cs.advise AS Advise, cs.notes AS Notes, cs.followup_date::timestamp AS FollowupDate, cs.followup_notes AS FollowupNotes,
                         c.name AS PatientName, c.gender, c.mobile AS MobileNo,
                         CONCAT_WS(', ', NULLIF(c.street, ''), NULLIF(c.city, ''), NULLIF(c.state, ''), NULLIF(c.zipcode, '')) AS Address,
                         c.ageyears, c.agemonths, c.agedays,
@@ -3876,12 +3977,98 @@ WHERE lrd.requestguid = @requestguid
                 casesheet.InvestigationList = (await db.QueryAsync<CasesheetInvestigationItemDto>(
                     invSql, new { sheet_id = sheet_id.ToString(), tenant_code })).ToList();
 
+                // Fetch patient vitals
+                CasesheetReportPdfModel? vitals = null;
+                if (casesheet.op_id.HasValue && casesheet.op_id != Guid.Empty)
+                {
+                    string vitalsSql = @"
+                        SELECT 
+                            height_cm, weight_kg, bmi, temperature_f, pulse_rate, respiratory_rate, bp_systolic, bp_diastolic, spo2,
+                            sugar_level, pain_scale, waist_cm, hip_cm, pedal_oedema, jvp, cvs, rs, cns, abdomen,
+                            cardiac_monitor, cd_echo, blood_chemistry, allergy_notes, hba1c, ecg_notes, head_circumference_cm
+                        FROM patient_vitals
+                        WHERE op_id = CAST(@op_id AS uuid) AND tenant_code = @tenant_code AND isdeleted = false
+                        LIMIT 1";
+                    vitals = await db.QueryFirstOrDefaultAsync<CasesheetReportPdfModel>(
+                        vitalsSql, new { op_id = casesheet.op_id, tenant_code });
+                }
+
+                // Fallback to fetch by custid if not found by op_id
+                if (vitals == null && casesheet.custid > 0)
+                {
+                    string fallbackVitalsSql = @"
+                        SELECT 
+                            height_cm, weight_kg, bmi, temperature_f, pulse_rate, respiratory_rate, bp_systolic, bp_diastolic, spo2,
+                            sugar_level, pain_scale, waist_cm, hip_cm, pedal_oedema, jvp, cvs, rs, cns, abdomen,
+                            cardiac_monitor, cd_echo, blood_chemistry, allergy_notes, hba1c, ecg_notes, head_circumference_cm
+                        FROM patient_vitals
+                        WHERE custid = @custid AND tenant_code = @tenant_code AND isdeleted = false
+                        ORDER BY created_at DESC
+                        LIMIT 1";
+                    vitals = await db.QueryFirstOrDefaultAsync<CasesheetReportPdfModel>(
+                        fallbackVitalsSql, new { custid = casesheet.custid, tenant_code });
+                }
+
+                if (vitals != null)
+                {
+                    casesheet.height_cm = vitals.height_cm;
+                    casesheet.weight_kg = vitals.weight_kg;
+                    casesheet.bmi = vitals.bmi;
+                    casesheet.temperature_f = vitals.temperature_f;
+                    casesheet.pulse_rate = vitals.pulse_rate;
+                    casesheet.respiratory_rate = vitals.respiratory_rate;
+                    casesheet.bp_systolic = vitals.bp_systolic;
+                    casesheet.bp_diastolic = vitals.bp_diastolic;
+                    casesheet.spo2 = vitals.spo2;
+                    casesheet.sugar_level = vitals.sugar_level;
+                    casesheet.pain_scale = vitals.pain_scale;
+                    casesheet.waist_cm = vitals.waist_cm;
+                    casesheet.hip_cm = vitals.hip_cm;
+                    casesheet.pedal_oedema = vitals.pedal_oedema;
+                    casesheet.jvp = vitals.jvp;
+                    casesheet.cvs = vitals.cvs;
+                    casesheet.rs = vitals.rs;
+                    casesheet.cns = vitals.cns;
+                    casesheet.abdomen = vitals.abdomen;
+                    casesheet.cardiac_monitor = vitals.cardiac_monitor;
+                    casesheet.cd_echo = vitals.cd_echo;
+                    casesheet.blood_chemistry = vitals.blood_chemistry;
+                    casesheet.allergy_notes = vitals.allergy_notes;
+                    casesheet.hba1c = vitals.hba1c;
+                    casesheet.ecg_notes = vitals.ecg_notes;
+                    casesheet.head_circumference_cm = vitals.head_circumference_cm;
+                }
+
+                // Fetch Prescription Remarks
+                var presMst = await db.QueryFirstOrDefaultAsync<CasesheetReportPdfModel>(
+                    @"SELECT topremarks, bottonremarks FROM op_prescription_master 
+                      WHERE sheet_id = CAST(@sheet_id AS uuid) AND tenant_code = @tenant_code AND isdeleted = false 
+                      LIMIT 1", new { sheet_id = sheet_id.ToString(), tenant_code });
+                if (presMst != null)
+                {
+                    casesheet.topremarks = presMst.topremarks;
+                    casesheet.bottonremarks = presMst.bottonremarks;
+                }
+
+                // Fetch Investigation Remarks/Urgency
+                var invMst = await db.QueryFirstOrDefaultAsync<CasesheetReportPdfModel>(
+                    @"SELECT notes AS InvestigationNotes, is_urgent AS IsInvestigationUrgent FROM op_investigation_master 
+                      WHERE sheet_id = CAST(@sheet_id AS uuid) AND tenant_code = @tenant_code AND isdeleted = false 
+                      LIMIT 1", new { sheet_id = sheet_id.ToString(), tenant_code });
+                if (invMst != null)
+                {
+                    casesheet.InvestigationNotes = invMst.InvestigationNotes;
+                    casesheet.IsInvestigationUrgent = invMst.IsInvestigationUrgent;
+                }
+
                 byte[] logoImage = null;
 
                 var payload = new CasesheetReportRequest
                 {
                     CasesheetData = casesheet,
-                    LogoImage = logoImage
+                    LogoImage = logoImage,
+                    IsLetterhead = isletterhead ?? false,
+                    TenantId = tenant_code
                 };
 
                 var client = _httpClientFactory.CreateClient("ReportServer");

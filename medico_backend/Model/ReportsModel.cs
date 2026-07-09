@@ -664,6 +664,10 @@ namespace medico_backend.Model
         public ReceiptPdfModel? ReceiptData { get; set; }
 
         public byte[]? LogoImage { get; set; }
+        public bool IsLetterhead { get; set; } = false;
+        public byte[]? HeaderImage { get; set; }
+        public byte[]? FooterImage { get; set; }
+        public string? TenantId { get; set; }
     }
 
     public class PatientReceiptPdfModel
@@ -697,6 +701,10 @@ namespace medico_backend.Model
     {
         public PatientReceiptPdfModel? ReceiptData { get; set; }
         public byte[]? LogoImage { get; set; }
+        public bool IsLetterhead { get; set; } = false;
+        public byte[]? HeaderImage { get; set; }
+        public byte[]? FooterImage { get; set; }
+        public string? TenantId { get; set; }
     }
 
 
@@ -942,6 +950,10 @@ namespace medico_backend.Model
     {
         public CasesheetReportPdfModel? CasesheetData { get; set; }
         public byte[]? LogoImage { get; set; }
+        public bool IsLetterhead { get; set; } = false;
+        public byte[]? HeaderImage { get; set; }
+        public byte[]? FooterImage { get; set; }
+        public string? TenantId { get; set; }
     }
 
     public class CasesheetReportPdfModel
@@ -987,6 +999,43 @@ namespace medico_backend.Model
         public string? CompanyAddress { get; set; }
         public string? CompanyContactNo { get; set; }
         public string? CompanyEmail { get; set; }
+
+        public Guid? op_id { get; set; }
+        public decimal custid { get; set; }
+
+        // Vitals
+        public decimal? height_cm { get; set; }
+        public decimal? weight_kg { get; set; }
+        public decimal? bmi { get; set; }
+        public decimal? temperature_f { get; set; }
+        public int? pulse_rate { get; set; }
+        public int? respiratory_rate { get; set; }
+        public int? bp_systolic { get; set; }
+        public int? bp_diastolic { get; set; }
+        public decimal? spo2 { get; set; }
+        public decimal? sugar_level { get; set; }
+        public int? pain_scale { get; set; }
+        public decimal? waist_cm { get; set; }
+        public decimal? hip_cm { get; set; }
+        public string? pedal_oedema { get; set; }
+        public string? jvp { get; set; }
+        public string? cvs { get; set; }
+        public string? rs { get; set; }
+        public string? cns { get; set; }
+        public string? abdomen { get; set; }
+        public string? cardiac_monitor { get; set; }
+        public string? cd_echo { get; set; }
+        public string? blood_chemistry { get; set; }
+        public string? allergy_notes { get; set; }
+        public decimal? hba1c { get; set; }
+        public string? ecg_notes { get; set; }
+        public decimal? head_circumference_cm { get; set; }
+
+        // Prescription & Investigation Remarks
+        public string? topremarks { get; set; }
+        public string? bottonremarks { get; set; }
+        public string? InvestigationNotes { get; set; }
+        public bool? IsInvestigationUrgent { get; set; }
     }
 
     public class CasesheetSymptomItemDto

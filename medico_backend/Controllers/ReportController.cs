@@ -11,7 +11,7 @@ namespace medico_backend.Controllers
     public class ReportController : ControllerBase
     {
         private readonly ReportClass _reportClass;
-        
+
         public ReportController(ReportClass reportClass)
         {
             _reportClass = reportClass;
@@ -105,23 +105,23 @@ namespace medico_backend.Controllers
         }
 
         [HttpGet("getreferralreceipt")]
-        public async Task<IActionResult> ReferralReceipt([FromQuery] Guid receiptguid)
+        public async Task<IActionResult> ReferralReceipt([FromQuery] Guid receiptguid, [FromQuery] bool? isletterhead = false)
         {
-            var res = await _reportClass.ReferralReceiptPDF(receiptguid, T);
+            var res = await _reportClass.ReferralReceiptPDF(receiptguid, T, isletterhead);
             return Ok(res);
         }
 
         [HttpGet("getpatientreceipt")]
-        public async Task<IActionResult> PatientReceipt([FromQuery] Guid receiptguid)
+        public async Task<IActionResult> PatientReceipt([FromQuery] Guid receiptguid, [FromQuery] bool? isletterhead = false)
         {
-            var res = await _reportClass.PatientReceiptPDF(receiptguid, T);
+            var res = await _reportClass.PatientReceiptPDF(receiptguid, T, isletterhead);
             return Ok(res);
         }
 
         [HttpGet("getbill")]
-        public async Task<IActionResult> Bill([FromQuery] Guid requestguid)
+        public async Task<IActionResult> Bill([FromQuery] Guid requestguid, [FromQuery] bool? isletterhead = false)
         {
-            var res = await _reportClass.BillPDF(requestguid, T);
+            var res = await _reportClass.BillPDF(requestguid, T, isletterhead);
             return Ok(res);
         }
 
@@ -173,22 +173,22 @@ namespace medico_backend.Controllers
         }
 
         [HttpGet("getopcasesheet")]
-        public async Task<IActionResult> GetOPCasesheet([FromQuery] Guid sheet_id)
+        public async Task<IActionResult> GetOPCasesheet([FromQuery] Guid sheet_id, [FromQuery] bool? isletterhead = false)
         {
             if (string.IsNullOrWhiteSpace(T))
                 return BadRequest(new { success = false, message = "tenant_code header required" });
 
-            var res = await _reportClass.OPCasesheetPDF(sheet_id, T);
+            var res = await _reportClass.OPCasesheetPDF(sheet_id, T, isletterhead);
             return Ok(res);
         }
 
         [HttpGet("getipcasesheet")]
-        public async Task<IActionResult> GetIPCasesheet([FromQuery] Guid sheet_id)
+        public async Task<IActionResult> GetIPCasesheet([FromQuery] Guid sheet_id, [FromQuery] bool? isletterhead = false)
         {
             if (string.IsNullOrWhiteSpace(T))
                 return BadRequest(new { success = false, message = "tenant_code header required" });
 
-            var res = await _reportClass.IPCasesheetPDF(sheet_id, T);
+            var res = await _reportClass.IPCasesheetPDF(sheet_id, T, isletterhead);
             return Ok(res);
         }
     }
