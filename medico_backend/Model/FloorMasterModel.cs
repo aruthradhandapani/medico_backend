@@ -29,5 +29,7 @@ namespace Medico_Backend.Model
         public int? branchcode { get; set; }
 
         public string? tenant_code { get; set; }
+
+        public int? blockcode { get; set; }
     }
 }

@@ -171,5 +171,63 @@ namespace Medico_Backend.Class
             var res = await db.QueryAsync<BedMasterModel>(sql, new { rmtcode, tenant_code });
             return res.ToList();
         }
+        // ─────────────────────────────────────────
+        // GET AVAILABLE BEDS (not currently occupied)
+        // Optional filters: branchcode, blockcode, flrcode, wrdcode, rmtcode
+        // ─────────────────────────────────────────
+        public async Task<List<dynamic>> GetAvailableBeds(
+            string tenant_code,
+            int? branchcode = null,
+            int? blockcode = null,
+            int? flrcode = null,
+            int? wrdcode = null,
+            int? rmtcode = null)
+        {
+            using IDbConnection db = new NpgsqlConnection(db_conn);
+
+            string sql = @"
+        SELECT
+            bm.bedcode, bm.bedname, bm.shortname,
+            bm.branchcode, bm.rmtcode, bm.wrdcode, bm.flrcode, bm.hdcode,
+            bm.islaundry,
+            rm.name  AS roomtype_name,
+            rm.roomrate,
+            wm.name  AS ward_name,
+            fm.name  AS floor_name,
+            fm.blockcode,
+            bk.name  AS block_name
+        FROM public.bed_master bm
+        LEFT JOIN public.roomtype_master rm ON rm.rmtcode = bm.rmtcode AND rm.tenant_code = bm.tenant_code
+        LEFT JOIN public.ward_master wm ON wm.wrdcode = bm.wrdcode AND wm.tenant_code = bm.tenant_code
+        LEFT JOIN public.floor_master fm ON fm.flrcode = bm.flrcode AND fm.tenant_code = bm.tenant_code
+        LEFT JOIN public.block_master bk ON bk.blockcode = fm.blockcode AND bk.tenant_code = bm.tenant_code
+        WHERE (bm.deleted IS NULL OR bm.deleted = false)
+          AND bm.tenant_code = @tenant_code
+          AND (@branchcode IS NULL OR bm.branchcode = @branchcode)
+          AND (@blockcode  IS NULL OR fm.blockcode  = @blockcode)
+          AND (@flrcode    IS NULL OR bm.flrcode    = @flrcode)
+          AND (@wrdcode    IS NULL OR bm.wrdcode    = @wrdcode)
+          AND (@rmtcode    IS NULL OR bm.rmtcode    = @rmtcode)
+          AND NOT EXISTS (
+              SELECT 1 FROM ip_registration ip
+              WHERE ip.bedcode = bm.bedcode
+                AND ip.tenant_code = bm.tenant_code
+                AND ip.ip_status = 'ADMITTED'
+                AND ip.isdeleted = false
+          )
+        ORDER BY fm.orderno, wm.orderno, bm.orderno";
+
+            var res = await db.QueryAsync<dynamic>(sql, new
+            {
+                tenant_code,
+                branchcode,
+                blockcode,
+                flrcode,
+                wrdcode,
+                rmtcode
+            });
+
+            return res.ToList();
+        }
     }
 }

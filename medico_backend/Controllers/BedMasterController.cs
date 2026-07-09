@@ -92,5 +92,14 @@ namespace Medico_Backend.Controllers
 
             return Ok(new { message = "Bed deleted successfully" });
         }
+        // ─── Get Available Beds (with optional block/floor/ward/roomtype filters) ─
+        [HttpGet("get-available")]
+        public async Task<IActionResult> GetAvailableBeds(
+            int? branchcode, int? blockcode, int? flrcode, int? wrdcode, int? rmtcode)
+        {
+            var tenant = Request.Headers["tenant_code"].ToString();
+            var res = await _cls.GetAvailableBeds(tenant, branchcode, blockcode, flrcode, wrdcode, rmtcode);
+            return Ok(res);
+        }
     }
 }
