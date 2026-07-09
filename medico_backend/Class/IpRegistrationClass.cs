@@ -340,7 +340,7 @@ namespace medico_backend.Class
             return res.ToList();
         }
         // ─────────────────────────────────────────
-        // UPDATE (partial — only non-null fields applied)
+        // UPDATE (full replace of entered fields — same shape as Create)
         // ─────────────────────────────────────────
         public async Task<string> Update(UpdateIpRegistrationRequest req, string tenant_code)
         {
@@ -354,53 +354,67 @@ namespace medico_backend.Class
             if (existing.ip_status == "DISCHARGED") return "Cannot update a discharged record";
             if (existing.ip_status == "CANCELLED") return "Cannot update a cancelled record";
 
-            existing.dcode = req.dcode ?? existing.dcode;
-            existing.referring_dcode = req.referring_dcode ?? existing.referring_dcode;
-            existing.department_code = req.department_code ?? existing.department_code;
-            existing.admission_reason = req.admission_reason ?? existing.admission_reason;
-            existing.expected_dischargedate = req.expected_dischargedate ?? existing.expected_dischargedate;
-            existing.isinsurancepatient = req.isinsurancepatient ?? existing.isinsurancepatient;
-            existing.insurance_company = req.insurance_company ?? existing.insurance_company;
-            existing.policyno = req.policyno ?? existing.policyno;
-            existing.authorizationno = req.authorizationno ?? existing.authorizationno;
-            existing.tpa_name = req.tpa_name ?? existing.tpa_name;
-            existing.insurance_approved_amount = req.insurance_approved_amount ?? existing.insurance_approved_amount;
-            existing.insurance_status = req.insurance_status ?? existing.insurance_status;
-            existing.guardian_name = req.guardian_name ?? existing.guardian_name;
-            existing.guardian_relation = req.guardian_relation ?? existing.guardian_relation;
-            existing.guardian_contact = req.guardian_contact ?? existing.guardian_contact;
-            existing.notes = req.notes ?? existing.notes;
-            existing.updated_at = DateTime.SpecifyKind(DateTime.UtcNow, DateTimeKind.Utc);
+            if (req.isinsurancepatient && string.IsNullOrWhiteSpace(req.policyno))
+                return "policyno is required for insurance patients";
 
             string sql = @"UPDATE ip_registration SET
-        dcode = @dcode, referring_dcode = @referring_dcode, department_code = @department_code,
-        admission_reason = @admission_reason, expected_dischargedate = @expected_dischargedate,
-        isinsurancepatient = @isinsurancepatient, insurance_company = @insurance_company,
-        policyno = @policyno, authorizationno = @authorizationno, tpa_name = @tpa_name,
-        insurance_approved_amount = @insurance_approved_amount, insurance_status = @insurance_status,
-        guardian_name = @guardian_name, guardian_relation = @guardian_relation, guardian_contact = @guardian_contact,
-        notes = @notes, updated_at = @updated_at
+        custid                    = @custid,
+        booking_id                = @booking_id,
+        op_id                      = @op_id,
+        dcode                     = @dcode,
+        referring_dcode            = @referring_dcode,
+        department_code            = @department_code,
+        admission_type             = @admission_type,
+        admission_reason           = @admission_reason,
+        admitdate                  = @admitdate,
+        expected_dischargedate     = @expected_dischargedate,
+        branchcode                 = @branchcode,
+        blockcode                  = @blockcode,
+        flrcode                    = @flrcode,
+        wrdcode                    = @wrdcode,
+        rmtcode                    = @rmtcode,
+        isinsurancepatient         = @isinsurancepatient,
+        insurance_company          = @insurance_company,
+        policyno                   = @policyno,
+        authorizationno            = @authorizationno,
+        tpa_name                   = @tpa_name,
+        insurance_approved_amount  = @insurance_approved_amount,
+        insurance_status           = @insurance_status,
+        guardian_name              = @guardian_name,
+        guardian_relation          = @guardian_relation,
+        guardian_contact           = @guardian_contact,
+        notes                      = @notes,
+        updated_at                 = now()
         WHERE ip_id = @ip_id AND tenant_code = @tenant_code";
 
             int rows = await db.ExecuteAsync(sql, new
             {
-                existing.dcode,
-                existing.referring_dcode,
-                existing.department_code,
-                existing.admission_reason,
-                existing.expected_dischargedate,
-                existing.isinsurancepatient,
-                existing.insurance_company,
-                existing.policyno,
-                existing.authorizationno,
-                existing.tpa_name,
-                existing.insurance_approved_amount,
-                existing.insurance_status,
-                existing.guardian_name,
-                existing.guardian_relation,
-                existing.guardian_contact,
-                existing.notes,
-                existing.updated_at,
+                req.custid,
+                req.booking_id,
+                req.op_id,
+                req.dcode,
+                req.referring_dcode,
+                req.department_code,
+                admission_type = string.IsNullOrWhiteSpace(req.admission_type) ? existing.admission_type : req.admission_type.ToUpper(),
+                req.admission_reason,
+                admitdate = req.admitdate ?? existing.admitdate,
+                req.expected_dischargedate,
+                req.branchcode,
+                req.blockcode,
+                req.flrcode,
+                req.wrdcode,
+                req.rmtcode,
+                req.isinsurancepatient,
+                req.insurance_company,
+                req.policyno,
+                req.authorizationno,
+                req.tpa_name,
+                req.insurance_approved_amount,
+                insurance_status = req.insurance_status ?? (req.isinsurancepatient ? existing.insurance_status : null),
+                req.guardian_name,
+                req.guardian_relation,
+                req.guardian_contact,
+                req.notes,
                 req.ip_id,
                 tenant_code
             });
