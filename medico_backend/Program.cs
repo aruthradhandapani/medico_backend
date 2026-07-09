@@ -136,6 +136,8 @@ builder.Services.AddScoped<BlockMasterClass>();
 builder.Services.AddScoped<BlockMasterController>();
 builder.Services.AddScoped<IpRegistrationClass>();
 builder.Services.AddScoped<IpRegistrationController>();
+builder.Services.AddScoped<TenantClass>();
+builder.Services.AddScoped<TenantController>();
 
 builder.Services.AddSingleton<IAmazonS3>(sp =>
 {
