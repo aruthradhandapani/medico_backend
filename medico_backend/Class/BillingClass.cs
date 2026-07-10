@@ -115,6 +115,9 @@ namespace medico_backend.Class
                     pmc1 = req.pmc1 ?? 0,
                     pmc2 = req.pmc2 ?? 0,
                     pmc3 = req.pmc3 ?? 0,
+                    pmc1_amount = req.pmc1_amount ?? 0,
+                    pmc2_amount = req.pmc2_amount ?? 0,
+                    pmc3_amount = req.pmc3_amount ?? 0,
                     iscashbill = req.iscashbill,
                     iscreditbill = req.iscreditbill,
                     isinvestigation = true,
@@ -258,6 +261,9 @@ namespace medico_backend.Class
                 existingMaster.pmc1 = req.pmc1 ?? 0;
                 existingMaster.pmc2 = req.pmc2 ?? 0;
                 existingMaster.pmc3 = req.pmc3 ?? 0;
+                existingMaster.pmc1_amount = req.pmc1_amount ?? 0;
+                existingMaster.pmc2_amount = req.pmc2_amount ?? 0;
+                existingMaster.pmc3_amount = req.pmc3_amount ?? 0;
                 existingMaster.iscashbill = req.iscashbill;
                 existingMaster.iscreditbill = req.iscreditbill;
                 existingMaster.isinsurancepatient = req.isinsurancepatient;
@@ -612,6 +618,9 @@ namespace medico_backend.Class
                 masterBill.pmc1 = (masterBill.pmc1 ?? 0) + (req.pmc1 ?? 0);
                 masterBill.pmc2 = (masterBill.pmc2 ?? 0) + (req.pmc2 ?? 0);
                 masterBill.pmc3 = (masterBill.pmc3 ?? 0) + (req.pmc3 ?? 0);
+                masterBill.pmc1_amount = (masterBill.pmc1_amount ?? 0) + (req.pmc1_amount ?? 0);
+                masterBill.pmc2_amount = (masterBill.pmc2_amount ?? 0) + (req.pmc2_amount ?? 0);
+                masterBill.pmc3_amount = (masterBill.pmc3_amount ?? 0) + (req.pmc3_amount ?? 0);
 
                 await db.UpdateAsync(masterBill, tx);
 
@@ -794,6 +803,9 @@ namespace medico_backend.Class
                 pmc1 = master.pmc1,
                 pmc2 = master.pmc2,
                 pmc3 = master.pmc3,
+                pmc1_amount = master.pmc1_amount,
+                pmc2_amount = master.pmc2_amount,
+                pmc3_amount = master.pmc3_amount,
                 counter_name = master.countername,
                 receiptguid = receiptProfile?.receiptguid,
                 receipt_no = receiptProfile?.receiptsnoprint,
@@ -1388,6 +1400,9 @@ namespace medico_backend.Class
                 existing.pmc1 = req.pmc1 ?? existing.pmc1;
                 existing.pmc2 = req.pmc2 ?? existing.pmc2;
                 existing.pmc3 = req.pmc3 ?? existing.pmc3;
+                existing.pmc1_amount = req.pmc1_amount ?? existing.pmc1_amount;
+                existing.pmc2_amount = req.pmc2_amount ?? existing.pmc2_amount;
+                existing.pmc3_amount = req.pmc3_amount ?? existing.pmc3_amount;
                 existing.iscashbill = req.iscashbill ?? existing.iscashbill;
                 existing.iscreditbill = req.iscreditbill ?? existing.iscreditbill;
                 existing.isinsurancepatient = req.isinsurancepatient ?? existing.isinsurancepatient;

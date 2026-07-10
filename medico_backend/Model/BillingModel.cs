@@ -57,6 +57,9 @@ namespace medico_backend.Model
         public double? pmc1 { get; set; }
         public double? pmc2 { get; set; }
         public double? pmc3 { get; set; }
+        public double? pmc1_amount { get; set; }   
+        public double? pmc2_amount { get; set; }   
+        public double? pmc3_amount { get; set; }
         public bool? iscashbill { get; set; }
         public bool? iscreditbill { get; set; }
         public bool? isinvestigation { get; set; }
@@ -310,6 +313,9 @@ namespace medico_backend.Model
         public double? pmc1 { get; set; }
         public double? pmc2 { get; set; }
         public double? pmc3 { get; set; }
+        public double? pmc1_amount { get; set; }
+        public double? pmc2_amount { get; set; }
+        public double? pmc3_amount { get; set; }
         public string collection_type { get; set; } = "CASH";
         public bool? iscashbill { get; set; }
         public bool? iscreditbill { get; set; }
@@ -353,6 +359,9 @@ namespace medico_backend.Model
         public double? pmc1 { get; set; }
         public double? pmc2 { get; set; }
         public double? pmc3 { get; set; }
+        public double? pmc1_amount { get; set; }
+        public double? pmc2_amount { get; set; }
+        public double? pmc3_amount { get; set; }
     }
 
     public class CancelHmsBillRequest
@@ -420,6 +429,9 @@ namespace medico_backend.Model
         public double? pmc1 { get; set; }
         public double? pmc2 { get; set; }
         public double? pmc3 { get; set; }
+        public double? pmc1_amount { get; set; }
+        public double? pmc2_amount { get; set; }
+        public double? pmc3_amount { get; set; }
         public string? receiptguid { get; set; }
         public string? receipt_no { get; set; }
         public string? receipt_barcode { get; set; }
@@ -694,6 +706,9 @@ namespace medico_backend.Model
         public double? pmc1 { get; set; }
         public double? pmc2 { get; set; }
         public double? pmc3 { get; set; }
+        public double? pmc1_amount { get; set; }
+        public double? pmc2_amount { get; set; }
+        public double? pmc3_amount { get; set; }
         public bool? iscashbill { get; set; }
         public bool? iscreditbill { get; set; }
         public bool? isinsurancepatient { get; set; }
@@ -730,6 +745,9 @@ namespace medico_backend.Model
         public double? balance_amount { get; set; }
         public bool is_settled { get; set; }
         public string? message { get; set; }
+        public double? pmc1_amount { get; set; }
+        public double? pmc2_amount { get; set; }
+        public double? pmc3_amount { get; set; }
         public List<HmsBillLineResponse> items { get; set; } = new();
     }
 }
