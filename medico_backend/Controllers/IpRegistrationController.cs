@@ -31,13 +31,8 @@ namespace medico_backend.Controllers
             return Ok(res);
         }
 
-        [HttpPost("transfer-bed")]
-        public async Task<IActionResult> TransferBed([FromBody] IpBedTransferRequest req)
-        {
-            var tenant = Request.Headers["tenant_code"].ToString();
-            var res = await cls.TransferBed(req, tenant);
-            return Ok(res);
-        }
+        // NOTE: bed/room transfers now go through BedTransferController -> POST /api/BedTransfer/insert
+        // That endpoint updates ip_registration's bed/room fields AND bed_status in one transaction.
 
         [HttpGet("get")]
         public async Task<IActionResult> GetAll(string? ip_status, int? dcode)
@@ -63,6 +58,7 @@ namespace medico_backend.Controllers
             var res = await cls.GetActiveAdmissions(tenant);
             return Ok(res);
         }
+
         [HttpPost("update")]
         public async Task<IActionResult> Update([FromBody] UpdateIpRegistrationRequest req)
         {

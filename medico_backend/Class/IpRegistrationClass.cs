@@ -9,15 +9,16 @@ namespace medico_backend.Class
     public class IpRegistrationClass
     {
         private readonly string _db_conn;
+        private readonly BedStatusClass _bedStatusCls;
 
-        public IpRegistrationClass(IConfiguration configuration)
+        public IpRegistrationClass(IConfiguration configuration, BedStatusClass bedStatusCls)
         {
             _db_conn = configuration.GetConnectionString("conn")!;
+            _bedStatusCls = bedStatusCls;
         }
 
         // ─────────────────────────────────────────
         // GENERATE IP NUMBER
-        // Format: IPD/2026/07/0001 — resets each month
         // ─────────────────────────────────────────
         private async Task<string> GenerateIpNo(IDbConnection db, string tenant_code)
         {
@@ -40,6 +41,7 @@ namespace medico_backend.Class
 
         // ─────────────────────────────────────────
         // CREATE IP REGISTRATION (ADMIT PATIENT)
+        // Writes: ip_registration + bed_status (OCCUPIED). NOT bed_transfer.
         // ─────────────────────────────────────────
         public async Task<string> CreateIpRegistration(CreateIpRegistrationRequest req, string tenant_code)
         {
@@ -49,14 +51,12 @@ namespace medico_backend.Class
 
             try
             {
-                // ── Validate insurance fields if patient is insured ─────
                 if (req.isinsurancepatient && string.IsNullOrWhiteSpace(req.policyno))
                 {
                     tx.Rollback();
                     return "policyno is required for insurance patients";
                 }
 
-                // ── Validate bed is free ────────────────────────────────
                 var bedRow = await db.QueryFirstOrDefaultAsync(
                     @"SELECT bedcode FROM public.bed_master
                       WHERE bedcode = @bedcode AND tenant_code = @tenant_code
@@ -139,6 +139,10 @@ namespace medico_backend.Class
                      @notes, @tenant_code, @isdeleted, @created_at, @updated_at)",
                     data, tx);
 
+                // ── Log OCCUPIED in bed_status ONLY (no bed_transfer insert here) ──
+                await _bedStatusCls.InsertOccupied(
+                    db, tx, data.bedcode!.Value, data.ip_id, data.ip_no, data.custid,
+                    data.admitdate, tenant_code);
 
                 tx.Commit();
                 return $"Success|IpNo:{data.ip_no}|IpId:{data.ip_id}";
@@ -152,50 +156,9 @@ namespace medico_backend.Class
 
         // ─────────────────────────────────────────
         // DISCHARGE PATIENT
+        // Updates ip_registration + marks bed_status VACANT. No bed_transfer touch.
         // ─────────────────────────────────────────
         public async Task<string> Discharge(DischargeRequest req, string tenant_code)
-        {
-            using IDbConnection db = new NpgsqlConnection(_db_conn);
-
-            var existing = await db.QueryFirstOrDefaultAsync<IpRegistrationModel>(
-                "SELECT * FROM ip_registration WHERE ip_id = @ip_id AND tenant_code = @tenant_code AND isdeleted = false",
-                new { req.ip_id, tenant_code });
-
-            if (existing == null) return "IP Registration not found";
-            if (existing.ip_status == "DISCHARGED") return "Patient already discharged";
-
-            string sql = @"UPDATE ip_registration
-                           SET ip_status         = 'DISCHARGED',
-                               dischargedate     = now(),
-                               discharge_type    = @discharge_type,
-                               discharge_summary = @discharge_summary,
-                               updated_at        = now()
-                           WHERE ip_id = @ip_id AND tenant_code = @tenant_code";
-
-            int rows = await db.ExecuteAsync(sql, new
-            {
-                req.ip_id,
-                discharge_type = req.discharge_type.ToUpper(),
-                req.discharge_summary,
-                tenant_code
-            });
-
-            if (rows == 0) return "Update failed";
-
-            // Mark bed_transfer as checked out
-            await db.ExecuteAsync(@"
-                UPDATE public.bed_transfer
-                SET ischeckout = true, transferdate = now()
-                WHERE lastvisitid = @lastvisitid AND tenant_code = @tenant_code",
-                new { lastvisitid = req.ip_id.ToString(), tenant_code });
-
-            return "Success";
-        }
-
-        // ─────────────────────────────────────────
-        // TRANSFER BED (during admission)
-        // ─────────────────────────────────────────
-        public async Task<string> TransferBed(IpBedTransferRequest req, string tenant_code)
         {
             using IDbConnection db = new NpgsqlConnection(_db_conn);
             db.Open();
@@ -208,47 +171,26 @@ namespace medico_backend.Class
                     new { req.ip_id, tenant_code }, tx);
 
                 if (existing == null) { tx.Rollback(); return "IP Registration not found"; }
-                if (existing.ip_status != "ADMITTED") { tx.Rollback(); return "Patient is not currently admitted"; }
-
-                var occupied = await db.QueryFirstOrDefaultAsync(
-                    @"SELECT ip_id FROM ip_registration
-                      WHERE bedcode = @transbed AND tenant_code = @tenant_code
-                      AND ip_status = 'ADMITTED' AND isdeleted = false AND ip_id <> @ip_id",
-                    new { req.transbed, tenant_code, req.ip_id }, tx);
-
-                if (occupied != null) { tx.Rollback(); return "Target bed is already occupied"; }
+                if (existing.ip_status == "DISCHARGED") { tx.Rollback(); return "Patient already discharged"; }
 
                 await db.ExecuteAsync(@"
                     UPDATE ip_registration
-                    SET flrcode = @transfloor, wrdcode = @transward, bedcode = @transbed,
+                    SET ip_status = 'DISCHARGED',
+                        dischargedate = now(),
+                        discharge_type = @discharge_type,
+                        discharge_summary = @discharge_summary,
                         updated_at = now()
                     WHERE ip_id = @ip_id AND tenant_code = @tenant_code",
-                    new { req.transfloor, req.transward, req.transbed, req.ip_id, tenant_code }, tx);
-
-                await db.ExecuteAsync(@"
-                    INSERT INTO public.bed_transfer
-                    (lastvisitid, custid, admitteddate, currentfloor, currentroom, currentbed,
-                     transferdate, transfloor, transroom, transbed, transferedby, reason,
-                     ischeckout, tenant_code, entereddate)
-                    VALUES
-                    (@lastvisitid, @custid, @admitteddate, @currentfloor, @currentroom, @currentbed,
-                     now(), @transfloor, @transroom, @transbed, @transferedby, @reason,
-                     false, @tenant_code, now())",
                     new
                     {
-                        lastvisitid = req.ip_id.ToString(),
-                        existing.custid,
-                        admitteddate = existing.admitdate,
-                        currentfloor = existing.flrcode,
-                        currentroom = existing.rmtcode,
-                        currentbed = existing.bedcode,
-                        req.transfloor,
-                        req.transroom,
-                        req.transbed,
-                        req.transferedby,
-                        req.reason,
+                        req.ip_id,
+                        discharge_type = req.discharge_type.ToUpper(),
+                        req.discharge_summary,
                         tenant_code
                     }, tx);
+
+                // ── Mark bed VACANT (needs cleaning) in bed_status ──────
+                await _bedStatusCls.MarkVacant(db, tx, existing.bedcode!.Value, existing.ip_id, tenant_code);
 
                 tx.Commit();
                 return "Success";
@@ -319,8 +261,11 @@ namespace medico_backend.Class
             var res = await db.QueryAsync<dynamic>(sql, new { tenant_code });
             return res.ToList();
         }
+
         // ─────────────────────────────────────────
-        // UPDATE (full replace of entered fields — same shape as Create)
+        // UPDATE — IP/ADMISSION DETAILS ONLY.
+        // Does NOT touch branchcode/blockcode/flrcode/wrdcode/rmtcode/bedcode.
+        // Use BedTransferController → /insert to move a patient's bed/room.
         // ─────────────────────────────────────────
         public async Task<string> Update(UpdateIpRegistrationRequest req, string tenant_code)
         {
@@ -338,34 +283,29 @@ namespace medico_backend.Class
                 return "policyno is required for insurance patients";
 
             string sql = @"UPDATE ip_registration SET
-        custid                    = @custid,
-        booking_id                = @booking_id,
-        op_id                      = @op_id,
-        dcode                     = @dcode,
-        referring_dcode            = @referring_dcode,
-        department_code            = @department_code,
-        admission_type             = @admission_type,
-        admission_reason           = @admission_reason,
-        admitdate                  = @admitdate,
-        expected_dischargedate     = @expected_dischargedate,
-        branchcode                 = @branchcode,
-        blockcode                  = @blockcode,
-        flrcode                    = @flrcode,
-        wrdcode                    = @wrdcode,
-        rmtcode                    = @rmtcode,
-        isinsurancepatient         = @isinsurancepatient,
-        insurance_company          = @insurance_company,
-        policyno                   = @policyno,
-        authorizationno            = @authorizationno,
-        tpa_name                   = @tpa_name,
-        insurance_approved_amount  = @insurance_approved_amount,
-        insurance_status           = @insurance_status,
-        guardian_name              = @guardian_name,
-        guardian_relation          = @guardian_relation,
-        guardian_contact           = @guardian_contact,
-        notes                      = @notes,
-        updated_at                 = now()
-        WHERE ip_id = @ip_id AND tenant_code = @tenant_code";
+                custid                    = @custid,
+                booking_id                = @booking_id,
+                op_id                      = @op_id,
+                dcode                     = @dcode,
+                referring_dcode            = @referring_dcode,
+                department_code            = @department_code,
+                admission_type             = @admission_type,
+                admission_reason           = @admission_reason,
+                admitdate                  = @admitdate,
+                expected_dischargedate     = @expected_dischargedate,
+                isinsurancepatient         = @isinsurancepatient,
+                insurance_company          = @insurance_company,
+                policyno                   = @policyno,
+                authorizationno            = @authorizationno,
+                tpa_name                   = @tpa_name,
+                insurance_approved_amount  = @insurance_approved_amount,
+                insurance_status           = @insurance_status,
+                guardian_name              = @guardian_name,
+                guardian_relation          = @guardian_relation,
+                guardian_contact           = @guardian_contact,
+                notes                      = @notes,
+                updated_at                 = now()
+                WHERE ip_id = @ip_id AND tenant_code = @tenant_code";
 
             int rows = await db.ExecuteAsync(sql, new
             {
@@ -379,11 +319,6 @@ namespace medico_backend.Class
                 req.admission_reason,
                 admitdate = req.admitdate ?? existing.admitdate,
                 req.expected_dischargedate,
-                req.branchcode,
-                req.blockcode,
-                req.flrcode,
-                req.wrdcode,
-                req.rmtcode,
                 req.isinsurancepatient,
                 req.insurance_company,
                 req.policyno,
@@ -403,8 +338,8 @@ namespace medico_backend.Class
         }
 
         // ─────────────────────────────────────────
-        // CANCEL ADMISSION (soft delete — only if never actually admitted/occupied)
-        // Frees the bed if one was reserved. Cannot cancel once discharged.
+        // CANCEL ADMISSION
+        // Marks ip_registration cancelled + bed_status VACANT. No bed_transfer touch.
         // ─────────────────────────────────────────
         public async Task<string> CancelAdmission(CancelAdmissionRequest req, string tenant_code)
         {
@@ -422,17 +357,14 @@ namespace medico_backend.Class
                 if (existing.ip_status == "DISCHARGED") { tx.Rollback(); return "Cannot cancel a discharged admission"; }
 
                 await db.ExecuteAsync(@"
-            UPDATE ip_registration
-            SET ip_status = 'CANCELLED', isdeleted = true, notes = COALESCE(notes || ' | ', '') || @reason, updated_at = now()
-            WHERE ip_id = @ip_id AND tenant_code = @tenant_code",
+                    UPDATE ip_registration
+                    SET ip_status = 'CANCELLED', isdeleted = true,
+                        notes = COALESCE(notes || ' | ', '') || @reason, updated_at = now()
+                    WHERE ip_id = @ip_id AND tenant_code = @tenant_code",
                     new { ip_id = req.ip_id, reason = "Cancelled: " + (req.reason ?? "No reason given"), tenant_code }, tx);
 
-                // Free up the bed_transfer record too
-                await db.ExecuteAsync(@"
-            UPDATE public.bed_transfer
-            SET ischeckout = true, transferdate = now()
-            WHERE lastvisitid = @lastvisitid AND tenant_code = @tenant_code",
-                    new { lastvisitid = req.ip_id.ToString(), tenant_code }, tx);
+                // ── Free the bed in bed_status ──────────────────────────
+                await _bedStatusCls.MarkVacant(db, tx, existing.bedcode!.Value, existing.ip_id, tenant_code);
 
                 tx.Commit();
                 return "Success";

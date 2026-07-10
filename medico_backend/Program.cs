@@ -140,6 +140,8 @@ builder.Services.AddScoped<TenantClass>();
 builder.Services.AddScoped<TenantController>();
 builder.Services.AddScoped<ReportClass>();
 builder.Services.AddScoped<ReportController>();
+builder.Services.AddScoped<BedStatusClass>();
+builder.Services.AddScoped<BedStatusController>();
 
 builder.Services.AddSingleton<IAmazonS3>(sp =>
 {

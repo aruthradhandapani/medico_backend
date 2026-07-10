@@ -103,16 +103,8 @@ namespace medico_backend.Model
             public string? discharge_summary { get; set; }
         }
 
-        public class IpBedTransferRequest
-        {
-            public Guid ip_id { get; set; }
-            public int transfloor { get; set; }
-            public int transroom { get; set; }
-            public int transward { get; set; }
-            public int transbed { get; set; }
-            public string? reason { get; set; }
-            public string? transferedby { get; set; }
-        }
+        // ─── UPDATE — IP/admission details ONLY. No bed/room fields.
+        //     Room/bed changes must go through BedTransferController → /insert.
         public class UpdateIpRegistrationRequest
         {
             public Guid ip_id { get; set; }
@@ -126,13 +118,6 @@ namespace medico_backend.Model
             public string? admission_reason { get; set; }
             public DateTime? admitdate { get; set; }
             public DateTime? expected_dischargedate { get; set; }
-
-            public int? branchcode { get; set; }
-            public int? blockcode { get; set; }
-            public int? flrcode { get; set; }
-            public int? wrdcode { get; set; }
-            public int? rmtcode { get; set; }
-            // bedcode intentionally excluded — use /transfer-bed to change bed allocation
 
             public bool isinsurancepatient { get; set; } = false;
             public string? insurance_company { get; set; }
