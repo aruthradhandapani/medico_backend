@@ -50,8 +50,6 @@ builder.Services.AddScoped<ItemMasterClass>();
 builder.Services.AddScoped<ItemMasterController>();
 builder.Services.AddScoped<PrefixMasterClass>();
 builder.Services.AddScoped<PrefixMasterController>();
-builder.Services.AddScoped<UserMasterClass>();
-builder.Services.AddScoped<UserMasterController>();
 builder.Services.AddScoped<AppointmentBookingClass>();
 builder.Services.AddScoped<AppointmentBookingController>();
 builder.Services.AddScoped<DoctorAppointmentSlotTypeController>();
@@ -142,6 +140,8 @@ builder.Services.AddScoped<ReportClass>();
 builder.Services.AddScoped<ReportController>();
 builder.Services.AddScoped<BedStatusClass>();
 builder.Services.AddScoped<BedStatusController>();
+builder.Services.AddScoped<PaymodeMasterClass>();
+builder.Services.AddScoped<PaymodeMasterController>();
 
 builder.Services.AddSingleton<IAmazonS3>(sp =>
 {
