@@ -168,5 +168,25 @@ namespace medico_backend.Class
             var res = await db.QueryAsync<BedStatusModel>(sql, new { tenant_code });
             return res.ToList();
         }
+        // ─────────────────────────────────────────
+        // MARK VACANT AND IMMEDIATELY AVAILABLE (used for TRANSFER only)
+        // Unlike MarkVacant (used for discharge/cancel, which requires housekeeping
+        // to clean before the bed is reusable), a transferred-out bed skips the
+        // cleaning gate and becomes available right away.
+        // ─────────────────────────────────────────
+        public async Task MarkVacantAvailable(
+            IDbConnection db, IDbTransaction tx,
+            int bedcode, Guid ip_id, string tenant_code)
+        {
+            await db.ExecuteAsync(@"
+        UPDATE public.bed_status
+        SET status = 'AVAILABLE',
+            discharged_at = now(),
+            is_cleaned = true,
+            updated_at = now()
+        WHERE bedcode = @bedcode AND ip_id = @ip_id
+        AND tenant_code = @tenant_code AND status = 'OCCUPIED'",
+                new { bedcode, ip_id, tenant_code }, tx);
+        }
     }
 }

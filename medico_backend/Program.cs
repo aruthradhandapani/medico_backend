@@ -143,6 +143,7 @@ builder.Services.AddScoped<BedStatusController>();
 builder.Services.AddScoped<PaymodeMasterClass>();
 builder.Services.AddScoped<PaymodeMasterController>();
 
+
 builder.Services.AddSingleton<IAmazonS3>(sp =>
 {
     var config = sp.GetRequiredService<IConfiguration>();
