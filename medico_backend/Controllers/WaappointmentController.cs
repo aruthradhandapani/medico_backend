@@ -87,16 +87,6 @@ namespace medico_backend.Controller
 
             return Ok(new { message = "Session closed successfully." });
         }
-        [HttpPost("insert-full")]
-        [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(WaAppointmentSession))]
-        [ProducesResponseType(StatusCodes.Status400BadRequest)]
-        public async Task<IActionResult> InsertFullSession([FromBody] InsertFullWaSessionRequest req)
-        {
-            var (status, data) = await _sessionService.InsertFullSession(req);
-            if (status != "SUCCESS")
-                return BadRequest(new { message = status });
 
-            return Ok(data);
-        }
     }
 }

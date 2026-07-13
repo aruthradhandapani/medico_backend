@@ -101,15 +101,14 @@ namespace Medico_Backend.Controllers
             var res = await _cls.GetAvailableBeds(tenant, branchcode, blockcode, flrcode, wrdcode, rmtcode);
             return Ok(res);
         }
-        // ─── Get Occupied Beds (companion view) ────────────────────────
-        [HttpGet("get-occupied")]
-        public async Task<IActionResult> GetOccupiedBeds(
+        // ─── Get Beds Pending Cleaning (with location/roomtype details) ───
+        [HttpGet("get-pending-cleaning")]
+        public async Task<IActionResult> GetPendingCleaningBeds(
             int? branchcode, int? blockcode, int? flrcode, int? wrdcode, int? rmtcode)
         {
             var tenant = Request.Headers["tenant_code"].ToString();
-            var res = await _cls.GetOccupiedBeds(tenant, branchcode, blockcode, flrcode, wrdcode, rmtcode);
+            var res = await _cls.GetPendingCleaningBeds(tenant, branchcode, blockcode, flrcode, wrdcode, rmtcode);
             return Ok(res);
         }
-
     }
 }

@@ -142,6 +142,8 @@ builder.Services.AddScoped<BedStatusClass>();
 builder.Services.AddScoped<BedStatusController>();
 builder.Services.AddScoped<PaymodeMasterClass>();
 builder.Services.AddScoped<PaymodeMasterController>();
+builder.Services.AddScoped<UserClass>();
+builder.Services.AddScoped<UserController>();
 
 
 builder.Services.AddSingleton<IAmazonS3>(sp =>
