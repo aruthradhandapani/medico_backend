@@ -553,100 +553,109 @@ public class purchase_detail
 
         public bool deleted { get; set; } = false;
     }
-    public class sales_master
-    {
-        public long salescode { get; set; }
+  public class sales_master
+ {
+     public long salescode { get; set; }
 
-        public string? billno { get; set; }
+     public string? billno { get; set; }
 
-        public DateTime billdate { get; set; }
+     public DateTime billdate { get; set; }
 
-        public string? invoiceno { get; set; }
+     public string? invoiceno { get; set; }
 
-        public DateTime? invoicedate { get; set; }
+     public DateTime? invoicedate { get; set; }
 
-        public long? customercode { get; set; }
+     public long? customercode { get; set; }
 
-        public decimal grossamount { get; set; }
+     // NEW FIELDS
+     public string? salestype { get; set; }      // IP/OP or Counter Sales
 
-        public decimal discountamount { get; set; }
+     public string? warehousefield { get; set; }  // Warehouse
 
-        public decimal taxamount { get; set; }
+     public string? patientid { get; set; }      // Patient ID
 
-        public decimal netamount { get; set; }
+     public string? patientname { get; set; }    // Patient Name
 
-        public string? paymentmode { get; set; }
+     public string? address { get; set; }        // Patient Address
 
-        public string? paymentstatus { get; set; }
+     public string? consultant { get; set; }     // Consultant Name
 
-        public string? currencycode { get; set; }
+     public decimal grossamount { get; set; }
 
-        public bool isactive { get; set; }
+     public decimal discountamount { get; set; }
 
-        public bool deleted { get; set; }
+     public decimal taxamount { get; set; }
 
-        public string? remarks { get; set; }
+     public decimal netamount { get; set; }
 
-        public DateTime createddate { get; set; }
+     public string? paymentmode { get; set; }
 
-        public DateTime? modifieddate { get; set; }
+     public string? paymentstatus { get; set; }
 
-        public long? usercode { get; set; }
+     public string? currencycode { get; set; }
 
-        public string? tenantcode { get; set; }
+     public bool isactive { get; set; }
 
-        public string? branchcode { get; set; }
+     public bool deleted { get; set; }
 
-        public string? companycode { get; set; }
+     public string? remarks { get; set; }
 
-        public long? ordercode { get; set; }
-    }
-    public class sales_detail
-    {
-        public long salesdetailcode { get; set; }
+     public DateTime createddate { get; set; }
 
-        public long salescode { get; set; }
+     public DateTime? modifieddate { get; set; }
 
-        public long itemcode { get; set; }
+     public long? usercode { get; set; }
 
-        public decimal quantity { get; set; }
+     public string? tenantcode { get; set; }
 
-        public decimal freequantity { get; set; }
+     public string? branchcode { get; set; }
 
-        public long? uomcode { get; set; }
+     public string? companycode { get; set; }
 
-        public decimal rate { get; set; }
+     public long? ordercode { get; set; }
+ }
+ public class sales_detail
+ {
+     public long salesdetailcode { get; set; }
 
-        public decimal discountpercentage { get; set; }
+     public long salescode { get; set; }
 
-        public decimal discountamount { get; set; }
+     public long itemcode { get; set; }
 
-        public decimal taxpercentage { get; set; }
+     public decimal quantity { get; set; }
 
-        public decimal taxamount { get; set; }
+     public decimal freequantity { get; set; }
 
-        public decimal amount { get; set; }
+     public long? uomcode { get; set; }
 
-        public decimal totalamount { get; set; }
+     public decimal rate { get; set; }
 
-        public string? batchno { get; set; }
+     public decimal discountpercentage { get; set; }
 
-        public DateTime? manufacturingdate { get; set; }
+     public decimal discountamount { get; set; }
 
-        public DateTime? expirydate { get; set; }
+     public decimal taxpercentage { get; set; }
 
-        // Sales Specific
+     public decimal taxamount { get; set; }
 
-        public decimal orderedqty { get; set; }
+     public decimal amount { get; set; }
 
-        public decimal deliveredqty { get; set; }
+     public decimal totalamount { get; set; }
 
-        public decimal returnedqty { get; set; }
+     public string? batchno { get; set; }
 
-        public long? warehousecode { get; set; }
+     public DateTime? manufacturingdate { get; set; }
 
-        public string? tenantcode { get; set; }
-    }
+     public DateTime? expirydate { get; set; }
+
+     // Sales Specific
+
+     public decimal soldqty { get; set; }
+
+     public long? warehousecode { get; set; }
+
+     public string? tenantcode { get; set; }
+ }
     public class sales_request
     {
         public sales_master master { get; set; }
