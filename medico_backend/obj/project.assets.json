@@ -7143,23 +7143,23 @@
     ]
   },
   "packageFolders": {
-    "C:\\Users\\Elangovan.D\\.nuget\\packages\\": {},
+    "C:\\Users\\elang\\.nuget\\packages\\": {},
     "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages": {}
   },
   "project": {
     "version": "1.0.0",
     "restore": {
-      "projectUniqueName": "D:\\medico_backend\\medico_backend\\medico_backend.csproj",
+      "projectUniqueName": "D:\\Desktop_Wallpaper\\medico_backend\\medico_backend\\medico_backend.csproj",
       "projectName": "medico_backend",
-      "projectPath": "D:\\medico_backend\\medico_backend\\medico_backend.csproj",
-      "packagesPath": "C:\\Users\\Elangovan.D\\.nuget\\packages\\",
-      "outputPath": "D:\\medico_backend\\medico_backend\\obj\\",
+      "projectPath": "D:\\Desktop_Wallpaper\\medico_backend\\medico_backend\\medico_backend.csproj",
+      "packagesPath": "C:\\Users\\elang\\.nuget\\packages\\",
+      "outputPath": "D:\\Desktop_Wallpaper\\medico_backend\\medico_backend\\obj\\",
       "projectStyle": "PackageReference",
       "fallbackFolders": [
         "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"
       ],
       "configFilePaths": [
-        "C:\\Users\\Elangovan.D\\AppData\\Roaming\\NuGet\\NuGet.Config",
+        "C:\\Users\\elang\\AppData\\Roaming\\NuGet\\NuGet.Config",
         "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.FallbackLocation.config",
         "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.Offline.config"
       ],

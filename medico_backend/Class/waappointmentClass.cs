@@ -151,6 +151,50 @@ namespace medico_backend.Class
 
             return "SUCCESS";
         }
+        // ── Insert a full record with all fields provided ──────────────
+        public async Task<(string status, WaAppointmentSession? data)> InsertFullSession(InsertFullWaSessionRequest req)
+        {
+            if (string.IsNullOrWhiteSpace(req.phonenumber))
+                return ("Phone number is required.", null);
 
+            using var db = GetConnection();
+            db.Open();
+            using var tx = db.BeginTransaction();
+
+            try
+            {
+                var session = new WaAppointmentSession
+                {
+                    phonenumber = req.phonenumber,
+                    currentstep = string.IsNullOrWhiteSpace(req.currentstep) ? "WELCOME" : req.currentstep,
+                    intent = req.intent,
+                    patientname = req.patientname,
+                    patientage = req.patientage,
+                    patientgender = req.patientgender,
+                    patientcity = req.patientcity,
+                    departmentid = req.departmentid,
+                    doctorid = req.doctorid,
+                    slotdate = req.slotdate,
+                    slottime = req.slottime,
+                    appointmentidref = req.appointmentidref,
+                    createdat = DateTime.UtcNow,
+                    updatedat = DateTime.UtcNow,
+                    isactive = req.isactive ?? true,
+                    language = req.language
+                };
+
+                var newId = await db.InsertAsync(session, tx);
+                session.sessionid = newId;
+
+                tx.Commit();
+                return ("SUCCESS", session);
+            }
+            catch (Exception ex)
+            {
+                tx.Rollback();
+                _logger.LogError(ex, "Failed to insert full WA appointment session.");
+                return ($"Internal transaction error: {ex.Message}", null);
+            }
+        }
     }
 }

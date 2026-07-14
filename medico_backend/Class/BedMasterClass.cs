@@ -196,12 +196,12 @@ namespace Medico_Backend.Class
         // Optional filters: branchcode, blockcode, flrcode, wrdcode, rmtcode
         // ─────────────────────────────────────────
         public async Task<List<dynamic>> GetAvailableBeds(
-    string tenant_code,
-    int? branchcode = null,
-    int? blockcode = null,
-    int? flrcode = null,
-    int? wrdcode = null,
-    int? rmtcode = null)
+            string tenant_code,
+            int? branchcode = null,
+            int? blockcode = null,
+            int? flrcode = null,
+            int? wrdcode = null,
+            int? rmtcode = null)
         {
             using IDbConnection db = new NpgsqlConnection(db_conn);
 
@@ -241,7 +241,7 @@ namespace Medico_Backend.Class
           AND (@flrcode    IS NULL OR bm.flrcode    = @flrcode)
           AND (@wrdcode    IS NULL OR bm.wrdcode    = @wrdcode)
           AND (@rmtcode    IS NULL OR bm.rmtcode    = @rmtcode)
-          -- Rule 1: no currently-admitted patient in this bed
+          -- Rule 1: no currently-admitted patient in this bed (authoritative source)
           AND NOT EXISTS (
               SELECT 1 FROM ip_registration ip
               WHERE ip.bedcode = bm.bedcode
@@ -249,11 +249,75 @@ namespace Medico_Backend.Class
                 AND ip.ip_status = 'ADMITTED'
                 AND ip.isdeleted = false
           )
-          -- Rule 2: latest bed_status must not be pending cleaning
-          AND NOT (
-              COALESCE(bs.status, 'AVAILABLE') = 'VACANT'
-              AND COALESCE(bs.is_cleaned, true) = false
-          )
+          -- Rule 2: latest bed_status must not be an uncleaned vacancy
+          AND (bs.status IS NULL OR bs.status = 'AVAILABLE')
+        ORDER BY fm.orderno, wm.orderno, bm.orderno";
+
+            var res = await db.QueryAsync<dynamic>(sql, new
+            {
+                tenant_code,
+                branchcode,
+                blockcode,
+                flrcode,
+                wrdcode,
+                rmtcode
+            });
+
+            return res.ToList();
+        }
+
+        // ─────────────────────────────────────────
+        // GET OCCUPIED BEDS (companion view — dashboard use)
+        // Now also carries the bed_status row (admitted_at, is_cleaned, etc.)
+        // for consistency with GetAvailableBeds.
+        // ─────────────────────────────────────────
+        public async Task<List<dynamic>> GetOccupiedBeds(
+            string tenant_code,
+            int? branchcode = null,
+            int? blockcode = null,
+            int? flrcode = null,
+            int? wrdcode = null,
+            int? rmtcode = null)
+        {
+            using IDbConnection db = new NpgsqlConnection(db_conn);
+
+            string sql = @"
+        SELECT
+            bm.bedcode, bm.bedname, bm.shortname,
+            bm.branchcode, bm.rmtcode, bm.wrdcode, bm.flrcode,
+            rm.name  AS roomtype_name,
+            wm.name  AS ward_name,
+            fm.name  AS floor_name,
+            fm.blockcode,
+            bk.name  AS block_name,
+            ip.ip_id, ip.ip_no, ip.custid, ip.dcode, ip.admitdate,
+            bs.status       AS bed_status,
+            bs.is_cleaned,
+            bs.admitted_at
+        FROM public.bed_master bm
+        INNER JOIN ip_registration ip
+            ON ip.bedcode = bm.bedcode
+           AND ip.tenant_code = bm.tenant_code
+           AND ip.ip_status = 'ADMITTED'
+           AND ip.isdeleted = false
+        LEFT JOIN public.roomtype_master rm ON rm.rmtcode = bm.rmtcode AND rm.tenant_code = bm.tenant_code
+        LEFT JOIN public.ward_master wm ON wm.wrdcode = bm.wrdcode AND wm.tenant_code = bm.tenant_code
+        LEFT JOIN public.floor_master fm ON fm.flrcode = bm.flrcode AND fm.tenant_code = bm.tenant_code
+        LEFT JOIN public.block_master bk ON bk.blockcode = fm.blockcode AND bk.tenant_code = bm.tenant_code
+        LEFT JOIN LATERAL (
+            SELECT status, is_cleaned, admitted_at
+            FROM public.bed_status bs2
+            WHERE bs2.bedcode = bm.bedcode AND bs2.tenant_code = bm.tenant_code
+            ORDER BY bs2.created_at DESC
+            LIMIT 1
+        ) bs ON true
+        WHERE (bm.deleted IS NULL OR bm.deleted = false)
+          AND bm.tenant_code = @tenant_code
+          AND (@branchcode IS NULL OR bm.branchcode = @branchcode)
+          AND (@blockcode  IS NULL OR fm.blockcode  = @blockcode)
+          AND (@flrcode    IS NULL OR bm.flrcode    = @flrcode)
+          AND (@wrdcode    IS NULL OR bm.wrdcode    = @wrdcode)
+          AND (@rmtcode    IS NULL OR bm.rmtcode    = @rmtcode)
         ORDER BY fm.orderno, wm.orderno, bm.orderno";
 
             var res = await db.QueryAsync<dynamic>(sql, new

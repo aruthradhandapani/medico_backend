@@ -56,5 +56,21 @@ namespace medico_backend.Model
     {
         public int sessionid { get; set; }
     }
-
+    public class InsertFullWaSessionRequest
+    {
+        public string phonenumber { get; set; } = string.Empty;
+        public string? currentstep { get; set; }
+        public string? intent { get; set; }
+        public string? patientname { get; set; }
+        public int? patientage { get; set; }
+        public string? patientgender { get; set; }
+        public string? patientcity { get; set; }
+        public int? departmentid { get; set; }
+        public int? doctorid { get; set; }
+        public DateTime? slotdate { get; set; }
+        public string? slottime { get; set; }
+        public string? appointmentidref { get; set; }
+        public bool? isactive { get; set; }
+        public string? language { get; set; }
+    }
 }

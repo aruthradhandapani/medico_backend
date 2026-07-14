@@ -142,12 +142,6 @@ builder.Services.AddScoped<BedStatusClass>();
 builder.Services.AddScoped<BedStatusController>();
 builder.Services.AddScoped<PaymodeMasterClass>();
 builder.Services.AddScoped<PaymodeMasterController>();
-builder.Services.AddScoped<UserClass>();
-builder.Services.AddScoped<UserController>();
-builder.Services.AddScoped<AppointmentBotClass>();
-builder.Services.AddScoped<AppointmentBotController>();
-builder.Services.AddScoped<TestGroupRateClass>();
-builder.Services.AddScoped<TestGroupRateController>();
 
 
 builder.Services.AddSingleton<IAmazonS3>(sp =>

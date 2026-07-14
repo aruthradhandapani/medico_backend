@@ -10,16 +10,11 @@ namespace medico_backend.Class
     {
         private readonly string _db_conn;
         private readonly BedStatusClass _bedStatusCls;
-        private readonly UnbilledChargesClass _unbilledChargesCls;
 
-        public IpRegistrationClass(
-            IConfiguration configuration,
-            BedStatusClass bedStatusCls,
-            UnbilledChargesClass unbilledChargesCls)
+        public IpRegistrationClass(IConfiguration configuration, BedStatusClass bedStatusCls)
         {
             _db_conn = configuration.GetConnectionString("conn")!;
             _bedStatusCls = bedStatusCls;
-            _unbilledChargesCls = unbilledChargesCls;
         }
 
         // ─────────────────────────────────────────
@@ -150,7 +145,6 @@ namespace medico_backend.Class
                     data.admitdate, tenant_code);
 
                 tx.Commit();
-
                 return $"Success|IpNo:{data.ip_no}|IpId:{data.ip_id}";
             }
             catch (Exception ex)
@@ -199,7 +193,6 @@ namespace medico_backend.Class
                 await _bedStatusCls.MarkVacant(db, tx, existing.bedcode!.Value, existing.ip_id, tenant_code);
 
                 tx.Commit();
-                await _unbilledChargesCls.AccrueIpRoomCharge(existing.ip_id, tenant_code);
                 return "Success";
             }
             catch (Exception ex)

@@ -621,6 +621,74 @@
     "ReturnTypes": []
   },
   {
+    "ContainingType": "medico_backend.Controllers.BedStatusController",
+    "Method": "GetAll",
+    "RelativePath": "api/BedStatus/get",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "medico_backend.Controllers.BedStatusController",
+    "Method": "GetByBed",
+    "RelativePath": "api/BedStatus/get-by-bed",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "bedcode",
+        "Type": "System.Int32",
+        "IsRequired": false
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "medico_backend.Controllers.BedStatusController",
+    "Method": "GetByIpId",
+    "RelativePath": "api/BedStatus/get-by-ip",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "ip_id",
+        "Type": "System.Guid",
+        "IsRequired": false
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "medico_backend.Controllers.BedStatusController",
+    "Method": "MarkCleaned",
+    "RelativePath": "api/BedStatus/mark-cleaned",
+    "HttpMethod": "POST",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "req",
+        "Type": "medico_backend.Model.MarkBedCleanedRequest",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "medico_backend.Controllers.BedStatusController",
+    "Method": "GetPendingCleaning",
+    "RelativePath": "api/BedStatus/pending-cleaning",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [],
+    "ReturnTypes": []
+  },
+  {
     "ContainingType": "Medico_Backend.Controllers.BedTransferController",
     "Method": "Get",
     "RelativePath": "api/BedTransfer/get",
@@ -4592,22 +4660,6 @@
   },
   {
     "ContainingType": "medico_backend.Controllers.IpRegistrationController",
-    "Method": "TransferBed",
-    "RelativePath": "api/IpRegistration/transfer-bed",
-    "HttpMethod": "POST",
-    "IsController": true,
-    "Order": 0,
-    "Parameters": [
-      {
-        "Name": "req",
-        "Type": "medico_backend.Model.IPRegistrationModel\u002BIpBedTransferRequest",
-        "IsRequired": true
-      }
-    ],
-    "ReturnTypes": []
-  },
-  {
-    "ContainingType": "medico_backend.Controllers.IpRegistrationController",
     "Method": "Update",
     "RelativePath": "api/IpRegistration/update",
     "HttpMethod": "POST",
@@ -6112,6 +6164,96 @@
         "Name": "pbcode",
         "Type": "System.Int32",
         "IsRequired": false
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "Medico_Backend.Controllers.PaymodeMasterController",
+    "Method": "Delete",
+    "RelativePath": "api/PaymodeMaster/delete",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "pmcode",
+        "Type": "System.Decimal",
+        "IsRequired": false
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "Medico_Backend.Controllers.PaymodeMasterController",
+    "Method": "Get",
+    "RelativePath": "api/PaymodeMaster/get",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "Medico_Backend.Controllers.PaymodeMasterController",
+    "Method": "GetByCode",
+    "RelativePath": "api/PaymodeMaster/get-by-code",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "pmcode",
+        "Type": "System.Decimal",
+        "IsRequired": false
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "Medico_Backend.Controllers.PaymodeMasterController",
+    "Method": "Insert",
+    "RelativePath": "api/PaymodeMaster/insert",
+    "HttpMethod": "POST",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "data",
+        "Type": "Medico_Backend.Model.PaymodeMasterModel",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "Medico_Backend.Controllers.PaymodeMasterController",
+    "Method": "Restore",
+    "RelativePath": "api/PaymodeMaster/restore",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "pmcode",
+        "Type": "System.Decimal",
+        "IsRequired": false
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "Medico_Backend.Controllers.PaymodeMasterController",
+    "Method": "Update",
+    "RelativePath": "api/PaymodeMaster/update",
+    "HttpMethod": "POST",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "data",
+        "Type": "Medico_Backend.Model.PaymodeMasterModel",
+        "IsRequired": true
       }
     ],
     "ReturnTypes": []
@@ -9030,109 +9172,1199 @@
     "ReturnTypes": []
   },
   {
-    "ContainingType": "Medico_Backend.Controllers.UserMasterController",
-    "Method": "Delete",
-    "RelativePath": "api/UserMaster/delete",
-    "HttpMethod": "DELETE",
+    "ContainingType": "medico_backend.Controller.UserController",
+    "Method": "GetUser",
+    "RelativePath": "api/User/get",
+    "HttpMethod": "GET",
     "IsController": true,
     "Order": 0,
     "Parameters": [
       {
-        "Name": "usercode",
+        "Name": "user_code",
         "Type": "System.Int32",
+        "IsRequired": false
+      },
+      {
+        "Name": "tenant_code",
+        "Type": "System.String",
         "IsRequired": false
       }
     ],
     "ReturnTypes": []
   },
   {
-    "ContainingType": "Medico_Backend.Controllers.UserMasterController",
-    "Method": "Get",
-    "RelativePath": "api/UserMaster/get",
-    "HttpMethod": "GET",
-    "IsController": true,
-    "Order": 0,
-    "Parameters": [],
-    "ReturnTypes": []
-  },
-  {
-    "ContainingType": "Medico_Backend.Controllers.UserMasterController",
-    "Method": "GetByUserCode",
-    "RelativePath": "api/UserMaster/get-by-usercode",
+    "ContainingType": "medico_backend.Controller.UserController",
+    "Method": "GetallUser",
+    "RelativePath": "api/User/getall",
     "HttpMethod": "GET",
     "IsController": true,
     "Order": 0,
     "Parameters": [
       {
-        "Name": "usercode",
-        "Type": "System.Int32",
+        "Name": "tenant_code",
+        "Type": "System.String",
         "IsRequired": false
       }
     ],
     "ReturnTypes": []
   },
   {
-    "ContainingType": "Medico_Backend.Controllers.UserMasterController",
+    "ContainingType": "medico_backend.Controller.UserController",
+    "Method": "Insert",
+    "RelativePath": "api/User/insert",
+    "HttpMethod": "POST",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "User.user_code",
+        "Type": "System.Int32",
+        "IsRequired": false
+      },
+      {
+        "Name": "User.ibsd_code",
+        "Type": "System.Nullable\u00601[[System.Int32, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
+        "IsRequired": false
+      },
+      {
+        "Name": "User.order_no",
+        "Type": "System.Nullable\u00601[[System.Int32, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
+        "IsRequired": false
+      },
+      {
+        "Name": "User.module",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "User.name",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "User.short_name",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "User.password",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "User.description",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "User.power_user",
+        "Type": "System.Nullable\u00601[[System.Boolean, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
+        "IsRequired": false
+      },
+      {
+        "Name": "User.user_image",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "User.signature_image",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "User.deleted",
+        "Type": "System.Nullable\u00601[[System.Boolean, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
+        "IsRequired": false
+      },
+      {
+        "Name": "User.euser_code",
+        "Type": "System.Nullable\u00601[[System.Int32, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
+        "IsRequired": false
+      },
+      {
+        "Name": "User.computer_code",
+        "Type": "System.Nullable\u00601[[System.Int32, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
+        "IsRequired": false
+      },
+      {
+        "Name": "User.entered_date",
+        "Type": "System.Nullable\u00601[[System.DateTime, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
+        "IsRequired": false
+      },
+      {
+        "Name": "User.ibs_date",
+        "Type": "System.Nullable\u00601[[System.DateTime, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
+        "IsRequired": false
+      },
+      {
+        "Name": "User.all_branch",
+        "Type": "System.Nullable\u00601[[System.Boolean, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
+        "IsRequired": false
+      },
+      {
+        "Name": "User.bh_code",
+        "Type": "System.Nullable\u00601[[System.Int32, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
+        "IsRequired": false
+      },
+      {
+        "Name": "User.cnt_code",
+        "Type": "System.Nullable\u00601[[System.Decimal, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
+        "IsRequired": false
+      },
+      {
+        "Name": "User.hd_code",
+        "Type": "System.Nullable\u00601[[System.Decimal, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
+        "IsRequired": false
+      },
+      {
+        "Name": "User.op_cnt_code",
+        "Type": "System.Nullable\u00601[[System.Decimal, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
+        "IsRequired": false
+      },
+      {
+        "Name": "User.ip_cnt_code",
+        "Type": "System.Nullable\u00601[[System.Decimal, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
+        "IsRequired": false
+      },
+      {
+        "Name": "User.pharma_cnt_code",
+        "Type": "System.Nullable\u00601[[System.Decimal, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
+        "IsRequired": false
+      },
+      {
+        "Name": "User.is_consultant",
+        "Type": "System.Nullable\u00601[[System.Boolean, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
+        "IsRequired": false
+      },
+      {
+        "Name": "User.consultant_dcode",
+        "Type": "System.Nullable\u00601[[System.Int32, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
+        "IsRequired": false
+      },
+      {
+        "Name": "User.tenant_code",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "User.global_user_id",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "User.email",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "User.mobile",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "User.is_power_user",
+        "Type": "System.Nullable\u00601[[System.Boolean, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
+        "IsRequired": false
+      },
+      {
+        "Name": "User.spouse_name",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "User.father_name",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "User.mother_name",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "User.mobile_alternate",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "User.permanent_address",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "User.current_address",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "User.id_document_path",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "User.dob",
+        "Type": "System.Nullable\u00601[[System.DateTime, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
+        "IsRequired": false
+      },
+      {
+        "Name": "User.passport_no",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "User.emirates_id",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "User.gender",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "User.status",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "User.age",
+        "Type": "System.Nullable\u00601[[System.Int32, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
+        "IsRequired": false
+      },
+      {
+        "Name": "User.age_type",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "User.modified_date",
+        "Type": "System.Nullable\u00601[[System.DateTime, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
+        "IsRequired": false
+      },
+      {
+        "Name": "User.is_verified",
+        "Type": "System.Nullable\u00601[[System.Boolean, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
+        "IsRequired": false
+      },
+      {
+        "Name": "User.address",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "User.role",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "User.edit_bill",
+        "Type": "System.Nullable\u00601[[System.Boolean, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
+        "IsRequired": false
+      },
+      {
+        "Name": "User.print_bill",
+        "Type": "System.Nullable\u00601[[System.Boolean, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
+        "IsRequired": false
+      },
+      {
+        "Name": "User.centralized_sample",
+        "Type": "System.Nullable\u00601[[System.Boolean, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
+        "IsRequired": false
+      },
+      {
+        "Name": "Branches",
+        "Type": "System.Collections.Generic.IList\u00601[[medico_backend.Model.UserBranchMaster, medico_backend, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]]",
+        "IsRequired": false
+      },
+      {
+        "Name": "Departments",
+        "Type": "System.Collections.Generic.IList\u00601[[medico_backend.Model.UserGroupMaster, medico_backend, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]]",
+        "IsRequired": false
+      },
+      {
+        "Name": "tenant_code",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "ContentType",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "ContentDisposition",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "Headers",
+        "Type": "Microsoft.AspNetCore.Http.IHeaderDictionary",
+        "IsRequired": false
+      },
+      {
+        "Name": "Length",
+        "Type": "System.Int64",
+        "IsRequired": false
+      },
+      {
+        "Name": "Name",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "FileName",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "ContentType",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "ContentDisposition",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "Headers",
+        "Type": "Microsoft.AspNetCore.Http.IHeaderDictionary",
+        "IsRequired": false
+      },
+      {
+        "Name": "Length",
+        "Type": "System.Int64",
+        "IsRequired": false
+      },
+      {
+        "Name": "Name",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "FileName",
+        "Type": "System.String",
+        "IsRequired": false
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "medico_backend.Controller.UserController",
     "Method": "Login",
-    "RelativePath": "api/UserMaster/login",
+    "RelativePath": "api/User/login",
     "HttpMethod": "POST",
     "IsController": true,
     "Order": 0,
     "Parameters": [
       {
-        "Name": "data",
-        "Type": "Medico_Backend.Model.LoginModel",
+        "Name": "dto",
+        "Type": "medico_backend.Model.LoginDto",
         "IsRequired": true
       }
     ],
     "ReturnTypes": []
   },
   {
-    "ContainingType": "Medico_Backend.Controllers.UserMasterController",
-    "Method": "Register",
-    "RelativePath": "api/UserMaster/register",
-    "HttpMethod": "POST",
-    "IsController": true,
-    "Order": 0,
-    "Parameters": [
-      {
-        "Name": "data",
-        "Type": "Medico_Backend.Model.UserMasterModel",
-        "IsRequired": true
-      }
-    ],
-    "ReturnTypes": []
-  },
-  {
-    "ContainingType": "Medico_Backend.Controllers.UserMasterController",
-    "Method": "ResetPassword",
-    "RelativePath": "api/UserMaster/reset-password",
-    "HttpMethod": "POST",
-    "IsController": true,
-    "Order": 0,
-    "Parameters": [
-      {
-        "Name": "data",
-        "Type": "Medico_Backend.Model.ResetPasswordModel",
-        "IsRequired": true
-      }
-    ],
-    "ReturnTypes": []
-  },
-  {
-    "ContainingType": "Medico_Backend.Controllers.WaAppointmentSessionController",
-    "Method": "Get",
-    "RelativePath": "api/WaAppointmentSession/get",
+    "ContainingType": "medico_backend.Controller.UserController",
+    "Method": "PermanentDelete",
+    "RelativePath": "api/User/permanentdelete",
     "HttpMethod": "GET",
     "IsController": true,
     "Order": 0,
-    "Parameters": [],
+    "Parameters": [
+      {
+        "Name": "user_code",
+        "Type": "System.Int32",
+        "IsRequired": false
+      },
+      {
+        "Name": "tenant_code",
+        "Type": "System.String",
+        "IsRequired": false
+      }
+    ],
     "ReturnTypes": []
   },
   {
-    "ContainingType": "Medico_Backend.Controllers.WaAppointmentSessionController",
-    "Method": "GetByPhoneNumber",
-    "RelativePath": "api/WaAppointmentSession/get-by-phone",
+    "ContainingType": "medico_backend.Controller.UserController",
+    "Method": "Register",
+    "RelativePath": "api/User/register",
+    "HttpMethod": "POST",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "User.user_code",
+        "Type": "System.Int32",
+        "IsRequired": false
+      },
+      {
+        "Name": "User.ibsd_code",
+        "Type": "System.Nullable\u00601[[System.Int32, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
+        "IsRequired": false
+      },
+      {
+        "Name": "User.order_no",
+        "Type": "System.Nullable\u00601[[System.Int32, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
+        "IsRequired": false
+      },
+      {
+        "Name": "User.module",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "User.name",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "User.short_name",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "User.password",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "User.description",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "User.power_user",
+        "Type": "System.Nullable\u00601[[System.Boolean, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
+        "IsRequired": false
+      },
+      {
+        "Name": "User.user_image",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "User.signature_image",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "User.deleted",
+        "Type": "System.Nullable\u00601[[System.Boolean, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
+        "IsRequired": false
+      },
+      {
+        "Name": "User.euser_code",
+        "Type": "System.Nullable\u00601[[System.Int32, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
+        "IsRequired": false
+      },
+      {
+        "Name": "User.computer_code",
+        "Type": "System.Nullable\u00601[[System.Int32, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
+        "IsRequired": false
+      },
+      {
+        "Name": "User.entered_date",
+        "Type": "System.Nullable\u00601[[System.DateTime, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
+        "IsRequired": false
+      },
+      {
+        "Name": "User.ibs_date",
+        "Type": "System.Nullable\u00601[[System.DateTime, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
+        "IsRequired": false
+      },
+      {
+        "Name": "User.all_branch",
+        "Type": "System.Nullable\u00601[[System.Boolean, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
+        "IsRequired": false
+      },
+      {
+        "Name": "User.bh_code",
+        "Type": "System.Nullable\u00601[[System.Int32, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
+        "IsRequired": false
+      },
+      {
+        "Name": "User.cnt_code",
+        "Type": "System.Nullable\u00601[[System.Decimal, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
+        "IsRequired": false
+      },
+      {
+        "Name": "User.hd_code",
+        "Type": "System.Nullable\u00601[[System.Decimal, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
+        "IsRequired": false
+      },
+      {
+        "Name": "User.op_cnt_code",
+        "Type": "System.Nullable\u00601[[System.Decimal, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
+        "IsRequired": false
+      },
+      {
+        "Name": "User.ip_cnt_code",
+        "Type": "System.Nullable\u00601[[System.Decimal, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
+        "IsRequired": false
+      },
+      {
+        "Name": "User.pharma_cnt_code",
+        "Type": "System.Nullable\u00601[[System.Decimal, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
+        "IsRequired": false
+      },
+      {
+        "Name": "User.is_consultant",
+        "Type": "System.Nullable\u00601[[System.Boolean, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
+        "IsRequired": false
+      },
+      {
+        "Name": "User.consultant_dcode",
+        "Type": "System.Nullable\u00601[[System.Int32, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
+        "IsRequired": false
+      },
+      {
+        "Name": "User.tenant_code",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "User.global_user_id",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "User.email",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "User.mobile",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "User.is_power_user",
+        "Type": "System.Nullable\u00601[[System.Boolean, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
+        "IsRequired": false
+      },
+      {
+        "Name": "User.spouse_name",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "User.father_name",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "User.mother_name",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "User.mobile_alternate",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "User.permanent_address",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "User.current_address",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "User.id_document_path",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "User.dob",
+        "Type": "System.Nullable\u00601[[System.DateTime, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
+        "IsRequired": false
+      },
+      {
+        "Name": "User.passport_no",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "User.emirates_id",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "User.gender",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "User.status",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "User.age",
+        "Type": "System.Nullable\u00601[[System.Int32, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
+        "IsRequired": false
+      },
+      {
+        "Name": "User.age_type",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "User.modified_date",
+        "Type": "System.Nullable\u00601[[System.DateTime, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
+        "IsRequired": false
+      },
+      {
+        "Name": "User.is_verified",
+        "Type": "System.Nullable\u00601[[System.Boolean, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
+        "IsRequired": false
+      },
+      {
+        "Name": "User.address",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "User.role",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "User.edit_bill",
+        "Type": "System.Nullable\u00601[[System.Boolean, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
+        "IsRequired": false
+      },
+      {
+        "Name": "User.print_bill",
+        "Type": "System.Nullable\u00601[[System.Boolean, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
+        "IsRequired": false
+      },
+      {
+        "Name": "User.centralized_sample",
+        "Type": "System.Nullable\u00601[[System.Boolean, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
+        "IsRequired": false
+      },
+      {
+        "Name": "Branches",
+        "Type": "System.Collections.Generic.IList\u00601[[medico_backend.Model.UserBranchMaster, medico_backend, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]]",
+        "IsRequired": false
+      },
+      {
+        "Name": "Departments",
+        "Type": "System.Collections.Generic.IList\u00601[[medico_backend.Model.UserGroupMaster, medico_backend, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]]",
+        "IsRequired": false
+      },
+      {
+        "Name": "tenant_code",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "ContentType",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "ContentDisposition",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "Headers",
+        "Type": "Microsoft.AspNetCore.Http.IHeaderDictionary",
+        "IsRequired": false
+      },
+      {
+        "Name": "Length",
+        "Type": "System.Int64",
+        "IsRequired": false
+      },
+      {
+        "Name": "Name",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "FileName",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "ContentType",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "ContentDisposition",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "Headers",
+        "Type": "Microsoft.AspNetCore.Http.IHeaderDictionary",
+        "IsRequired": false
+      },
+      {
+        "Name": "Length",
+        "Type": "System.Int64",
+        "IsRequired": false
+      },
+      {
+        "Name": "Name",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "FileName",
+        "Type": "System.String",
+        "IsRequired": false
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "medico_backend.Controller.UserController",
+    "Method": "GetProductRoles",
+    "RelativePath": "api/User/roles",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "tenant_code",
+        "Type": "System.String",
+        "IsRequired": false
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "medico_backend.Controller.UserController",
+    "Method": "DeleteUser",
+    "RelativePath": "api/User/softdelete",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "user_code",
+        "Type": "System.Int32",
+        "IsRequired": false
+      },
+      {
+        "Name": "tenant_code",
+        "Type": "System.String",
+        "IsRequired": false
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "medico_backend.Controller.UserController",
+    "Method": "UpdateUser",
+    "RelativePath": "api/User/update",
+    "HttpMethod": "POST",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "User.user_code",
+        "Type": "System.Int32",
+        "IsRequired": false
+      },
+      {
+        "Name": "User.ibsd_code",
+        "Type": "System.Nullable\u00601[[System.Int32, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
+        "IsRequired": false
+      },
+      {
+        "Name": "User.order_no",
+        "Type": "System.Nullable\u00601[[System.Int32, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
+        "IsRequired": false
+      },
+      {
+        "Name": "User.module",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "User.name",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "User.short_name",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "User.password",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "User.description",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "User.power_user",
+        "Type": "System.Nullable\u00601[[System.Boolean, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
+        "IsRequired": false
+      },
+      {
+        "Name": "User.user_image",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "User.signature_image",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "User.deleted",
+        "Type": "System.Nullable\u00601[[System.Boolean, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
+        "IsRequired": false
+      },
+      {
+        "Name": "User.euser_code",
+        "Type": "System.Nullable\u00601[[System.Int32, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
+        "IsRequired": false
+      },
+      {
+        "Name": "User.computer_code",
+        "Type": "System.Nullable\u00601[[System.Int32, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
+        "IsRequired": false
+      },
+      {
+        "Name": "User.entered_date",
+        "Type": "System.Nullable\u00601[[System.DateTime, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
+        "IsRequired": false
+      },
+      {
+        "Name": "User.ibs_date",
+        "Type": "System.Nullable\u00601[[System.DateTime, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
+        "IsRequired": false
+      },
+      {
+        "Name": "User.all_branch",
+        "Type": "System.Nullable\u00601[[System.Boolean, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
+        "IsRequired": false
+      },
+      {
+        "Name": "User.bh_code",
+        "Type": "System.Nullable\u00601[[System.Int32, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
+        "IsRequired": false
+      },
+      {
+        "Name": "User.cnt_code",
+        "Type": "System.Nullable\u00601[[System.Decimal, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
+        "IsRequired": false
+      },
+      {
+        "Name": "User.hd_code",
+        "Type": "System.Nullable\u00601[[System.Decimal, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
+        "IsRequired": false
+      },
+      {
+        "Name": "User.op_cnt_code",
+        "Type": "System.Nullable\u00601[[System.Decimal, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
+        "IsRequired": false
+      },
+      {
+        "Name": "User.ip_cnt_code",
+        "Type": "System.Nullable\u00601[[System.Decimal, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
+        "IsRequired": false
+      },
+      {
+        "Name": "User.pharma_cnt_code",
+        "Type": "System.Nullable\u00601[[System.Decimal, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
+        "IsRequired": false
+      },
+      {
+        "Name": "User.is_consultant",
+        "Type": "System.Nullable\u00601[[System.Boolean, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
+        "IsRequired": false
+      },
+      {
+        "Name": "User.consultant_dcode",
+        "Type": "System.Nullable\u00601[[System.Int32, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
+        "IsRequired": false
+      },
+      {
+        "Name": "User.tenant_code",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "User.global_user_id",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "User.email",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "User.mobile",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "User.is_power_user",
+        "Type": "System.Nullable\u00601[[System.Boolean, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
+        "IsRequired": false
+      },
+      {
+        "Name": "User.spouse_name",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "User.father_name",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "User.mother_name",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "User.mobile_alternate",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "User.permanent_address",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "User.current_address",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "User.id_document_path",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "User.dob",
+        "Type": "System.Nullable\u00601[[System.DateTime, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
+        "IsRequired": false
+      },
+      {
+        "Name": "User.passport_no",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "User.emirates_id",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "User.gender",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "User.status",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "User.age",
+        "Type": "System.Nullable\u00601[[System.Int32, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
+        "IsRequired": false
+      },
+      {
+        "Name": "User.age_type",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "User.modified_date",
+        "Type": "System.Nullable\u00601[[System.DateTime, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
+        "IsRequired": false
+      },
+      {
+        "Name": "User.is_verified",
+        "Type": "System.Nullable\u00601[[System.Boolean, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
+        "IsRequired": false
+      },
+      {
+        "Name": "User.address",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "User.role",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "User.edit_bill",
+        "Type": "System.Nullable\u00601[[System.Boolean, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
+        "IsRequired": false
+      },
+      {
+        "Name": "User.print_bill",
+        "Type": "System.Nullable\u00601[[System.Boolean, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
+        "IsRequired": false
+      },
+      {
+        "Name": "User.centralized_sample",
+        "Type": "System.Nullable\u00601[[System.Boolean, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
+        "IsRequired": false
+      },
+      {
+        "Name": "Branches",
+        "Type": "System.Collections.Generic.IList\u00601[[medico_backend.Model.UserBranchMaster, medico_backend, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]]",
+        "IsRequired": false
+      },
+      {
+        "Name": "Departments",
+        "Type": "System.Collections.Generic.IList\u00601[[medico_backend.Model.UserGroupMaster, medico_backend, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]]",
+        "IsRequired": false
+      },
+      {
+        "Name": "tenant_code",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "ContentType",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "ContentDisposition",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "Headers",
+        "Type": "Microsoft.AspNetCore.Http.IHeaderDictionary",
+        "IsRequired": false
+      },
+      {
+        "Name": "Length",
+        "Type": "System.Int64",
+        "IsRequired": false
+      },
+      {
+        "Name": "Name",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "FileName",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "ContentType",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "ContentDisposition",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "Headers",
+        "Type": "Microsoft.AspNetCore.Http.IHeaderDictionary",
+        "IsRequired": false
+      },
+      {
+        "Name": "Length",
+        "Type": "System.Int64",
+        "IsRequired": false
+      },
+      {
+        "Name": "Name",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "FileName",
+        "Type": "System.String",
+        "IsRequired": false
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "medico_backend.Controller.UserController",
+    "Method": "VerifyUser",
+    "RelativePath": "api/User/verify",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "user_code",
+        "Type": "System.Int32",
+        "IsRequired": false
+      },
+      {
+        "Name": "tenant_code",
+        "Type": "System.String",
+        "IsRequired": false
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "medico_backend.Controller.WaAppointmentSessionController",
+    "Method": "GetById",
+    "RelativePath": "api/WaAppointmentSession/{sessionid}",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "sessionid",
+        "Type": "System.Int32",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": [
+      {
+        "Type": "medico_backend.Model.WaAppointmentSession",
+        "MediaTypes": [
+          "text/plain",
+          "application/json",
+          "text/json"
+        ],
+        "StatusCode": 200
+      },
+      {
+        "Type": "Microsoft.AspNetCore.Mvc.ProblemDetails",
+        "MediaTypes": [
+          "text/plain",
+          "application/json",
+          "text/json"
+        ],
+        "StatusCode": 404
+      }
+    ]
+  },
+  {
+    "ContainingType": "medico_backend.Controller.WaAppointmentSessionController",
+    "Method": "GetActiveSession",
+    "RelativePath": "api/WaAppointmentSession/active",
     "HttpMethod": "GET",
     "IsController": true,
     "Order": 0,
@@ -9143,23 +10375,180 @@
         "IsRequired": false
       }
     ],
-    "ReturnTypes": []
+    "ReturnTypes": [
+      {
+        "Type": "medico_backend.Model.WaAppointmentSession",
+        "MediaTypes": [
+          "text/plain",
+          "application/json",
+          "text/json"
+        ],
+        "StatusCode": 200
+      },
+      {
+        "Type": "Microsoft.AspNetCore.Mvc.ProblemDetails",
+        "MediaTypes": [
+          "text/plain",
+          "application/json",
+          "text/json"
+        ],
+        "StatusCode": 404
+      }
+    ]
   },
   {
-    "ContainingType": "Medico_Backend.Controllers.WaAppointmentSessionController",
-    "Method": "Insert",
-    "RelativePath": "api/WaAppointmentSession/insert",
+    "ContainingType": "medico_backend.Controller.WaAppointmentSessionController",
+    "Method": "CloseSession",
+    "RelativePath": "api/WaAppointmentSession/close",
     "HttpMethod": "POST",
     "IsController": true,
     "Order": 0,
     "Parameters": [
       {
-        "Name": "data",
-        "Type": "Medico_Backend.Model.WaAppointmentSessionModel",
+        "Name": "req",
+        "Type": "medico_backend.Model.CloseWaSessionRequest",
         "IsRequired": true
       }
     ],
-    "ReturnTypes": []
+    "ReturnTypes": [
+      {
+        "Type": "System.Void",
+        "MediaTypes": [],
+        "StatusCode": 200
+      },
+      {
+        "Type": "Microsoft.AspNetCore.Mvc.ProblemDetails",
+        "MediaTypes": [
+          "text/plain",
+          "application/json",
+          "text/json"
+        ],
+        "StatusCode": 400
+      },
+      {
+        "Type": "Microsoft.AspNetCore.Mvc.ProblemDetails",
+        "MediaTypes": [
+          "text/plain",
+          "application/json",
+          "text/json"
+        ],
+        "StatusCode": 404
+      }
+    ]
+  },
+  {
+    "ContainingType": "medico_backend.Controller.WaAppointmentSessionController",
+    "Method": "CreateSession",
+    "RelativePath": "api/WaAppointmentSession/create",
+    "HttpMethod": "POST",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "req",
+        "Type": "medico_backend.Model.CreateWaSessionRequest",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": [
+      {
+        "Type": "medico_backend.Model.WaAppointmentSession",
+        "MediaTypes": [
+          "text/plain",
+          "application/json",
+          "text/json"
+        ],
+        "StatusCode": 200
+      },
+      {
+        "Type": "Microsoft.AspNetCore.Mvc.ProblemDetails",
+        "MediaTypes": [
+          "text/plain",
+          "application/json",
+          "text/json"
+        ],
+        "StatusCode": 400
+      }
+    ]
+  },
+  {
+    "ContainingType": "medico_backend.Controller.WaAppointmentSessionController",
+    "Method": "InsertFullSession",
+    "RelativePath": "api/WaAppointmentSession/insert-full",
+    "HttpMethod": "POST",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "req",
+        "Type": "medico_backend.Model.InsertFullWaSessionRequest",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": [
+      {
+        "Type": "medico_backend.Model.WaAppointmentSession",
+        "MediaTypes": [
+          "text/plain",
+          "application/json",
+          "text/json"
+        ],
+        "StatusCode": 200
+      },
+      {
+        "Type": "Microsoft.AspNetCore.Mvc.ProblemDetails",
+        "MediaTypes": [
+          "text/plain",
+          "application/json",
+          "text/json"
+        ],
+        "StatusCode": 400
+      }
+    ]
+  },
+  {
+    "ContainingType": "medico_backend.Controller.WaAppointmentSessionController",
+    "Method": "UpdateSession",
+    "RelativePath": "api/WaAppointmentSession/update",
+    "HttpMethod": "POST",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "req",
+        "Type": "medico_backend.Model.UpdateWaSessionRequest",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": [
+      {
+        "Type": "medico_backend.Model.WaAppointmentSession",
+        "MediaTypes": [
+          "text/plain",
+          "application/json",
+          "text/json"
+        ],
+        "StatusCode": 200
+      },
+      {
+        "Type": "Microsoft.AspNetCore.Mvc.ProblemDetails",
+        "MediaTypes": [
+          "text/plain",
+          "application/json",
+          "text/json"
+        ],
+        "StatusCode": 400
+      },
+      {
+        "Type": "Microsoft.AspNetCore.Mvc.ProblemDetails",
+        "MediaTypes": [
+          "text/plain",
+          "application/json",
+          "text/json"
+        ],
+        "StatusCode": 404
+      }
+    ]
   },
   {
     "ContainingType": "Medico_Backend.Controllers.WardMasterController",

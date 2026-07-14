@@ -99,29 +99,30 @@ namespace medico_backend.Controller
         // tenant_code is manual — passed as its own form field.
         [HttpPost("insert")]
         public async Task<IActionResult> Insert(
-    [FromForm] UserProfileFormModel profile,
-    [FromForm] string tenant_code,
-    [FromForm] IFormFile? userImageFile,
-    [FromForm] IFormFile? signatureImageFile)
+            [FromForm] UserProfileFormModel profile,
+            [FromForm] string tenant_code,
+            [FromForm] IFormFile? userImageFile,
+            [FromForm] IFormFile? signatureImageFile)
         {
             try
             {
-                if (string.IsNullOrWhiteSpace(tenant_code))
+                if (string.IsNullOrEmpty(tenant_code))
                     return BadRequest(new { message = "tenant_code is required." });
-
-                tenant_code = tenant_code.Trim();
 
                 var model = profile.User;
                 model.power_user = false;
                 model.tenant_code = tenant_code;
 
+                // Step 1: Create user (verified)
                 var result = await _userClass.InsertUser(model, profile.Branches, profile.Departments);
                 if (result != "User Created")
                     return MapInsertError(result);
 
+                // Step 2: Guard — user_code must have been set by RETURNING clause
                 if (model.user_code <= 0)
                     return StatusCode(500, new { message = "User created but user_code not returned." });
 
+                // Step 3: Upload images and update ONLY image columns (safe — no null overwrite)
                 await UploadAndSaveImages(model, tenant_code, userImageFile, signatureImageFile);
 
                 return Ok(new
@@ -430,14 +431,13 @@ namespace medico_backend.Controller
         /// Maps insert/register error strings to the correct HTTP response.
         /// </summary>
         private IActionResult MapInsertError(string result) =>
-result switch
-{
-    "Invalid tenant code" => BadRequest(new { message = result }),
-    "Tenant is not active" => BadRequest(new { message = result }),
-    "Username already exists"
-    or "Email already in use"
-    or "Mobile already in use" => Conflict(new { message = result }),
-    _ => StatusCode(500, new { message = result })
-};
+        result switch
+        {
+            "Invalid tenant code" => BadRequest(new { message = result }),
+            "Username already exists"
+            or "Email already in use"
+            or "Mobile already in use" => Conflict(new { message = result }),
+            _ => StatusCode(500, new { message = result })
+        };
     }
 }

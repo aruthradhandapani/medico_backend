@@ -1453,67 +1453,21 @@ public async Task<IActionResult> GetList()
     catch (Exception ex)
     {
         return BadRequest(ex.Message);
-            }
-        }
-        [HttpDelete("deletemanufacturer")]
-        public async Task<IActionResult> Deletemanufacturer(long manufacturercode)
-        {
-            try
-            {
-                var result = await itemclass.DeleteManufacturer(manufacturercode);
-                return Ok(result);
-            }
-            catch (Exception ex)
-            {
-                return BadRequest(ex.Message);
-            }
-        }
-        // ─── PURCHASE RETURN ──────────────────────────────────────────────────────────
-
-        // Step 1: search by item name + batch no → returns vendor + rate + available qty
-        [HttpGet("getpurchasereturnlookup")]
-        public async Task<IActionResult> GetPurchaseReturnLookup(long itemcode, string? batchno = null)
-        {
-            try
-            {
-                var tenantcode = GetTenantCode();
-                if (string.IsNullOrEmpty(tenantcode)) return MissingTenantCode();
-
-                var result = await itemclass.GetPurchaseReturnLookup(itemcode, batchno, tenantcode);
-
-                return Ok(new { Status = "Success", Data = result });
-            }
-            catch (Exception ex)
-            {
-                return BadRequest(new { Status = "Failed", Message = ex.Message });
-            }
-        }
-
-        // Step 2: submit returnqty + packsize → computes amount, updates stock + purchase_detail
-        [HttpPost("insertpurchasereturn")]
-        public async Task<IActionResult> InsertPurchaseReturn([FromBody] purchase_return_request request)
-        {
-            try
-            {
-                var tenantcode = GetTenantCode();
-                if (string.IsNullOrEmpty(tenantcode)) return MissingTenantCode();
-
-                request.tenantcode = tenantcode;
-
-                var result = await itemclass.InsertPurchaseReturn(request);
-
-                return Ok(new
-                {
-                    Status = "Success",
-                    Message = "Purchase return processed successfully",
-                    PurchaseReturnCode = result
-                });
-            }
-            catch (Exception ex)
-            {
-                return BadRequest(new { Status = "Failed", Message = ex.Message });
-            }
-        }
+    }
+}
+[HttpDelete("deletemanufacturer")]
+public async Task<IActionResult> Deletemanufacturer(long manufacturercode)
+{
+    try
+    {
+        var result = await itemclass.DeleteManufacturer(manufacturercode);
+        return Ok(result);
+    }
+    catch (Exception ex)
+    {
+        return BadRequest(ex.Message);
+    }
+}
     }
 }
     

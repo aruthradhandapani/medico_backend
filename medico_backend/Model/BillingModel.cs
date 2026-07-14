@@ -282,7 +282,7 @@ namespace medico_backend.Model
     public class CreateHmsBillRequest
     {
         public string? requestguid { get; set; }
-        public string? op_id { get; set; } = string.Empty;
+        public string op_id { get; set; } = string.Empty;
         public string? sheet_id { get; set; }
         public decimal? custid { get; set; }
         public string? patient_name { get; set; }

@@ -443,63 +443,48 @@ namespace medico_backend.Class
             await InsertUserInternal(user, branchModel, deptModel, isVerified: true);
 
         private async Task<string> InsertUserInternal(
-    user_master user,
-    IList<UserBranchMaster>? branchModel,
-    IList<UserGroupMaster>? deptModel,
-    bool isVerified)
+            user_master user,
+            IList<UserBranchMaster>? branchModel,
+            IList<UserGroupMaster>? deptModel,
+            bool isVerified)
         {
             try
             {
                 using var db = Connection();
                 db.Open();
 
-                // Trim defensively here too, in case this method is ever called
-                // from somewhere other than the controller.
-                user.tenant_code = user.tenant_code?.Trim();
-                user.name = user.name?.Trim();
-                user.email = user.email?.Trim();
-                user.mobile = user.mobile?.Trim();
-
-                // ── Step 1: Tenant check, split out from uniqueness checks ────────
-                var tenantStatus = await db.QueryFirstOrDefaultAsync<bool?>(@"
-            SELECT is_active
-            FROM mastertenant.tenants
-            WHERE tenant_code = @tenant_code",
-                    new { user.tenant_code });
-
-                if (tenantStatus == null)
-                    return "Invalid tenant code"; // no row at all — tenant_code doesn't exist
-
-                if (tenantStatus != true)
-                    return "Tenant is not active"; // row exists but is_active is false or null
-
-                // ── Step 2: Uniqueness checks ──────────────────────────────────────
+                // ── Single-query validation ───────────────────────────────────
                 var status = await db.ExecuteScalarAsync<string>(@"
-            SELECT CASE
-                WHEN EXISTS (
-                    SELECT 1 FROM mastertenant.user_master
-                    WHERE name = @name AND deleted = false
-                ) THEN 'NAME_EXISTS'
-                WHEN @email IS NOT NULL AND EXISTS (
-                    SELECT 1 FROM mastertenant.user_master
-                    WHERE email = @email AND deleted = false
-                ) THEN 'EMAIL_EXISTS'
-                WHEN @mobile IS NOT NULL AND EXISTS (
-                    SELECT 1 FROM mastertenant.user_master
-                    WHERE mobile = @mobile AND deleted = false
-                ) THEN 'MOBILE_EXISTS'
-                ELSE 'OK'
-            END", user);
+                    SELECT CASE
+                        WHEN NOT EXISTS (
+                            SELECT 1 FROM mastertenant.tenants
+                            WHERE tenant_code = @tenant_code AND is_active = true
+                        ) THEN 'INVALID_TENANT'
+                        WHEN EXISTS (
+                            SELECT 1 FROM mastertenant.user_master
+                            WHERE name = @name AND deleted = false
+                        ) THEN 'NAME_EXISTS'
+                        WHEN @email IS NOT NULL AND EXISTS (
+                            SELECT 1 FROM mastertenant.user_master
+                            WHERE email = @email AND deleted = false
+                        ) THEN 'EMAIL_EXISTS'
+                        WHEN @mobile IS NOT NULL AND EXISTS (
+                            SELECT 1 FROM mastertenant.user_master
+                            WHERE mobile = @mobile AND deleted = false
+                        ) THEN 'MOBILE_EXISTS'
+                        ELSE 'OK'
+                    END", user);
 
+                if (status == "INVALID_TENANT") return "Invalid tenant code";
                 if (status == "NAME_EXISTS") return "Username already exists";
                 if (status == "EMAIL_EXISTS") return "Email already in use";
                 if (status == "MOBILE_EXISTS") return "Mobile already in use";
 
                 string? modules = await db.QueryFirstOrDefaultAsync<string>(@"
-            SELECT module
-            FROM mastertenant.user_master
-            WHERE tenant_code = @tenant_code
-              AND power_user = true;",
+                    SELECT module
+                    FROM mastertenant.user_master
+                    WHERE tenant_code = @tenant_code
+                      AND power_user = true;",
                     new { user.tenant_code });
 
                 user.module = modules ?? user.module;
@@ -525,9 +510,9 @@ namespace medico_backend.Class
                     var maxCode = await db.ExecuteScalarAsync<int>(
                         "SELECT COALESCE(MAX(user_code), 0) FROM mastertenant.user_master",
                         null, tx);
-                    user.user_code = maxCode + 1;
+                    user.user_code = maxCode + 1;   // ← explicit PK
 
-                    await db.InsertAsync(user, tx);
+                    await db.InsertAsync(user, tx); // [ExplicitKey] → user_code included in INSERT
 
                     if (branchModel?.Count > 0)
                         await InsertBranches(db, user.user_code, user.tenant_code!, branchModel, now, tx);
@@ -550,6 +535,7 @@ namespace medico_backend.Class
                 throw new Exception($"InsertUserInternal failed: {ex.Message}");
             }
         }
+
         // ─── Login (no rights lookup) ─────────────────────────────────────────
 
         public async Task<LoginResult> LoginWithRights(LoginDto dto)

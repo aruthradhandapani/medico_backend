@@ -1171,7 +1171,7 @@ namespace medico_backend.Class
                         t.contact_number                                                            AS CompanyContactNo,
                         t.contact_email                                                             AS CompanyEmail,
 
-                        COUNT(rd.receipt_details_id)                                                AS Totalbills,
+                        COUNT(rd.receiptdetailsid)                                                AS Totalbills,
 
                         CAST(CASE WHEN amt.HasRows THEN COALESCE(amt.TotalBillAmount, 0) ELSE COALESCE(rm.amounttotal, 0) END AS DECIMAL(18,2)) AS TotalAmount,
                         CAST(COALESCE(rm.amountpaid, 0) AS DECIMAL(18,2)) AS PaidAmount,
