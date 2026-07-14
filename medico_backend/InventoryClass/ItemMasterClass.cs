@@ -2921,17 +2921,38 @@ WHERE stockcode=@stockcode;";
                 }
             }
         }
-        public async Task<IEnumerable<sales_master>> GetSales()
+               public async Task<IEnumerable<sales_request>> GetSales()
         {
             using (var conn = new NpgsqlConnection(con))
             {
-                string query = @"
-    SELECT *
-    FROM sales_master
-    WHERE deleted = false
-    ORDER BY salescode DESC";
+                await conn.OpenAsync();
 
-                return await conn.QueryAsync<sales_master>(query);
+                // Get all sales masters
+                string masterQuery = @"
+SELECT *
+FROM sales_master
+WHERE deleted = false
+ORDER BY salescode DESC;";
+
+                var masters = (await conn.QueryAsync<sales_master>(masterQuery)).ToList();
+
+                // Get all sales details
+                string detailQuery = @"
+SELECT *
+FROM sales_detail
+ORDER BY salesdetailcode;";
+
+                var details = (await conn.QueryAsync<sales_detail>(detailQuery)).ToList();
+
+                var result = masters.Select(master => new sales_request
+                {
+                    master = master,
+                    details = details
+                                .Where(x => x.salescode == master.salescode)
+                                .ToList()
+                });
+
+                return result;
             }
         }
         public async Task<string> DeleteSales(long salescode)
