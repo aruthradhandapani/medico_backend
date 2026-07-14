@@ -162,7 +162,7 @@ namespace medico_backend.InventoryModel
 
      public string branchcode { get; set; }
  }
-   public class purchase_master
+  public class purchase_master
 {
     public long purchasecode { get; set; }
 
@@ -268,7 +268,6 @@ public class purchase_detail
 
     public string? tenantcode { get; set; }
 }
-
     public class purchase_request
     {
         public purchase_master master { get; set; }
