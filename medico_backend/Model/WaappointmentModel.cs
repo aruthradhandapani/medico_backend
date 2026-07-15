@@ -73,4 +73,5 @@ namespace medico_backend.Model
         public bool? isactive { get; set; }
         public string? language { get; set; }
     }
+
 }

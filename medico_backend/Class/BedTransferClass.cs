@@ -112,7 +112,7 @@ namespace Medico_Backend.Class
                     // 3. Update bed_status: old bed vacant, new bed occupied
                     // 3. Update bed_status: old bed -> immediately AVAILABLE (transfer, not discharge),
                     //    new bed -> OCCUPIED
-                    await _bedStatusCls.MarkVacantAvailable(db, tx, oldBedcode, ipId.Value, data.tenant_code!);
+                    await _bedStatusCls.MarkVacant(db, tx, oldBedcode, ipId.Value, data.tenant_code!);
                     await _bedStatusCls.InsertOccupied(
                         db, tx, newBedcode, ipId.Value, (string)ip.ip_no, (decimal)ip.custid,
                         DateTime.UtcNow, data.tenant_code!);

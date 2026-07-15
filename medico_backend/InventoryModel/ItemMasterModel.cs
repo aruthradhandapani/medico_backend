@@ -255,10 +255,11 @@ public class purchase_detail
 
     public decimal receivedqty { get; set; }
 
-    public decimal rejectedqty { get; set; }
+        public decimal rejectedqty { get; set; }
+        public decimal returnedqty { get; set; }
 
-    // Warehouse / Store
-    public long warehousecode { get; set; }
+        // Warehouse / Store
+        public long warehousecode { get; set; }
 
     // Packaging
     public string? packaging { get; set; }
@@ -670,24 +671,104 @@ public class purchase_detail
      public bool isdeleted { get; set; }
 
      public DateTime createddate { get; set; }
- }
-  public class manufacturer_master
- {
-     public long manufacturercode { get; set; }
-     public string manufacturername { get; set; }
-     public string shortname { get; set; }
-     public string description { get; set; }
-     public string contactperson { get; set; }
-     public string phoneno { get; set; }
-     public string email { get; set; }
-     public string address { get; set; }
-     public string gstno { get; set; }
-     public bool isactive { get; set; }
-     public bool deleted { get; set; }
-     public DateTime createddate { get; set; }
-     public int usercode { get; set; }
-     public string tenantcode { get; set; }
- }
+    }
+    public class manufacturer_master
+    {
+        public long manufacturercode { get; set; }
+        public string manufacturername { get; set; }
+        public string shortname { get; set; }
+        public string description { get; set; }
+        public string contactperson { get; set; }
+        public string phoneno { get; set; }
+        public string email { get; set; }
+        public string address { get; set; }
+        public string gstno { get; set; }
+        public bool isactive { get; set; }
+        public bool deleted { get; set; }
+        public DateTime createddate { get; set; }
+        public int usercode { get; set; }
+        public string tenantcode { get; set; }
+    }
+    // ─── PURCHASE RETURN ──────────────────────────────────────────────────────────
+
+    // Step 1 input: user types item name + batch no
+    public class purchase_return_lookup_request
+    {
+        public long itemcode { get; set; }
+        public string? batchno { get; set; }   // optional now — filters results if provided
+    }
+
+    // Step 1 output: vendor + rate + available qty for that item/batch
+    public class purchase_return_lookup_result
+    {
+        public long purchasedetailcode { get; set; }
+        public long purchasecode { get; set; }
+        public long itemcode { get; set; }
+        public string itemname { get; set; }
+        public string batchno { get; set; }
+
+        public long vendorcode { get; set; }
+        public string vendorname { get; set; }
+        public string contactperson { get; set; }
+        public string phonenumber { get; set; }
+        public string gstnumber { get; set; }
+
+        public decimal rate { get; set; }
+        public decimal receivedqty { get; set; }
+        public decimal returnedqty { get; set; }
+        public decimal availableqty { get; set; }   // receivedqty - returnedqty
+        public decimal packsize { get; set; }
+
+        public long? warehousecode { get; set; }
+    }
+
+    // Step 2 input: user enters returnqty + packsize
+    public class purchase_return_request
+    {
+        public long purchasedetailcode { get; set; }
+        public long purchasecode { get; set; }
+        public long itemcode { get; set; }
+        public long vendorcode { get; set; }
+        public string batchno { get; set; }
+
+        public decimal returnqty { get; set; }
+        public decimal packsize { get; set; }
+
+        public long? warehousecode { get; set; }
+        public string? remarks { get; set; }
+
+        public long? usercode { get; set; }
+        public string? tenantcode { get; set; }
+    }
+
+    // Persisted return record
+    [Table("purchase_return_master")]
+    public class purchase_return_master
+    {
+        [Key]
+        public long purchasereturncode { get; set; }
+
+        public long purchasedetailcode { get; set; }
+        public long purchasecode { get; set; }
+        public long itemcode { get; set; }
+        public long vendorcode { get; set; }
+        public string? batchno { get; set; }
+
+        public decimal returnqty { get; set; }
+        public decimal packsize { get; set; }
+        public decimal totalqty { get; set; }   // returnqty * packsize
+        public decimal rate { get; set; }
+        public decimal amount { get; set; }     // totalqty * rate
+
+        public long? warehousecode { get; set; }
+        public string? remarks { get; set; }
+
+        public bool isactive { get; set; }
+        public bool deleted { get; set; }
+        public DateTime createddate { get; set; }
+        public long? usercode { get; set; }
+        public string? tenantcode { get; set; }
+    }
 }
 
 
