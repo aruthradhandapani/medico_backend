@@ -10,11 +10,13 @@ namespace medico_backend.Class
     {
         private readonly string _db_conn;
         private readonly BedStatusClass _bedStatusCls;
+        private readonly UnbilledChargesClass _unbilledCls;
 
-        public IpRegistrationClass(IConfiguration configuration, BedStatusClass bedStatusCls)
+        public IpRegistrationClass(IConfiguration configuration, BedStatusClass bedStatusCls, UnbilledChargesClass unbilledCls)
         {
             _db_conn = configuration.GetConnectionString("conn")!;
             _bedStatusCls = bedStatusCls;
+            _unbilledCls = unbilledCls;
         }
 
         // ─────────────────────────────────────────
@@ -160,6 +162,13 @@ namespace medico_backend.Class
         // ─────────────────────────────────────────
         public async Task<string> Discharge(DischargeRequest req, string tenant_code)
         {
+            await _unbilledCls.RecalculateRoomRent(req.ip_id, tenant_code, DateTime.UtcNow);
+
+            if (!await _unbilledCls.IsFullyBilled(req.ip_id, tenant_code))
+                return "Cannot discharge: unbilled charges are pending. Generate the final bill first.";
+
+            if (!await _unbilledCls.IsPaymentSettled(req.ip_id, tenant_code))
+                return "Cannot discharge: outstanding balance has not been paid.";
             using IDbConnection db = new NpgsqlConnection(_db_conn);
             db.Open();
             using var tx = db.BeginTransaction();

@@ -57,5 +57,19 @@ namespace medico_backend.Controllers
             var data = await cls.GetUnbilledByCustomer(custid, tenant);
             return Ok(data);
         }
+        [HttpPost("recalculate-room-rent")]
+        public async Task<IActionResult> RecalcRoomRent(Guid ip_id)
+        {
+            var tenant = Request.Headers["tenant_code"].ToString();
+            var res = await cls.RecalculateRoomRent(ip_id, tenant);
+            return res == "Success" ? Ok(new { message = res }) : BadRequest(new { message = res });
+        }
+
+        [HttpGet("ip-room-rent-summary")]
+        public async Task<IActionResult> IpRoomRentSummary(Guid ip_id)
+        {
+            var tenant = Request.Headers["tenant_code"].ToString();
+            return Ok(await cls.GetIpRoomRentSummary(ip_id, tenant));
+        }
     }
 }

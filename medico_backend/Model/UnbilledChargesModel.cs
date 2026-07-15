@@ -23,7 +23,7 @@ namespace medico_backend.Model
         public DateTime? billeddate { get; set; }
         public double? billedquantity { get; set; }
         public double? billedamount { get; set; }
-        public string? tenant_code { get; set; }      // ⚠️ requires ALTER TABLE — see note above
+        public string? tenant_code { get; set; }      
     }
 
     // ── Request DTOs ─────────────────────────────────────────────
@@ -31,7 +31,7 @@ namespace medico_backend.Model
     {
         public string op_id { get; set; } = string.Empty;
         public decimal custid { get; set; }
-        public int? tcode { get; set; }          // consultation charge tcode from your charge master
+        public int? tcode { get; set; }          
         public double rate { get; set; }
         public double amount { get; set; }
         public double quantity { get; set; } = 1;
@@ -47,6 +47,6 @@ namespace medico_backend.Model
         public double? quantity { get; set; }
         public double? rate { get; set; }
         public double? amount { get; set; }
-        public string? item_name { get; set; }   // joined from tests/consultation description if you have a code master
+        public string? item_name { get; set; }   
     }
 }

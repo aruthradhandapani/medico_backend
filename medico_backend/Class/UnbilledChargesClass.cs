@@ -1,6 +1,7 @@
 ﻿using Dapper;
 using Dapper.Contrib.Extensions;
 using medico_backend.Model;
+using Medico_Backend.Model;
 using Npgsql;
 using System.Data;
 
@@ -151,6 +152,146 @@ namespace medico_backend.Class
                 tenant_code = tenant_code
             };
             await db.InsertAsync(row);
+        }
+        // ── Recalculate ROOMRENT for a stay, only the unbilled remainder ──
+        public async Task<string> RecalculateRoomRent(Guid ip_id, string tenant_code, DateTime? asOf = null)
+        {
+            try
+            {
+                using var db = GetConnection();
+                string ipIdStr = ip_id.ToString();
+
+                var ip = await db.QueryFirstOrDefaultAsync<dynamic>(
+                    @"SELECT admitdate, dischargedate, ip_status, rmtcode, custid
+              FROM ip_registration
+              WHERE ip_id = @ip_id AND tenant_code = @tenant_code",
+                    new { ip_id, tenant_code });
+                if (ip == null) return "IP Registration not found";
+
+                DateTime admitdate = (DateTime)ip.admitdate;
+                DateTime cutoffEnd = ip.ip_status == "DISCHARGED" && ip.dischargedate != null
+                    ? (DateTime)ip.dischargedate
+                    : (asOf ?? DateTime.UtcNow);
+
+                var transfers = (await db.QueryAsync<dynamic>(
+                    @"SELECT transferdate, currentroom, transroom
+              FROM public.bed_transfer
+              WHERE lastvisitid = @ipIdStr AND tenant_code = @tenant_code
+              ORDER BY transferdate ASC",
+                    new { ipIdStr, tenant_code })).ToList();
+
+                // Build segments from admission through transfers to cutoffEnd
+                var segments = new List<(int? rmtcode, DateTime from, DateTime to)>();
+                DateTime segStart = admitdate;
+                int? segRmt = transfers.Count > 0 ? (int?)transfers[0].currentroom : (int?)ip.rmtcode;
+
+                foreach (var t in transfers)
+                {
+                    DateTime segEnd = (DateTime)t.transferdate;
+                    if (segEnd > segStart) segments.Add((segRmt, segStart, segEnd));
+                    segStart = segEnd;
+                    segRmt = (int?)t.transroom;
+                }
+                if (cutoffEnd > segStart) segments.Add((segRmt, segStart, cutoffEnd));
+
+                // Don't re-charge periods already billed
+                DateTime billedThrough = await db.ExecuteScalarAsync<DateTime?>(
+                    @"SELECT MAX(chargedate) FROM unbilledcharges
+              WHERE entrytype = 'ROOMRENT' AND opvisitid = @ipIdStr
+              AND tenant_code = @tenant_code AND billedstatus = true",
+                    new { ipIdStr, tenant_code }) ?? admitdate;
+
+                var toCharge = segments
+                    .Select(s => (s.rmtcode, from: s.from < billedThrough ? billedThrough : s.from, s.to))
+                    .Where(s => s.to > s.from)
+                    .ToList();
+
+                // Wipe previously-projected (still unbilled) ROOMRENT rows — safe, billed ones untouched
+                await db.ExecuteAsync(
+                    @"DELETE FROM unbilledcharges
+              WHERE entrytype = 'ROOMRENT' AND opvisitid = @ipIdStr
+              AND tenant_code = @tenant_code AND (billedstatus = false OR billedstatus IS NULL)",
+                    new { ipIdStr, tenant_code });
+
+                foreach (var seg in toCharge)
+                {
+                    if (seg.rmtcode == null) continue;
+
+                    double totalHours = (seg.to - seg.from).TotalHours;
+                    int fullDays = (int)(totalHours / 24);
+                    double remainder = totalHours - (fullDays * 24);
+                    double dayUnits = fullDays + (remainder > 0 ? (remainder <= 12 ? 0.5 : 1.0) : 0);
+                    if (dayUnits <= 0) continue;
+
+                    var rates = await db.QueryAsync<TestGroupRateModel>(
+                        @"SELECT * FROM public.test_group_rates
+                  WHERE rmtcode = @rmtcode AND tenant_code = @tenant_code",
+                        new { seg.rmtcode, tenant_code });
+
+                    foreach (var rate in rates)
+                    {
+                        var row = new UnbilledChargeRow
+                        {
+                            unbilledid = Guid.NewGuid().ToString(),
+                            entrytype = "ROOMRENT",
+                            entryid = $"{ipIdStr}|{rate.roomchargehead}|{rate.subtestcode}",
+                            chargedate = seg.to,                 // marks period-end this row covers
+                            custid = (decimal)ip.custid,
+                            opvisitid = ipIdStr,                  // reusing this column to link the IP stay
+                            tcode = rate.subtestcode ?? rate.roomchargehead,
+                            quantity = dayUnits,
+                            rate = rate.testrate,
+                            amount = dayUnits * (rate.testrate ?? 0),
+                            discount = 0,
+                            charityamount = 0,
+                            billedstatus = false,
+                            tenant_code = tenant_code
+                        };
+                        await db.InsertAsync(row);
+                    }
+                }
+
+                return "Success";
+            }
+            catch (Exception ex) { return ex.Message; }
+        }
+
+        // ── All charges for this IP stay have been billed? ──
+        public async Task<bool> IsFullyBilled(Guid ip_id, string tenant_code)
+        {
+            using var db = GetConnection();
+            string ipIdStr = ip_id.ToString();
+            int pending = await db.ExecuteScalarAsync<int>(
+                @"SELECT COUNT(1) FROM unbilledcharges
+          WHERE opvisitid = @ipIdStr AND tenant_code = @tenant_code
+          AND (billedstatus = false OR billedstatus IS NULL)",
+                new { ipIdStr, tenant_code });
+            return pending == 0;
+        }
+
+
+        public async Task<bool> IsPaymentSettled(Guid ip_id, string tenant_code)
+        {
+            using var db = GetConnection();
+  
+            throw new NotImplementedException("Wire IsPaymentSettled to your bill/payment table");
+        }
+
+        public async Task<List<dynamic>> GetIpRoomRentSummary(Guid ip_id, string tenant_code)
+        {
+            using var db = GetConnection();
+            string ipIdStr = ip_id.ToString();
+            string sql = @"
+        SELECT uc.*, tgr.roomchargehead, tgr.subtestcode
+        FROM unbilledcharges uc
+        LEFT JOIN public.test_group_rates tgr
+               ON tgr.subtestcode = uc.tcode AND tgr.tenant_code = uc.tenant_code
+        WHERE uc.entrytype = 'ROOMRENT' AND uc.opvisitid = @ipIdStr
+          AND uc.tenant_code = @tenant_code
+        ORDER BY uc.chargedate";
+            
+            var res = await db.QueryAsync<dynamic>(sql, new { ipIdStr, tenant_code });
+            return res.ToList();
         }
     }
 }

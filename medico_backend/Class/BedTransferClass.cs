@@ -11,11 +11,13 @@ namespace Medico_Backend.Class
     {
         private readonly string db_conn;
         private readonly BedStatusClass _bedStatusCls;
+        private readonly UnbilledChargesClass _unbilledCls;
 
-        public BedTransferClass(IConfiguration configuration, BedStatusClass bedStatusCls)
+        public BedTransferClass(IConfiguration configuration, BedStatusClass bedStatusCls, UnbilledChargesClass unbilledCls)
         {
             db_conn = configuration.GetConnectionString("conn");
             _bedStatusCls = bedStatusCls;
+            _unbilledCls = unbilledCls;
         }
 
         // ─────────────────────────────────────────
@@ -52,11 +54,11 @@ namespace Medico_Backend.Class
                 if (ipId.HasValue)
                 {
                     var ip = await db.QueryFirstOrDefaultAsync<dynamic>(
-                        @"SELECT ip_id, ip_no, custid, bedcode, ip_status
-                          FROM ip_registration
-                          WHERE ip_id = @ip_id AND tenant_code = @tenant_code AND isdeleted = false
-                          FOR UPDATE",
-                        new { ip_id = ipId.Value, tenant_code = data.tenant_code }, tx);
+                       @"SELECT ip_id, ip_no, custid, bedcode, flrcode, wrdcode, rmtcode, ip_status
+                        FROM ip_registration
+                        WHERE ip_id = @ip_id AND tenant_code = @tenant_code AND isdeleted = false
+                        FOR UPDATE",
+                    new { ip_id = ipId.Value, tenant_code = data.tenant_code }, tx);
 
                     if (ip == null) { tx.Rollback(); return "IP Registration not found for lastvisitid"; }
                     if ((string)ip.ip_status != "ADMITTED") { tx.Rollback(); return "Patient is not currently admitted"; }
@@ -88,6 +90,14 @@ namespace Medico_Backend.Class
                         new { newBedcode, tenant_code = data.tenant_code }, tx);
 
                     if (newBed == null) { tx.Rollback(); return "Target bed not found in bed_master"; }
+
+                    // Stamp authoritative before/after room codes — don't trust the caller's `data`
+                    data.currentfloor = (int?)ip.flrcode;
+                    data.currentroom = (int?)ip.rmtcode;   // room TYPE code — what room-rent keys off
+                    data.currentbed = oldBedcode;
+                    data.transfloor = (int?)newBed.flrcode;
+                    data.transroom = (int?)newBed.rmtcode;
+                    // data.transbed already correct — came from the validated request
 
                     // 1. Insert the bed_transfer log row
                     var id = await db.InsertAsync(data, tx);
@@ -127,6 +137,10 @@ namespace Medico_Backend.Class
                 }
 
                 tx.Commit();
+
+                if (ipId.HasValue)
+                    await _unbilledCls.RecalculateRoomRent(ipId.Value, data.tenant_code!);
+
                 return "Success";
             }
             catch (Exception ex)
