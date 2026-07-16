@@ -683,9 +683,9 @@ public class purchase_detail
      public bool isdeleted { get; set; }
 
      public DateTime createddate { get; set; }
-     public bool PurchaseAllow { get; set; } = false;
+     public bool purchaseallow { get; set; } = false;
 
-     public bool SalesAllow { get; set; } = false;
+     public bool salesallow { get; set; } = false;
     }
     public class manufacturer_master
     {
