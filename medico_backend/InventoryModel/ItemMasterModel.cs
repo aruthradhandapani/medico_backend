@@ -74,9 +74,9 @@ namespace medico_backend.InventoryModel
         public int usercode { get; set; }
 
         public string tenantcode { get; set; }
-        public string? Schedule { get; set; }
+        public string? schedule { get; set; }
 
-        public bool IsNarcoticDrug { get; set; } = false;
+        public bool isnarcoticdrug { get; set; } = false;
     }
     [Table("vendor_master")]
 
