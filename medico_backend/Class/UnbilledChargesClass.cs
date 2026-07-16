@@ -182,10 +182,9 @@ namespace medico_backend.Class
             try
             {
                 using var db = GetConnection();
-                string ipIdStr = ip_id.ToString();
 
                 var ip = await db.QueryFirstOrDefaultAsync<dynamic>(
-                    @"SELECT admitdate, dischargedate, ip_status, rmtcode, custid
+                    @"SELECT admitdate, dischargedate, ip_status, rmtcode, bedcode, custid
               FROM ip_registration
               WHERE ip_id = @ip_id AND tenant_code = @tenant_code",
                     new { ip_id, tenant_code });
@@ -194,90 +193,120 @@ namespace medico_backend.Class
                     return $"IP Registration not found for ip_id='{ip_id}' tenant_code='{tenant_code}'";
 
                 DateTime admitdate = NormalizeUtc((DateTime)ip.admitdate);
-                DateTime cutoffEnd = ip.ip_status == "DISCHARGED" && ip.dischargedate != null
-    ? NormalizeUtc((DateTime)ip.dischargedate)
-    : (asOf ?? DateTime.UtcNow);
+                bool isDischarged = ip.ip_status == "DISCHARGED" && ip.dischargedate != null;
+                DateTime cutoffEnd = isDischarged
+                    ? NormalizeUtc((DateTime)ip.dischargedate)
+                    : (asOf ?? DateTime.UtcNow);
 
                 var transfers = (await db.QueryAsync<dynamic>(
-                    @"SELECT transferdate, currentroom, transroom
+                    @"SELECT transferdate, currentroom, transroom, currentbed, transbed
               FROM public.bed_transfer
               WHERE lastvisitid = @ipIdStr AND tenant_code = @tenant_code
               ORDER BY transferdate ASC",
-                    new { ipIdStr, tenant_code })).ToList();
+                    new { ipIdStr = ip_id.ToString(), tenant_code })).ToList();
 
-                var segments = new List<(int? rmtcode, DateTime from, DateTime to)>();
+                // Build segments, marking each as "closed" (ended by a real transfer/discharge)
+                // or "open" (still ongoing — this is the only one that gets refreshed)
+                var segments = new List<(int? rmtcode, int? bedcode, DateTime from, DateTime to, bool isClosed)>();
                 DateTime segStart = admitdate;
                 int? segRmt = transfers.Count > 0 ? (int?)transfers[0].currentroom : (int?)ip.rmtcode;
+                int? segBed = transfers.Count > 0 ? (int?)transfers[0].currentbed : (int?)ip.bedcode;
 
                 foreach (var t in transfers)
                 {
                     DateTime segEnd = NormalizeUtc((DateTime)t.transferdate);
-                    if (segEnd > segStart) segments.Add((segRmt, segStart, segEnd));
+                    if (segEnd > segStart) segments.Add((segRmt, segBed, segStart, segEnd, true));  // closed by transfer
                     segStart = segEnd;
                     segRmt = (int?)t.transroom;
+                    segBed = (int?)t.transbed;
                 }
-                if (cutoffEnd > segStart) segments.Add((segRmt, segStart, cutoffEnd));
+                if (cutoffEnd > segStart)
+                    segments.Add((segRmt, segBed, segStart, cutoffEnd, isDischarged)); // closed only if discharged
 
-                DateTime billedThrough = NormalizeUtc(await db.ExecuteScalarAsync<DateTime?>(
-    @"SELECT MAX(chargedate) FROM unbilledcharges
-      WHERE entrytype = 'ROOMRENT' AND opvisitid = @ipIdStr
-      AND tenant_code = @tenant_code AND billedstatus = true",
-    new { ipIdStr, tenant_code }) ?? admitdate);
+                int inserted = 0, skippedExisting = 0, skippedNoRoomType = 0;
 
-                var toCharge = segments
-                    .Select(s => (s.rmtcode, from: s.from < billedThrough ? billedThrough : s.from, s.to))
-                    .Where(s => s.to > s.from)
-                    .ToList();
-
-                await db.ExecuteAsync(
-                    @"DELETE FROM unbilledcharges
-              WHERE entrytype = 'ROOMRENT' AND opvisitid = @ipIdStr
-              AND tenant_code = @tenant_code AND (billedstatus = false OR billedstatus IS NULL)",
-                    new { ipIdStr, tenant_code });
-
-                int segmentsSkippedNoRoomType = 0, totalRowsInserted = 0;
-
-                foreach (var seg in toCharge)
+                foreach (var seg in segments)
                 {
                     if (seg.rmtcode == null) continue;
 
                     decimal chargedDays = CalculateRoomRentDays(seg.from, seg.to);
-                    if (chargedDays <= 0) continue;   // within 12 hrs → free
-                    //if (chargedDays <= 0)
-                       // return $"DEBUG|seg.from={seg.from:o}|seg.to={seg.to:o}|hours={(seg.to - seg.from).TotalHours:F2}|chargedDays={chargedDays}|admitdate={admitdate:o}|cutoffEnd={cutoffEnd:o}";
+                    if (chargedDays <= 0) continue;
 
                     var roomType = await db.QueryFirstOrDefaultAsync<dynamic>(
-                        @"SELECT rmtcode, roomrate FROM public.roomtype_master
+                        @"SELECT roomrate FROM public.roomtype_master
                   WHERE rmtcode = @rmtcode AND tenant_code = @tenant_code
                   AND (deleted IS NULL OR deleted = false)",
                         new { seg.rmtcode, tenant_code });
 
-                    if (roomType == null) { segmentsSkippedNoRoomType++; continue; }
-
+                    if (roomType == null) { skippedNoRoomType++; continue; }
                     decimal roomRate = (decimal)(roomType.roomrate ?? 0);
 
-                    var row = new UnbilledChargeRow
+                    if (seg.isClosed)
                     {
-                        unbilledid = Guid.NewGuid().ToString(),
-                        entrytype = "ROOMRENT",
-                        entryid = $"{ipIdStr}|{seg.rmtcode}",
-                        chargedate = seg.to,
-                        custid = (decimal)ip.custid,
-                        opvisitid = ipIdStr,
-                        tcode = seg.rmtcode,               // room type code, not a charge-head anymore
-                        quantity = (double)chargedDays,
-                        rate = (double)roomRate,
-                        amount = (double)(chargedDays * roomRate),
-                        discount = 0,
-                        charityamount = 0,
-                        billedstatus = false,
-                        tenant_code = tenant_code
-                    };
-                    await db.InsertAsync(row);
-                    totalRowsInserted++;
+                        // Closed segment — insert ONCE, keyed on the fixed segment end time.
+                        // Never touched again on future recalculates.
+                        string closedKey = $"{ip_id}|SEG|{seg.to:o}|bed:{seg.bedcode}";
+                        var already = await db.ExecuteScalarAsync<int>(
+                            @"SELECT COUNT(1) FROM unbilledcharges WHERE entryid = @closedKey AND tenant_code = @tenant_code",
+                            new { closedKey, tenant_code });
+
+                        if (already > 0) { skippedExisting++; continue; }
+
+                        await db.InsertAsync(new UnbilledChargeRow
+                        {
+                            unbilledid = Guid.NewGuid().ToString(),
+                            entrytype = "ROOMRENT",
+                            entryid = closedKey,
+                            chargedate = seg.to,
+                            custid = (decimal)ip.custid,
+                            ip_id = ip_id,
+                            bedcode = seg.bedcode,        // NEW
+                            tcode = seg.rmtcode,
+                            quantity = (double)chargedDays,
+                            rate = (double)roomRate,
+                            amount = (double)(chargedDays * roomRate),
+                            discount = 0,
+                            charityamount = 0,
+                            billedstatus = false,
+                            tenant_code = tenant_code
+                        });
+                        inserted++;
+                    }
+                    else
+                    {
+                        // Open segment — the bed the patient is in RIGHT NOW.
+                        // Delete only THIS marker's unbilled row and reinsert with fresh quantity.
+                        string openKey = $"{ip_id}|OPEN|bed:{seg.bedcode}";
+
+                        await db.ExecuteAsync(
+                            @"DELETE FROM unbilledcharges
+                      WHERE entryid = @openKey AND tenant_code = @tenant_code
+                      AND (billedstatus = false OR billedstatus IS NULL)",
+                            new { openKey, tenant_code });
+
+                        await db.InsertAsync(new UnbilledChargeRow
+                        {
+                            unbilledid = Guid.NewGuid().ToString(),
+                            entrytype = "ROOMRENT",
+                            entryid = openKey,
+                            chargedate = seg.to,
+                            custid = (decimal)ip.custid,
+                            ip_id = ip_id,
+                            bedcode = seg.bedcode,        // NEW
+                            tcode = seg.rmtcode,
+                            quantity = (double)chargedDays,
+                            rate = (double)roomRate,
+                            amount = (double)(chargedDays * roomRate),
+                            discount = 0,
+                            charityamount = 0,
+                            billedstatus = false,
+                            tenant_code = tenant_code
+                        });
+                        inserted++;
+                    }
                 }
 
-                return $"Success|Segments:{toCharge.Count}|SkippedNoRoomType:{segmentsSkippedNoRoomType}|RowsInserted:{totalRowsInserted}";
+                return $"Success|Segments:{segments.Count}|Inserted:{inserted}|SkippedExisting:{skippedExisting}|SkippedNoRoomType:{skippedNoRoomType}";
             }
             catch (Exception ex) { return ex.Message; }
         }
@@ -287,16 +316,20 @@ namespace medico_backend.Class
         public async Task<List<dynamic>> GetIpRoomRentSummary(Guid ip_id, string tenant_code)
         {
             using var db = GetConnection();
-            string ipIdStr = ip_id.ToString();
             string sql = @"
-        SELECT uc.*, rm.name AS roomtype_name, rm.roomrate
+        SELECT uc.unbilledid, uc.chargedate, uc.tcode AS rmtcode, uc.quantity,
+               uc.rate, uc.amount, uc.billedstatus, uc.bedcode,
+               rm.name AS roomtype_name, rm.roomrate,
+               bm.bedname, bm.shortname
         FROM unbilledcharges uc
         LEFT JOIN public.roomtype_master rm
                ON rm.rmtcode = uc.tcode AND rm.tenant_code = uc.tenant_code
-        WHERE uc.entrytype = 'ROOMRENT' AND uc.opvisitid = @ipIdStr
+        LEFT JOIN public.bed_master bm
+               ON bm.bedcode = uc.bedcode AND bm.tenant_code = uc.tenant_code
+        WHERE uc.entrytype = 'ROOMRENT' AND uc.ip_id = @ip_id
           AND uc.tenant_code = @tenant_code
         ORDER BY uc.chargedate";
-            var res = await db.QueryAsync<dynamic>(sql, new { ipIdStr, tenant_code });
+            var res = await db.QueryAsync<dynamic>(sql, new { ip_id, tenant_code });
             return res.ToList();
         }
 
@@ -316,24 +349,22 @@ namespace medico_backend.Class
         // Billed rows (payment already collected) are left untouched — that's a refund concern.
         public async Task CloseUnbilledForIp(IDbConnection db, IDbTransaction tx, Guid ip_id, string tenant_code)
         {
-            string ipIdStr = ip_id.ToString();
             await db.ExecuteAsync(
                 @"DELETE FROM unbilledcharges
-          WHERE entrytype = 'ROOMRENT' AND opvisitid = @ipIdStr
+          WHERE entrytype = 'ROOMRENT' AND ip_id = @ip_id
           AND tenant_code = @tenant_code AND (billedstatus = false OR billedstatus IS NULL)",
-                new { ipIdStr, tenant_code }, tx);
+                new { ip_id, tenant_code }, tx);
         }
 
         // ── All charges for this IP stay have been billed? ──
         public async Task<bool> IsFullyBilled(Guid ip_id, string tenant_code)
         {
             using var db = GetConnection();
-            string ipIdStr = ip_id.ToString();
             int pending = await db.ExecuteScalarAsync<int>(
                 @"SELECT COUNT(1) FROM unbilledcharges
-          WHERE opvisitid = @ipIdStr AND tenant_code = @tenant_code
+          WHERE ip_id = @ip_id AND tenant_code = @tenant_code
           AND (billedstatus = false OR billedstatus IS NULL)",
-                new { ipIdStr, tenant_code });
+                new { ip_id, tenant_code });
             return pending == 0;
         }
 

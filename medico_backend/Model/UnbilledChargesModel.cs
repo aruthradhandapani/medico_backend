@@ -11,6 +11,8 @@ namespace medico_backend.Model
         public DateTime? chargedate { get; set; }
         public decimal? custid { get; set; }
         public string? opvisitid { get; set; }        // op_id
+        public Guid? ip_id { get; set; }
+        public int? bedcode { get; set; }
         public int? tcode { get; set; }
         public double? quantity { get; set; }
         public double? rate { get; set; }
