@@ -61,15 +61,23 @@ namespace medico_backend.Controllers
         public async Task<IActionResult> RecalcRoomRent(Guid ip_id)
         {
             var tenant = Request.Headers["tenant_code"].ToString();
+            if (string.IsNullOrWhiteSpace(tenant))
+                return BadRequest("tenant_code header is required");
+
             var res = await cls.RecalculateRoomRent(ip_id, tenant);
-            return res == "Success" ? Ok(new { message = res }) : BadRequest(new { message = res });
+            return res.StartsWith("Success") ? Ok(new { message = res }) : BadRequest(new { message = res });
         }
 
         [HttpGet("ip-room-rent-summary")]
         public async Task<IActionResult> IpRoomRentSummary(Guid ip_id)
         {
             var tenant = Request.Headers["tenant_code"].ToString();
-            return Ok(await cls.GetIpRoomRentSummary(ip_id, tenant));
+            if (string.IsNullOrWhiteSpace(tenant))
+                return BadRequest("tenant_code header is required");
+
+            await cls.RecalculateRoomRent(ip_id, tenant);       // always fresh
+            var data = await cls.GetIpRoomRentSummary(ip_id, tenant);
+            return Ok(data);
         }
     }
 }

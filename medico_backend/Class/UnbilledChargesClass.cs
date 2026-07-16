@@ -153,6 +153,23 @@ namespace medico_backend.Class
             };
             await db.InsertAsync(row);
         }
+        // ── Core billing rule — see algorithm notes ──
+        public decimal CalculateRoomRentDays(DateTime roomEntryTime, DateTime currentTime)
+        {
+            var totalHours = (currentTime - roomEntryTime).TotalHours;
+            if (totalHours < 12)
+                return 0m;
+
+            int fullDays = (int)(totalHours / 24);
+            double remainingHours = totalHours % 24;
+
+            decimal charge = fullDays;
+            if (remainingHours >= 12)
+                charge += 0.5m;
+
+            return charge;
+        }
+
         // ── Recalculate ROOMRENT for a stay, only the unbilled remainder ──
         public async Task<string> RecalculateRoomRent(Guid ip_id, string tenant_code, DateTime? asOf = null)
         {
@@ -166,7 +183,9 @@ namespace medico_backend.Class
               FROM ip_registration
               WHERE ip_id = @ip_id AND tenant_code = @tenant_code",
                     new { ip_id, tenant_code });
-                if (ip == null) return "IP Registration not found";
+
+                if (ip == null)
+                    return $"IP Registration not found for ip_id='{ip_id}' tenant_code='{tenant_code}'";
 
                 DateTime admitdate = (DateTime)ip.admitdate;
                 DateTime cutoffEnd = ip.ip_status == "DISCHARGED" && ip.dischargedate != null
@@ -180,7 +199,8 @@ namespace medico_backend.Class
               ORDER BY transferdate ASC",
                     new { ipIdStr, tenant_code })).ToList();
 
-                // Build segments from admission through transfers to cutoffEnd
+                // Build segments — each transfer is a hard boundary; old room's segment
+                // is frozen there, new room's segment starts its own clock from zero
                 var segments = new List<(int? rmtcode, DateTime from, DateTime to)>();
                 DateTime segStart = admitdate;
                 int? segRmt = transfers.Count > 0 ? (int?)transfers[0].currentroom : (int?)ip.rmtcode;
@@ -206,27 +226,28 @@ namespace medico_backend.Class
                     .Where(s => s.to > s.from)
                     .ToList();
 
-                // Wipe previously-projected (still unbilled) ROOMRENT rows — safe, billed ones untouched
+                // Wipe previously-projected (still unbilled) ROOMRENT rows — billed ones untouched
                 await db.ExecuteAsync(
                     @"DELETE FROM unbilledcharges
               WHERE entrytype = 'ROOMRENT' AND opvisitid = @ipIdStr
               AND tenant_code = @tenant_code AND (billedstatus = false OR billedstatus IS NULL)",
                     new { ipIdStr, tenant_code });
 
+                int totalRatesFound = 0, totalRowsInserted = 0;
+
                 foreach (var seg in toCharge)
                 {
                     if (seg.rmtcode == null) continue;
 
-                    double totalHours = (seg.to - seg.from).TotalHours;
-                    int fullDays = (int)(totalHours / 24);
-                    double remainder = totalHours - (fullDays * 24);
-                    double dayUnits = fullDays + (remainder > 0 ? (remainder <= 12 ? 0.5 : 1.0) : 0);
-                    if (dayUnits <= 0) continue;
+                    decimal chargedDays = CalculateRoomRentDays(seg.from, seg.to);
+                    if (chargedDays <= 0) continue;   // < 12 hrs in this segment → free, nothing to insert
 
-                    var rates = await db.QueryAsync<TestGroupRateModel>(
+                    var rates = (await db.QueryAsync<TestGroupRateModel>(
                         @"SELECT * FROM public.test_group_rates
                   WHERE rmtcode = @rmtcode AND tenant_code = @tenant_code",
-                        new { seg.rmtcode, tenant_code });
+                        new { seg.rmtcode, tenant_code })).ToList();
+
+                    totalRatesFound += rates.Count;
 
                     foreach (var rate in rates)
                     {
@@ -235,25 +256,55 @@ namespace medico_backend.Class
                             unbilledid = Guid.NewGuid().ToString(),
                             entrytype = "ROOMRENT",
                             entryid = $"{ipIdStr}|{rate.roomchargehead}|{rate.subtestcode}",
-                            chargedate = seg.to,                 // marks period-end this row covers
+                            chargedate = seg.to,
                             custid = (decimal)ip.custid,
-                            opvisitid = ipIdStr,                  // reusing this column to link the IP stay
+                            opvisitid = ipIdStr,
                             tcode = rate.subtestcode ?? rate.roomchargehead,
-                            quantity = dayUnits,
+                            quantity = (double)chargedDays,
                             rate = rate.testrate,
-                            amount = dayUnits * (rate.testrate ?? 0),
+                            amount = (double)chargedDays * (rate.testrate ?? 0),
                             discount = 0,
                             charityamount = 0,
                             billedstatus = false,
                             tenant_code = tenant_code
                         };
                         await db.InsertAsync(row);
+                        totalRowsInserted++;
                     }
                 }
 
-                return "Success";
+                return $"Success|Segments:{toCharge.Count}|RatesFound:{totalRatesFound}|RowsInserted:{totalRowsInserted}";
             }
             catch (Exception ex) { return ex.Message; }
+        }
+
+        // ── Room-rent breakdown for a stay, with the charge-head/testfeegroup split ──
+        public async Task<List<dynamic>> GetIpRoomRentSummary(Guid ip_id, string tenant_code)
+        {
+            using var db = GetConnection();
+            string ipIdStr = ip_id.ToString();
+            string sql = @"
+        SELECT uc.*, tgr.roomchargehead, tgr.subtestcode
+        FROM unbilledcharges uc
+        LEFT JOIN public.test_group_rates tgr
+               ON tgr.subtestcode = uc.tcode AND tgr.tenant_code = uc.tenant_code
+        WHERE uc.entrytype = 'ROOMRENT' AND uc.opvisitid = @ipIdStr
+          AND uc.tenant_code = @tenant_code
+        ORDER BY uc.chargedate";
+            var res = await db.QueryAsync<dynamic>(sql, new { ipIdStr, tenant_code });
+            return res.ToList();
+        }
+
+        // ── Void pending unbilled ROOMRENT charges for a cancelled admission ──
+        // Billed rows (payment already collected) are left untouched — that's a refund concern.
+        public async Task CloseUnbilledForIp(IDbConnection db, IDbTransaction tx, Guid ip_id, string tenant_code)
+        {
+            string ipIdStr = ip_id.ToString();
+            await db.ExecuteAsync(
+                @"DELETE FROM unbilledcharges
+          WHERE entrytype = 'ROOMRENT' AND opvisitid = @ipIdStr
+          AND tenant_code = @tenant_code AND (billedstatus = false OR billedstatus IS NULL)",
+                new { ipIdStr, tenant_code }, tx);
         }
 
         // ── All charges for this IP stay have been billed? ──
@@ -275,23 +326,6 @@ namespace medico_backend.Class
             using var db = GetConnection();
   
             throw new NotImplementedException("Wire IsPaymentSettled to your bill/payment table");
-        }
-
-        public async Task<List<dynamic>> GetIpRoomRentSummary(Guid ip_id, string tenant_code)
-        {
-            using var db = GetConnection();
-            string ipIdStr = ip_id.ToString();
-            string sql = @"
-        SELECT uc.*, tgr.roomchargehead, tgr.subtestcode
-        FROM unbilledcharges uc
-        LEFT JOIN public.test_group_rates tgr
-               ON tgr.subtestcode = uc.tcode AND tgr.tenant_code = uc.tenant_code
-        WHERE uc.entrytype = 'ROOMRENT' AND uc.opvisitid = @ipIdStr
-          AND uc.tenant_code = @tenant_code
-        ORDER BY uc.chargedate";
-            
-            var res = await db.QueryAsync<dynamic>(sql, new { ipIdStr, tenant_code });
-            return res.ToList();
         }
     }
 }

@@ -146,7 +146,9 @@ namespace medico_backend.Class
                     db, tx, data.bedcode!.Value, data.ip_id, data.ip_no, data.custid,
                     data.admitdate, tenant_code);
 
+                // in CreateIpRegistration, right after commit:
                 tx.Commit();
+                await _unbilledCls.RecalculateRoomRent(data.ip_id, tenant_code);
                 return $"Success|IpNo:{data.ip_no}|IpId:{data.ip_id}";
             }
             catch (Exception ex)
@@ -365,15 +367,19 @@ namespace medico_backend.Class
                 if (existing == null) { tx.Rollback(); return "IP Registration not found"; }
                 if (existing.ip_status == "DISCHARGED") { tx.Rollback(); return "Cannot cancel a discharged admission"; }
 
+                // in CancelAdmission, right before commit:
                 await db.ExecuteAsync(@"
-                    UPDATE ip_registration
-                    SET ip_status = 'CANCELLED', isdeleted = true,
-                        notes = COALESCE(notes || ' | ', '') || @reason, updated_at = now()
-                    WHERE ip_id = @ip_id AND tenant_code = @tenant_code",
+                UPDATE ip_registration
+                SET ip_status = 'CANCELLED', isdeleted = true,
+                notes = COALESCE(notes || ' | ', '') || @reason, updated_at = now()
+                WHERE ip_id = @ip_id AND tenant_code = @tenant_code",
                     new { ip_id = req.ip_id, reason = "Cancelled: " + (req.reason ?? "No reason given"), tenant_code }, tx);
 
-                // ── Free the bed in bed_status ──────────────────────────
+                await _unbilledCls.CloseUnbilledForIp(db, tx, existing.ip_id, tenant_code);
                 await _bedStatusCls.MarkVacant(db, tx, existing.bedcode!.Value, existing.ip_id, tenant_code);
+
+                tx.Commit();
+                return "Success";
 
                 tx.Commit();
                 return "Success";
