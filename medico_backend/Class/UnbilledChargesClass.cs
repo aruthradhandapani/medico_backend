@@ -372,8 +372,13 @@ namespace medico_backend.Class
         public async Task<bool> IsPaymentSettled(Guid ip_id, string tenant_code)
         {
             using var db = GetConnection();
-  
-            throw new NotImplementedException("Wire IsPaymentSettled to your bill/payment table");
+            double? outstandingBalance = await db.ExecuteScalarAsync<double?>(
+                @"SELECT COALESCE(SUM(totalamount - COALESCE(paidamount,0)), 0)
+          FROM lab_request_master
+          WHERE ip_id = @ip_id AND tenant_code = @tenant_code
+          AND (isdeleted = false OR isdeleted IS NULL)",
+                new { ip_id, tenant_code });
+            return (outstandingBalance ?? 0) <= 0.05;   // matches the 0.05 tolerance used elsewhere in HmsBillingClass
         }
     }
 }

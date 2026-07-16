@@ -135,6 +135,7 @@ namespace medico_backend.Class
                     bill_category = "HMS",
                     sheet_id = req.sheet_id,
                     opvisitid = req.op_id,
+                    ip_id = req.ip_id,
                     enteredbhcode = req.enteredbhcode,
                     usercode = req.usercode,
                     computercode = req.computercode,
@@ -236,6 +237,7 @@ namespace medico_backend.Class
 
                 existingMaster.custid = req.custid;
                 existingMaster.opvisitid = req.op_id;
+                existingMaster.ip_id = req.ip_id ?? existingMaster.ip_id;
                 existingMaster.name = req.patient_name;
                 existingMaster.gender = req.gender;
                 existingMaster.dateofbirth = req.dateofbirth;
@@ -775,6 +777,7 @@ namespace medico_backend.Class
             {
                 requestguid = master.requestguid,
                 op_id = master.opvisitid,
+                ip_id = master.ip_id,
                 bill_no = master.requestsnoprint,
                 barcode = master.requestbarcode,
                 bill_date = master.requestdatetime,
@@ -856,7 +859,11 @@ namespace medico_backend.Class
                 queryConditions += " AND (m.name ILIKE @searchTerm OR m.requestsnoprint ILIKE @searchTerm OR m.mobileno ILIKE @searchTerm) ";
                 parameters.Add("searchTerm", $"%{filter.search}%");
             }
-
+            if (filter.ip_id.HasValue)
+            {
+                queryConditions += " AND m.ip_id = @ip_id ";
+                parameters.Add("ip_id", filter.ip_id);
+            }
             string totalSumQuery = $"SELECT COUNT(*) FROM lab_request_master m {queryConditions}";
             int aggregatedCount = await db.ExecuteScalarAsync<int>(totalSumQuery, parameters);
 
@@ -1413,6 +1420,7 @@ namespace medico_backend.Class
                 existing.bank_app = req.bank_app ?? existing.bank_app;
                 existing.sheet_id = req.sheet_id ?? existing.sheet_id;
                 existing.opvisitid = req.op_id ?? existing.opvisitid;
+                existing.ip_id = req.ip_id ?? existing.ip_id;
                 existing.alteredbhcode = req.enteredbhcode ?? existing.alteredbhcode;
                 existing.requestamount = lineGrossTotal;
                 existing.totalamount = netAmount;
@@ -1463,6 +1471,7 @@ namespace medico_backend.Class
                 {
                     requestguid = updated?.requestguid ?? req.requestguid,
                     op_id = updated?.op_id,
+                    ip_id = updated?.ip_id,
                     bill_no = updated?.bill_no,
                     barcode = updated?.barcode,
                     bill_date = updated?.bill_date,

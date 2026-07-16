@@ -76,6 +76,7 @@ namespace medico_backend.Model
         public string? bill_category { get; set; }
         public string? sheet_id { get; set; }
         public string? opvisitid { get; set; }
+        public Guid? ip_id { get; set; }
         public string? concessionreason { get; set; }
         public string? card_refno { get; set; }
         public string? bank_app { get; set; }
@@ -283,6 +284,7 @@ namespace medico_backend.Model
     {
         public string? requestguid { get; set; }
         public string? op_id { get; set; } = string.Empty;
+        public Guid? ip_id { get; set; }
         public string? sheet_id { get; set; }
         public decimal? custid { get; set; }
         public string? patient_name { get; set; }
@@ -375,6 +377,7 @@ namespace medico_backend.Model
     {
         public int? bhcode { get; set; }
         public int? cntcode { get; set; }
+        public Guid? ip_id { get; set; }
         public DateTime? fromdate { get; set; }
         public DateTime? todate { get; set; }
         public decimal? custid { get; set; }
@@ -397,6 +400,7 @@ namespace medico_backend.Model
     {
         public string? requestguid { get; set; }
         public string? op_id { get; set; }
+        public Guid? ip_id { get; set; }
         public string? bill_no { get; set; }
         public string? barcode { get; set; }
         public DateTime? bill_date { get; set; }
@@ -457,6 +461,7 @@ namespace medico_backend.Model
     public class HmsBillSummary
     {
         public string? requestguid { get; set; }
+        public Guid? ip_id { get; set; }
         public string? bill_no { get; set; }
         public string? patient_name { get; set; }
         public string? mobileno { get; set; }
@@ -677,6 +682,7 @@ namespace medico_backend.Model
     {
         public string requestguid { get; set; } = string.Empty;  // required
         public string? op_id { get; set; }
+        public Guid? ip_id { get; set; }
         public string? sheet_id { get; set; }
         public decimal? custid { get; set; }
         public string? patient_name { get; set; }
@@ -724,6 +730,7 @@ namespace medico_backend.Model
     {
         public string requestguid { get; set; } = string.Empty;
         public string? op_id { get; set; }
+        public Guid? ip_id { get; set; }
         public string? bill_no { get; set; }
         public string? barcode { get; set; }
         public DateTime? bill_date { get; set; }
