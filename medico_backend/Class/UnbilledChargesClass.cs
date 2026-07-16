@@ -169,6 +169,12 @@ namespace medico_backend.Class
 
             return charge;
         }
+        private static DateTime NormalizeUtc(DateTime dt)
+        {
+            if (dt.Kind == DateTimeKind.Utc) return dt;
+            if (dt.Kind == DateTimeKind.Local) return dt.ToUniversalTime();
+            return DateTime.SpecifyKind(dt, DateTimeKind.Utc);
+        }
 
         // ── Recalculate ROOMRENT for a stay, only the unbilled remainder ──
         public async Task<string> RecalculateRoomRent(Guid ip_id, string tenant_code, DateTime? asOf = null)
@@ -187,10 +193,10 @@ namespace medico_backend.Class
                 if (ip == null)
                     return $"IP Registration not found for ip_id='{ip_id}' tenant_code='{tenant_code}'";
 
-                DateTime admitdate = (DateTime)ip.admitdate;
+                DateTime admitdate = NormalizeUtc((DateTime)ip.admitdate);
                 DateTime cutoffEnd = ip.ip_status == "DISCHARGED" && ip.dischargedate != null
-                    ? (DateTime)ip.dischargedate
-                    : (asOf ?? DateTime.UtcNow);
+    ? NormalizeUtc((DateTime)ip.dischargedate)
+    : (asOf ?? DateTime.UtcNow);
 
                 var transfers = (await db.QueryAsync<dynamic>(
                     @"SELECT transferdate, currentroom, transroom
@@ -199,99 +205,110 @@ namespace medico_backend.Class
               ORDER BY transferdate ASC",
                     new { ipIdStr, tenant_code })).ToList();
 
-                // Build segments — each transfer is a hard boundary; old room's segment
-                // is frozen there, new room's segment starts its own clock from zero
                 var segments = new List<(int? rmtcode, DateTime from, DateTime to)>();
                 DateTime segStart = admitdate;
                 int? segRmt = transfers.Count > 0 ? (int?)transfers[0].currentroom : (int?)ip.rmtcode;
 
                 foreach (var t in transfers)
                 {
-                    DateTime segEnd = (DateTime)t.transferdate;
+                    DateTime segEnd = NormalizeUtc((DateTime)t.transferdate);
                     if (segEnd > segStart) segments.Add((segRmt, segStart, segEnd));
                     segStart = segEnd;
                     segRmt = (int?)t.transroom;
                 }
                 if (cutoffEnd > segStart) segments.Add((segRmt, segStart, cutoffEnd));
 
-                // Don't re-charge periods already billed
-                DateTime billedThrough = await db.ExecuteScalarAsync<DateTime?>(
-                    @"SELECT MAX(chargedate) FROM unbilledcharges
-              WHERE entrytype = 'ROOMRENT' AND opvisitid = @ipIdStr
-              AND tenant_code = @tenant_code AND billedstatus = true",
-                    new { ipIdStr, tenant_code }) ?? admitdate;
+                DateTime billedThrough = NormalizeUtc(await db.ExecuteScalarAsync<DateTime?>(
+    @"SELECT MAX(chargedate) FROM unbilledcharges
+      WHERE entrytype = 'ROOMRENT' AND opvisitid = @ipIdStr
+      AND tenant_code = @tenant_code AND billedstatus = true",
+    new { ipIdStr, tenant_code }) ?? admitdate);
 
                 var toCharge = segments
                     .Select(s => (s.rmtcode, from: s.from < billedThrough ? billedThrough : s.from, s.to))
                     .Where(s => s.to > s.from)
                     .ToList();
 
-                // Wipe previously-projected (still unbilled) ROOMRENT rows — billed ones untouched
                 await db.ExecuteAsync(
                     @"DELETE FROM unbilledcharges
               WHERE entrytype = 'ROOMRENT' AND opvisitid = @ipIdStr
               AND tenant_code = @tenant_code AND (billedstatus = false OR billedstatus IS NULL)",
                     new { ipIdStr, tenant_code });
 
-                int totalRatesFound = 0, totalRowsInserted = 0;
+                int segmentsSkippedNoRoomType = 0, totalRowsInserted = 0;
 
                 foreach (var seg in toCharge)
                 {
                     if (seg.rmtcode == null) continue;
 
                     decimal chargedDays = CalculateRoomRentDays(seg.from, seg.to);
-                    if (chargedDays <= 0) continue;   // < 12 hrs in this segment → free, nothing to insert
+                    if (chargedDays <= 0) continue;   // within 12 hrs → free
+                    //if (chargedDays <= 0)
+                       // return $"DEBUG|seg.from={seg.from:o}|seg.to={seg.to:o}|hours={(seg.to - seg.from).TotalHours:F2}|chargedDays={chargedDays}|admitdate={admitdate:o}|cutoffEnd={cutoffEnd:o}";
 
-                    var rates = (await db.QueryAsync<TestGroupRateModel>(
-                        @"SELECT * FROM public.test_group_rates
-                  WHERE rmtcode = @rmtcode AND tenant_code = @tenant_code",
-                        new { seg.rmtcode, tenant_code })).ToList();
+                    var roomType = await db.QueryFirstOrDefaultAsync<dynamic>(
+                        @"SELECT rmtcode, roomrate FROM public.roomtype_master
+                  WHERE rmtcode = @rmtcode AND tenant_code = @tenant_code
+                  AND (deleted IS NULL OR deleted = false)",
+                        new { seg.rmtcode, tenant_code });
 
-                    totalRatesFound += rates.Count;
+                    if (roomType == null) { segmentsSkippedNoRoomType++; continue; }
 
-                    foreach (var rate in rates)
+                    decimal roomRate = (decimal)(roomType.roomrate ?? 0);
+
+                    var row = new UnbilledChargeRow
                     {
-                        var row = new UnbilledChargeRow
-                        {
-                            unbilledid = Guid.NewGuid().ToString(),
-                            entrytype = "ROOMRENT",
-                            entryid = $"{ipIdStr}|{rate.roomchargehead}|{rate.subtestcode}",
-                            chargedate = seg.to,
-                            custid = (decimal)ip.custid,
-                            opvisitid = ipIdStr,
-                            tcode = rate.subtestcode ?? rate.roomchargehead,
-                            quantity = (double)chargedDays,
-                            rate = rate.testrate,
-                            amount = (double)chargedDays * (rate.testrate ?? 0),
-                            discount = 0,
-                            charityamount = 0,
-                            billedstatus = false,
-                            tenant_code = tenant_code
-                        };
-                        await db.InsertAsync(row);
-                        totalRowsInserted++;
-                    }
+                        unbilledid = Guid.NewGuid().ToString(),
+                        entrytype = "ROOMRENT",
+                        entryid = $"{ipIdStr}|{seg.rmtcode}",
+                        chargedate = seg.to,
+                        custid = (decimal)ip.custid,
+                        opvisitid = ipIdStr,
+                        tcode = seg.rmtcode,               // room type code, not a charge-head anymore
+                        quantity = (double)chargedDays,
+                        rate = (double)roomRate,
+                        amount = (double)(chargedDays * roomRate),
+                        discount = 0,
+                        charityamount = 0,
+                        billedstatus = false,
+                        tenant_code = tenant_code
+                    };
+                    await db.InsertAsync(row);
+                    totalRowsInserted++;
                 }
 
-                return $"Success|Segments:{toCharge.Count}|RatesFound:{totalRatesFound}|RowsInserted:{totalRowsInserted}";
+                return $"Success|Segments:{toCharge.Count}|SkippedNoRoomType:{segmentsSkippedNoRoomType}|RowsInserted:{totalRowsInserted}";
             }
             catch (Exception ex) { return ex.Message; }
         }
 
         // ── Room-rent breakdown for a stay, with the charge-head/testfeegroup split ──
+        // Main summary — one row per segment, driven by roomtype_master.roomrate
         public async Task<List<dynamic>> GetIpRoomRentSummary(Guid ip_id, string tenant_code)
         {
             using var db = GetConnection();
             string ipIdStr = ip_id.ToString();
             string sql = @"
-        SELECT uc.*, tgr.roomchargehead, tgr.subtestcode
+        SELECT uc.*, rm.name AS roomtype_name, rm.roomrate
         FROM unbilledcharges uc
-        LEFT JOIN public.test_group_rates tgr
-               ON tgr.subtestcode = uc.tcode AND tgr.tenant_code = uc.tenant_code
+        LEFT JOIN public.roomtype_master rm
+               ON rm.rmtcode = uc.tcode AND rm.tenant_code = uc.tenant_code
         WHERE uc.entrytype = 'ROOMRENT' AND uc.opvisitid = @ipIdStr
           AND uc.tenant_code = @tenant_code
         ORDER BY uc.chargedate";
             var res = await db.QueryAsync<dynamic>(sql, new { ipIdStr, tenant_code });
+            return res.ToList();
+        }
+
+        // Optional display-only breakdown — how a room type's rate splits across charge-heads.
+        // Not used for billing math, just for showing "what's included" if the UI wants it.
+        public async Task<List<TestGroupRateModel>> GetTestGroupBreakdown(int rmtcode, string tenant_code)
+        {
+            using var db = GetConnection();
+            var res = await db.QueryAsync<TestGroupRateModel>(
+                @"SELECT * FROM public.test_group_rates
+          WHERE rmtcode = @rmtcode AND tenant_code = @tenant_code",
+                new { rmtcode, tenant_code });
             return res.ToList();
         }
 
