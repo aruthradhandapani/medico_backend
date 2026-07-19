@@ -148,6 +148,16 @@ builder.Services.AddScoped<AppointmentBotClass>();
 builder.Services.AddScoped<AppointmentBotController>();
 builder.Services.AddScoped<TestGroupRateClass>();
 builder.Services.AddScoped<TestGroupRateController>();
+builder.Services.AddScoped<TenantProductSubscriptionClass>();
+builder.Services.AddScoped<TenantProductSubscriptionController>();
+builder.Services.AddScoped<VitalsClass>();
+builder.Services.AddScoped<VitalsController>();
+builder.Services.AddScoped<LabResultEntryClass>();
+builder.Services.AddScoped<LabResultEntryController>();
+builder.Services.AddScoped<ScanResultEntryClass>();
+builder.Services.AddScoped<ScanResultEntryController>();
+builder.Services.AddScoped<OgScreenClass>();
+builder.Services.AddScoped<OgScreenController>();
 
 builder.Services.AddSingleton<IAmazonS3>(sp =>
 {
