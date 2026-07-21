@@ -8,12 +8,19 @@ using medico_backend.InventoryController;
 using medico_backend.Services;
 using Medico_Backend.Class;
 using Medico_Backend.Controllers;
+using Medico_Backend.Handlers;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using Minio;
 using System.Text;
 
+
+
 var builder = WebApplication.CreateBuilder(args);
+
+SqlMapper.AddTypeHandler(typeof(TimeOnly), new TimeOnlyTypeHandler());
+SqlMapper.AddTypeHandler(typeof(TimeOnly?), new NullableTimeOnlyTypeHandler());
+
 builder.WebHost.ConfigureKestrel(options =>
 {
     options.Limits.MaxRequestBodySize = 100 * 1024 * 1024; // 100 MB
@@ -156,8 +163,8 @@ builder.Services.AddScoped<LabResultEntryClass>();
 builder.Services.AddScoped<LabResultEntryController>();
 builder.Services.AddScoped<ScanResultEntryClass>();
 builder.Services.AddScoped<ScanResultEntryController>();
-builder.Services.AddScoped<OgScreenClass>();
-builder.Services.AddScoped<OgScreenController>();
+builder.Services.AddScoped<OgQueueClass>();
+builder.Services.AddScoped<OgQueueController>();
 
 builder.Services.AddSingleton<IAmazonS3>(sp =>
 {
@@ -187,6 +194,7 @@ builder.Services.AddScoped<IEmailService, EmailService>();
 builder.Services.AddScoped<TokenService>();
 
 var jwtSettings = builder.Configuration.GetSection("JwtSettings");
+
 
 builder.Services.AddAuthentication(options =>
 {

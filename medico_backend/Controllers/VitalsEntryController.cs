@@ -29,12 +29,12 @@ namespace Medico_Backend.Controllers
         }
 
         [HttpGet("get-by-id")]
-        public async Task<IActionResult> GetById(int id, [FromHeader(Name = "tenant_code")] string tenant_code)
+        public async Task<IActionResult> GetById(int vitalentryid, [FromHeader(Name = "tenant_code")] string tenant_code)
         {
             if (string.IsNullOrEmpty(tenant_code))
                 return BadRequest("tenant_code header is required");
 
-            var data = await cls.GetById(id, tenant_code);
+            var data = await cls.GetById(vitalentryid, tenant_code);
             if (data == null)
                 return NotFound("Data Not Found");
 
@@ -57,8 +57,8 @@ namespace Medico_Backend.Controllers
             if (string.IsNullOrEmpty(tenant_code))
                 return BadRequest("tenant_code header is required");
 
-            if (data.custid == null)
-                return BadRequest("custid is required in body");
+            if (string.IsNullOrEmpty(data.custcode))
+                return BadRequest("custcode is required in body");
 
             if (data.dcode == null)
                 return BadRequest("dcode is required in body");
@@ -87,24 +87,24 @@ namespace Medico_Backend.Controllers
             if (string.IsNullOrEmpty(tenant_code))
                 return BadRequest("tenant_code header is required");
 
-            var result = await cls.UpdateStatus(req.id, tenant_code, req.status, req.usercode, req.computercode);
+            var result = await cls.UpdateStatus(req.vitalentryid, tenant_code, req.status, req.usercode, req.computercode);
             return Ok(result);
         }
 
         [HttpGet("delete")]
-        public async Task<IActionResult> Delete(int id, [FromHeader(Name = "tenant_code")] string tenant_code)
+        public async Task<IActionResult> Delete(int vitalentryid, [FromHeader(Name = "tenant_code")] string tenant_code)
         {
             if (string.IsNullOrEmpty(tenant_code))
                 return BadRequest("tenant_code header is required");
 
-            var result = await cls.Delete(id, tenant_code);
+            var result = await cls.Delete(vitalentryid, tenant_code);
             return Ok(result);
         }
     }
 
     public class UpdateVitalsStatusRequest
     {
-        public int id { get; set; }
+        public int vitalentryid { get; set; }
         public string status { get; set; } = "";
         public int usercode { get; set; } = 1;
         public int computercode { get; set; } = 1;

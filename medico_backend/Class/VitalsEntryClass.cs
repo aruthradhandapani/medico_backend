@@ -1,7 +1,4 @@
-﻿// ─────────────────────────────────────────
-// CLASS (Dapper data access)
-// ─────────────────────────────────────────
-using Dapper;
+﻿using Dapper;
 using Dapper.Contrib.Extensions;
 using Npgsql;
 using System.Data;
@@ -12,33 +9,75 @@ namespace Medico_Backend.Class
     public class VitalsClass
     {
         private readonly string db_conn;
+        private readonly OgQueueClass ogQueue;
 
-        public VitalsClass(IConfiguration configuration)
+        public VitalsClass(IConfiguration configuration, OgQueueClass _ogQueue)
         {
             db_conn = configuration.GetConnectionString("conn");
+            ogQueue = _ogQueue;
         }
 
         // ─────────────────────────────────────────
         // INSERT — generates a common daily token_no (not doctor-wise), resets every day
+        // Also pushes into OG queue immediately if investigation = 'doctor'
         // ─────────────────────────────────────────
         public async Task<InsertVitalsResult> Insert(VitalsModel data)
         {
             try
             {
                 using IDbConnection db = new NpgsqlConnection(db_conn);
+                db.Open();
+                using var transaction = db.BeginTransaction();
 
                 var todayUtc = DateTime.UtcNow.Date;
 
-                // common counter across all doctors/investigations for this tenant, reset daily
+                // Lock on a hash of tenant_code+date so only one Insert per tenant/day runs the token logic at a time
+                long lockKey = (tenant_code: data.tenant_code, date: todayUtc).GetHashCode();
+                await db.ExecuteAsync("SELECT pg_advisory_xact_lock(@lockKey)", new { lockKey }, transaction);
+
+                // Guard against the same insert landing twice — a double-click, a
+                // client retry, whatever the cause — by reusing an identical entry
+                // if it was created moments ago instead of creating another one.
+                string dupSql = @"
+            SELECT vitalentryid, token_no
+            FROM vitals_entry
+            WHERE tenant_code = @tenant_code
+            AND custcode = @custcode
+            AND investigation = @investigation
+            AND test_name IS NOT DISTINCT FROM @test_name
+            AND dcode IS NOT DISTINCT FROM @dcode
+            AND deleted = false
+            AND created_at > (now() - interval '5 seconds')
+            ORDER BY created_at DESC
+            LIMIT 1";
+
+                var dup = await db.QueryFirstOrDefaultAsync<VitalsModel>(
+                    dupSql,
+                    new
+                    {
+                        tenant_code = data.tenant_code,
+                        custcode = data.custcode,
+                        investigation = data.investigation,
+                        test_name = data.test_name,
+                        dcode = data.dcode
+                    },
+                    transaction);
+
+                if (dup != null)
+                {
+                    transaction.Commit();
+                    return new InsertVitalsResult { message = "Success", token_no = dup.token_no };
+                }
+
                 string tokenSql = @"
-                    SELECT COALESCE(MAX(token_no::int), 0)
-                    FROM vitals_entry
-                    WHERE tenant_code = @tenant_code
-                    AND entered_date::date = @today
-                    AND deleted = false";
+            SELECT COALESCE(MAX(token_no::int), 0)
+            FROM vitals_entry
+            WHERE tenant_code = @tenant_code
+            AND entered_date::date = @today
+            AND deleted = false";
 
                 var lastToken = await db.ExecuteScalarAsync<int>(
-                    tokenSql, new { tenant_code = data.tenant_code, today = todayUtc });
+                    tokenSql, new { tenant_code = data.tenant_code, today = todayUtc }, transaction);
 
                 data.token_no = (lastToken + 1).ToString("D3");
                 data.entered_date = DateTime.UtcNow;
@@ -46,11 +85,23 @@ namespace Medico_Backend.Class
                 data.updated_at = DateTime.UtcNow;
                 data.deleted = false;
 
-                var newId = await db.InsertAsync(data);
+                var newId = await db.InsertAsync(data, transaction);
 
-                return newId > 0
-                    ? new InsertVitalsResult { message = "Success", token_no = data.token_no }
-                    : new InsertVitalsResult { message = "Failed", token_no = null };
+                transaction.Commit();
+
+                if (newId > 0)
+                {
+                    if (string.Equals(data.investigation, "doctor", StringComparison.OrdinalIgnoreCase)
+                        && data.dcode.HasValue
+                        && !string.IsNullOrEmpty(data.custcode))
+                    {
+                        await ogQueue.AddToQueue(data.tenant_code!, data.custcode!, data.dcode.Value, data.token_no!, data.arrival_time, data.test_name, "direct");
+
+                    }
+                    return new InsertVitalsResult { message = "Success", token_no = data.token_no };
+                }
+
+                return new InsertVitalsResult { message = "Failed", token_no = null };
             }
             catch (Exception ex)
             {
@@ -68,8 +119,8 @@ namespace Medico_Backend.Class
                 using IDbConnection db = new NpgsqlConnection(db_conn);
 
                 var existing = await db.QueryFirstOrDefaultAsync<VitalsModel>(
-                    "SELECT * FROM vitals_entry WHERE id = @id AND tenant_code = @tenant_code AND deleted = false",
-                    new { id = data.id, tenant_code = data.tenant_code });
+                    "SELECT * FROM vitals_entry WHERE vitalentryid = @vitalentryid AND tenant_code = @tenant_code AND deleted = false",
+                    new { vitalentryid = data.vitalentryid, tenant_code = data.tenant_code });
 
                 if (existing == null)
                     return "Record not found for this tenant";
@@ -92,8 +143,9 @@ namespace Medico_Backend.Class
 
         // ─────────────────────────────────────────
         // UPDATE STATUS ONLY (quick status change, e.g. from token/lab/scan screens)
+        // When lab/scan status becomes 'report_received', pushes patient into OG queue
         // ─────────────────────────────────────────
-        public async Task<string> UpdateStatus(int id, string tenant_code, string status, int usercode, int computercode)
+        public async Task<string> UpdateStatus(int vitalentryid, string tenant_code, string status, int usercode, int computercode)
         {
             try
             {
@@ -105,19 +157,32 @@ namespace Medico_Backend.Class
                         usercode = @usercode,
                         computercode = @computercode,
                         updated_at = @updated_at
-                    WHERE id = @id
+                    WHERE vitalentryid = @vitalentryid
                     AND tenant_code = @tenant_code
                     AND deleted = false";
 
                 var rows = await db.ExecuteAsync(sql, new
                 {
-                    id,
+                    vitalentryid,
                     tenant_code,
                     status,
                     usercode,
                     computercode,
                     updated_at = DateTime.UtcNow
                 });
+
+                if (rows > 0 && string.Equals(status, "report_received", StringComparison.OrdinalIgnoreCase))
+                {
+                    var v = await GetById(vitalentryid, tenant_code);
+                    if (v != null
+                        && (string.Equals(v.investigation, "lab", StringComparison.OrdinalIgnoreCase)
+                            || string.Equals(v.investigation, "scan", StringComparison.OrdinalIgnoreCase))
+                        && v.dcode.HasValue
+                        && !string.IsNullOrEmpty(v.custcode))
+                    {
+                        await ogQueue.AddToQueue(tenant_code, v.custcode!, v.dcode.Value, v.token_no!, v.arrival_time, v.test_name, "test_completed");
+                    }
+                }
 
                 return rows > 0 ? "Success" : "Record not found";
             }
@@ -130,7 +195,7 @@ namespace Medico_Backend.Class
         // ─────────────────────────────────────────
         // DELETE (soft delete → deleted = true)
         // ─────────────────────────────────────────
-        public async Task<string> Delete(int id, string tenant_code)
+        public async Task<string> Delete(int vitalentryid, string tenant_code)
         {
             try
             {
@@ -140,10 +205,10 @@ namespace Medico_Backend.Class
                     UPDATE vitals_entry
                     SET deleted = true,
                         updated_at = @updated_at
-                    WHERE id = @id
+                    WHERE vitalentryid = @vitalentryid
                     AND tenant_code = @tenant_code";
 
-                var rows = await db.ExecuteAsync(sql, new { id, tenant_code, updated_at = DateTime.UtcNow });
+                var rows = await db.ExecuteAsync(sql, new { vitalentryid, tenant_code, updated_at = DateTime.UtcNow });
                 return rows > 0 ? "Success" : "Record not found";
             }
             catch (Exception ex)
@@ -161,23 +226,25 @@ namespace Medico_Backend.Class
 
             string sql = @"
                 SELECT
-                    v.id,
+                    v.vitalentryid,
                     v.tenant_code,
                     v.token_no,
-                    v.custid,
+                    v.custcode,
                     c.name AS patient_name,
                     v.dcode,
                     d.name AS doctor_name,
                     v.investigation,
+                    v.test_name,
                     v.status,
                     v.entered_date,
+                    v.arrival_time,
                     v.usercode,
                     v.computercode,
                     v.created_at,
                     v.updated_at
                 FROM vitals_entry v
-                LEFT JOIN customer_master c ON c.custid = v.custid
-                LEFT JOIN doctor_master d ON d.dcode = v.dcode
+                LEFT JOIN customer_master c ON c.custcode = v.custcode
+                LEFT JOIN doctor_master d ON d.dcode = v.dcode AND d.tenant_code = v.tenant_code
                 WHERE v.tenant_code = @tenant_code
                 AND v.deleted = false
                 ORDER BY v.created_at DESC";
@@ -189,18 +256,18 @@ namespace Medico_Backend.Class
         // ─────────────────────────────────────────
         // GET BY ID
         // ─────────────────────────────────────────
-        public async Task<VitalsModel?> GetById(int id, string tenant_code)
+        public async Task<VitalsModel?> GetById(int vitalentryid, string tenant_code)
         {
             using IDbConnection db = new NpgsqlConnection(db_conn);
 
             string sql = @"
                 SELECT *
                 FROM vitals_entry
-                WHERE id = @id
+                WHERE vitalentryid = @vitalentryid
                 AND tenant_code = @tenant_code
                 AND deleted = false";
 
-            return await db.QueryFirstOrDefaultAsync<VitalsModel>(sql, new { id, tenant_code });
+            return await db.QueryFirstOrDefaultAsync<VitalsModel>(sql, new { vitalentryid, tenant_code });
         }
 
         // ─────────────────────────────────────────
@@ -212,23 +279,25 @@ namespace Medico_Backend.Class
 
             string sql = @"
                 SELECT
-                    v.id,
+                    v.vitalentryid,
                     v.tenant_code,
                     v.token_no,
-                    v.custid,
+                    v.custcode,
                     c.name AS patient_name,
                     v.dcode,
                     d.name AS doctor_name,
                     v.investigation,
+                    v.test_name,
                     v.status,
                     v.entered_date,
+                    v.arrival_time,
                     v.usercode,
                     v.computercode,
                     v.created_at,
                     v.updated_at
                 FROM vitals_entry v
-                LEFT JOIN customer_master c ON c.custid = v.custid
-                LEFT JOIN doctor_master d ON d.dcode = v.dcode
+                LEFT JOIN customer_master c ON c.custcode = v.custcode
+                LEFT JOIN doctor_master d ON d.dcode = v.dcode AND d.tenant_code = v.tenant_code
                 WHERE v.status = @status
                 AND v.tenant_code = @tenant_code
                 AND v.deleted = false

@@ -15,22 +15,54 @@ namespace Medico_Backend.Class
             db_conn = configuration.GetConnectionString("conn");
         }
 
+        // ─────────────────────────────────────────
+        // GET ALL — all scan investigation entries for this tenant
+        // ─────────────────────────────────────────
+        public async Task<IEnumerable<ScanResultEntryModel>> Get(string tenant_code)
+        {
+            using IDbConnection db = new NpgsqlConnection(db_conn);
+
+            string sql = @"
+                SELECT
+                    v.vitalentryid,
+                    v.token_no,
+                    v.custcode,
+                    c.name AS patient_name,
+                    c.mobile,
+                    v.test_name,
+                    v.status,
+                    v.entered_date,
+                    v.updated_at
+                FROM vitals_entry v
+                LEFT JOIN customer_master c ON c.custcode = v.custcode
+                WHERE v.tenant_code = @tenant_code
+                AND v.investigation = 'scan'
+                AND v.deleted = false
+                ORDER BY v.entered_date ASC";
+
+            return await db.QueryAsync<ScanResultEntryModel>(sql, new { tenant_code });
+        }
+
+        // ─────────────────────────────────────────
+        // SEARCH — optional name/date filter
+        // ─────────────────────────────────────────
         public async Task<IEnumerable<ScanResultEntryModel>> Search(string tenant_code, string? name, DateTime? date)
         {
             using IDbConnection db = new NpgsqlConnection(db_conn);
 
             string sql = @"
                 SELECT
-                    v.id,
+                    v.vitalentryid,
                     v.token_no,
-                    v.custid,
+                    v.custcode,
                     c.name AS patient_name,
                     c.mobile,
                     v.test_name,
                     v.status,
-                    v.entered_date
+                    v.entered_date,
+                    v.updated_at
                 FROM vitals_entry v
-                LEFT JOIN customer_master c ON c.custid = v.custid
+                LEFT JOIN customer_master c ON c.custcode = v.custcode
                 WHERE v.tenant_code = @tenant_code
                 AND v.investigation = 'scan'
                 AND v.deleted = false
@@ -42,7 +74,10 @@ namespace Medico_Backend.Class
                 sql, new { tenant_code, name, date = date?.Date });
         }
 
-        public async Task<string> UpdateStatus(int id, string tenant_code, string status, int usercode, int computercode)
+        // ─────────────────────────────────────────
+        // UPDATE STATUS (e.g. on_going → result_pending → report_received)
+        // ─────────────────────────────────────────
+        public async Task<string> UpdateStatus(int vitalentryid, string tenant_code, string status, int usercode, int computercode)
         {
             try
             {
@@ -54,14 +89,14 @@ namespace Medico_Backend.Class
                         usercode = @usercode,
                         computercode = @computercode,
                         updated_at = @updated_at
-                    WHERE id = @id
+                    WHERE vitalentryid = @vitalentryid
                     AND tenant_code = @tenant_code
                     AND investigation = 'scan'
                     AND deleted = false";
 
                 var rows = await db.ExecuteAsync(sql, new
                 {
-                    id,
+                    vitalentryid,
                     tenant_code,
                     status,
                     usercode,

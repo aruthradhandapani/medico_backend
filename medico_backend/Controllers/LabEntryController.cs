@@ -16,6 +16,16 @@ namespace Medico_Backend.Controllers
             cls = _cls;
         }
 
+        [HttpGet("get")]
+        public async Task<IActionResult> Get([FromHeader(Name = "tenant_code")] string tenant_code)
+        {
+            if (string.IsNullOrEmpty(tenant_code))
+                return BadRequest("tenant_code header is required");
+
+            var data = await cls.Get(tenant_code);
+            return Ok(data);
+        }
+
         [HttpGet("search")]
         public async Task<IActionResult> Search(
             [FromHeader(Name = "tenant_code")] string tenant_code,
@@ -36,7 +46,7 @@ namespace Medico_Backend.Controllers
             if (string.IsNullOrEmpty(tenant_code))
                 return BadRequest("tenant_code header is required");
 
-            var result = await cls.UpdateStatus(req.id, tenant_code, req.status, req.usercode, req.computercode);
+            var result = await cls.UpdateStatus(req.vitalentryid, tenant_code, req.status, req.usercode, req.computercode);
             return Ok(result);
         }
     }

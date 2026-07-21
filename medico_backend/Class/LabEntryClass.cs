@@ -15,6 +15,32 @@ namespace Medico_Backend.Class
             db_conn = configuration.GetConnectionString("conn");
         }
 
+        // All lab entries, no filters — always scoped to investigation = 'lab'
+        public async Task<IEnumerable<LabResultEntryModel>> Get(string tenant_code)
+        {
+            using IDbConnection db = new NpgsqlConnection(db_conn);
+
+            string sql = @"
+                SELECT
+                    v.vitalentryid,
+                    v.token_no,
+                    v.custcode,
+                    c.name AS patient_name,
+                    c.mobile,
+                    v.test_name,
+                    v.status,
+                    v.entered_date,
+                    v.updated_at
+                FROM vitals_entry v
+                LEFT JOIN customer_master c ON c.custcode = v.custcode
+                WHERE v.tenant_code = @tenant_code
+                AND v.investigation = 'lab'
+                AND v.deleted = false
+                ORDER BY v.updated_at DESC";
+
+            return await db.QueryAsync<LabResultEntryModel>(sql, new { tenant_code });
+        }
+
         // Search by name + optional date, always scoped to investigation = 'lab'
         public async Task<IEnumerable<LabResultEntryModel>> Search(string tenant_code, string? name, DateTime? date)
         {
@@ -22,22 +48,23 @@ namespace Medico_Backend.Class
 
             string sql = @"
                 SELECT
-                    v.id,
+                    v.vitalentryid,
                     v.token_no,
-                    v.custid,
+                    v.custcode,
                     c.name AS patient_name,
                     c.mobile,
                     v.test_name,
                     v.status,
-                    v.entered_date
+                    v.entered_date,
+                    v.updated_at
                 FROM vitals_entry v
-                LEFT JOIN customer_master c ON c.custid = v.custid
+                LEFT JOIN customer_master c ON c.custcode = v.custcode
                 WHERE v.tenant_code = @tenant_code
                 AND v.investigation = 'lab'
                 AND v.deleted = false
                 AND (@name IS NULL OR c.name ILIKE '%' || @name || '%')
                 AND (@date IS NULL OR v.entered_date::date = @date)
-                ORDER BY v.entered_date ASC";
+                ORDER BY v.updated_at DESC";
 
             return await db.QueryAsync<LabResultEntryModel>(
                 sql, new { tenant_code, name, date = date?.Date });
@@ -45,7 +72,7 @@ namespace Medico_Backend.Class
 
         // Updates vitals_entry.status directly — reflects instantly in
         // main Vitals get/get-by-status and the token screen, since it's the same table.
-        public async Task<string> UpdateStatus(int id, string tenant_code, string status, int usercode, int computercode)
+        public async Task<string> UpdateStatus(int vitalentryid, string tenant_code, string status, int usercode, int computercode)
         {
             try
             {
@@ -57,14 +84,14 @@ namespace Medico_Backend.Class
                         usercode = @usercode,
                         computercode = @computercode,
                         updated_at = @updated_at
-                    WHERE id = @id
+                    WHERE vitalentryid = @vitalentryid
                     AND tenant_code = @tenant_code
                     AND investigation = 'lab'
                     AND deleted = false";
 
                 var rows = await db.ExecuteAsync(sql, new
                 {
-                    id,
+                    vitalentryid,
                     tenant_code,
                     status,
                     usercode,
