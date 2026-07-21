@@ -45,6 +45,7 @@ namespace Medico_Backend.Model
         public int ogentryid { get; set; }
         public TimeOnly out_time { get; set; }
         public string? status { get; set; }
+        public string? notes { get; set; }
         public int usercode { get; set; } = 1;
         public int computercode { get; set; } = 1;
     }

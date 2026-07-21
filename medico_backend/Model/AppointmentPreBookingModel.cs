@@ -1,0 +1,64 @@
+﻿// Model/AppointmentPreBookingModel.cs
+using Dapper.Contrib.Extensions;
+
+namespace Medico_Backend.Model
+{
+    [Table("appointment_pre_booking")]
+    public class AppointmentPreBookingModel
+    {
+        [ExplicitKey]
+        public long preferenceid { get; set; }
+
+        public string? tenant_code { get; set; }
+
+        public string? custcode { get; set; }
+
+        public int? dcode { get; set; }
+
+        public string? husband_name { get; set; }
+
+        public string? service_type { get; set; }
+
+        public DateTime? appointment_date { get; set; }
+
+        public string? remarks { get; set; }
+
+        public bool deleted { get; set; } = false;
+
+        public int usercode { get; set; } = 1;
+
+        public int computercode { get; set; } = 1;
+
+        public DateTime entereddate { get; set; }
+
+        public DateTime ibsdate { get; set; }
+    }
+
+    // ─────────────────────────────────────────
+    // Request DTOs
+    // ─────────────────────────────────────────
+    public class AddAppointmentPreBookingRequest
+    {
+        public string? custcode { get; set; }
+        public int? dcode { get; set; }
+        public string? husband_name { get; set; }
+        public string? service_type { get; set; }
+        public DateTime? appointment_date { get; set; }
+        public string? remarks { get; set; }
+        public int usercode { get; set; } = 1;
+        public int computercode { get; set; } = 1;
+    }
+
+    public class UpdateAppointmentPreBookingRequest
+    {
+        public long preferenceid { get; set; }
+        public string? custcode { get; set; }
+        public int? dcode { get; set; }
+        public string? husband_name { get; set; }
+        public string? service_type { get; set; }
+        public DateTime? appointment_date { get; set; }
+        public string? remarks { get; set; }
+        public int usercode { get; set; } = 1;
+        public int computercode { get; set; } = 1;
+    }
+}
