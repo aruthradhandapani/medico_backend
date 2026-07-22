@@ -61,16 +61,6 @@ namespace Medico_Backend.Controllers
             return Ok(data);
         }
 
-        [HttpPost("update-status")]
-        public async Task<IActionResult> UpdateStatus([FromBody] UpdateOgStatusRequest req, [FromHeader(Name = "tenant_code")] string tenant_code)
-        {
-            if (string.IsNullOrEmpty(tenant_code))
-                return BadRequest("tenant_code header is required");
-
-            var result = await cls.UpdateStatus(req.ogentryid, tenant_code, req.status, req.usercode, req.computercode);
-            return Ok(result);
-        }
-
         [HttpGet("delete")]
         public async Task<IActionResult> Delete(int ogentryid, [FromHeader(Name = "tenant_code")] string tenant_code)
         {
@@ -80,13 +70,29 @@ namespace Medico_Backend.Controllers
             var result = await cls.Delete(ogentryid, tenant_code);
             return Ok(result);
         }
+        [HttpPost("update-status")]
+        public async Task<IActionResult> UpdateStatus([FromBody] UpdateOgStatusRequest req, [FromHeader(Name = "tenant_code")] string tenant_code)
+        {
+            if (string.IsNullOrEmpty(tenant_code))
+                return BadRequest("tenant_code header is required");
+
+            var result = await cls.UpdateStatus(req.ogentryid, tenant_code, req.status, req.usercode, req.computercode);
+            if (result == null)
+                return NotFound("Record not found");
+
+            return Ok(result);
+        }
+
         [HttpPost("update-out-time")]
         public async Task<IActionResult> UpdateOutTime([FromBody] UpdateOgOutTimeRequest req, [FromHeader(Name = "tenant_code")] string tenant_code)
         {
             if (string.IsNullOrEmpty(tenant_code))
                 return BadRequest("tenant_code header is required");
 
-            var result = await cls.UpdateOutTime(req.ogentryid, tenant_code, req.out_time, req.status, req.usercode, req.computercode);
+            var result = await cls.UpdateOutTime(req.ogentryid, tenant_code, req.out_time, req.status, req.notes, req.usercode, req.computercode);
+            if (result == null)
+                return NotFound("Record not found");
+
             return Ok(result);
         }
 

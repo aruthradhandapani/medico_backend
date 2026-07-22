@@ -71,5 +71,14 @@ namespace Medico_Backend.Controllers
             var result = await cls.Delete(preferenceid, tenant_code);
             return Ok(result);
         }
+        [HttpPost("mark-visited")]
+        public async Task<IActionResult> MarkVisited([FromBody] MarkVisitedRequest req, [FromHeader(Name = "tenant_code")] string tenant_code)
+        {
+            if (string.IsNullOrEmpty(tenant_code))
+                return BadRequest("tenant_code header is required");
+
+            var result = await cls.MarkVisited(req.preferenceid, tenant_code, req.in1, req.in2, req.in3, req.in4, req.in5, req.test_name, req.arrival_time, req.is_vip, req.usercode, req.computercode);
+            return Ok(result);
+        }
     }
 }

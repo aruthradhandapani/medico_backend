@@ -9,10 +9,12 @@ namespace Medico_Backend.Class
     public class ScanResultEntryClass
     {
         private readonly string db_conn;
+        private readonly OgQueueClass ogQueue;
 
-        public ScanResultEntryClass(IConfiguration configuration)
+        public ScanResultEntryClass(IConfiguration configuration, OgQueueClass _ogQueue)
         {
             db_conn = configuration.GetConnectionString("conn");
+            ogQueue = _ogQueue;
         }
 
         // ─────────────────────────────────────────
@@ -103,6 +105,19 @@ namespace Medico_Backend.Class
                     computercode,
                     updated_at = DateTime.UtcNow
                 });
+
+                if (rows > 0 && string.Equals(status, "report_received", StringComparison.OrdinalIgnoreCase))
+                {
+                    var v = await db.QueryFirstOrDefaultAsync<VitalsModel>(@"
+                        SELECT * FROM vitals_entry
+                        WHERE vitalentryid = @vitalentryid AND tenant_code = @tenant_code AND deleted = false",
+                        new { vitalentryid, tenant_code });
+
+                    if (v != null && v.dcode.HasValue && !string.IsNullOrEmpty(v.custcode))
+                    {
+                        await ogQueue.AddToQueue(tenant_code, v.custcode!, v.dcode.Value, v.token_no!, v.arrival_time, v.test_name, "test_completed");
+                    }
+                }
 
                 return rows > 0 ? "Success" : "Record not found";
             }

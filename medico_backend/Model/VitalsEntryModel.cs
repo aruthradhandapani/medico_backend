@@ -16,14 +16,19 @@ namespace Medico_Backend.Model
 
         public int? dcode { get; set; }
 
-        // routes the token: lab | scan | doctor
-        public string? investigation { get; set; }
+        // REPLACED "investigation" (single string) with 5 slots
+        public string? in1 { get; set; }
+        public string? in2 { get; set; }
+        public string? in3 { get; set; }
+        public string? in4 { get; set; }
+        public string? in5 { get; set; }
 
-        // the specific test/scan name, e.g. "CBC", "Ultrasound"
         public string? test_name { get; set; }
 
-        // waiting_for_test | on_going | completed | result_pending | report_received
         public string? status { get; set; } = "waiting_for_test";
+
+        // NEW — true = VIP, gets reserved dummy-slot token (1, 26, 51, 76, 101...)
+        public bool is_vip { get; set; } = false;
 
         public DateTime entered_date { get; set; }
 

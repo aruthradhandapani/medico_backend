@@ -113,6 +113,7 @@ namespace Medico_Backend.Class
             string sql = @"
         SELECT
             v.vitalentryid,
+            o.ogentryid,
             v.token_no,
             v.custcode,
             c.name AS patient_name,
@@ -121,26 +122,33 @@ namespace Medico_Backend.Class
             d.name AS doctor_name,
             v.investigation,
             v.test_name,
-            v.status,
+            v.status AS vitals_status,
+            o.status AS queue_status,
+            o.out_time,
+            o.notes,
             v.entered_date,
             v.arrival_time
         FROM vitals_entry v
         LEFT JOIN customer_master c ON c.custcode = v.custcode
         LEFT JOIN doctor_master d ON d.dcode = v.dcode AND d.tenant_code = v.tenant_code
+        LEFT JOIN og_queue o ON o.tenant_code = v.tenant_code
+                            AND o.custcode = v.custcode
+                            AND o.dcode = v.dcode
+                            AND o.og_token_no = v.token_no
+                            AND o.deleted = false
         WHERE v.tenant_code = @tenant_code
         AND v.investigation IN ('lab', 'scan')
+        AND v.status = 'report_received'
         AND v.deleted = false
         AND (@name IS NULL OR c.name ILIKE '%' || @name || '%')
         AND (@date IS NULL OR v.entered_date::date = @date)
-        AND (@status IS NULL OR v.status = @status)
         ORDER BY v.entered_date ASC";
 
             return await db.QueryAsync(sql, new
             {
                 tenant_code,
                 name,
-                date = date.HasValue ? date.Value.Date : (DateTime?)null,
-                status
+                date = date.HasValue ? date.Value.Date : (DateTime?)null
             });
         }
 
@@ -154,6 +162,7 @@ namespace Medico_Backend.Class
             string sql = @"
         SELECT
             v.vitalentryid,
+            o.ogentryid,
             v.token_no,
             v.custcode,
             c.name AS patient_name,
@@ -162,12 +171,20 @@ namespace Medico_Backend.Class
             d.name AS doctor_name,
             v.investigation,
             v.test_name,
-            v.status,
+            v.status ,
+            o.status ,
+            o.out_time,
+            o.notes ,
             v.entered_date,
             v.arrival_time
         FROM vitals_entry v
         LEFT JOIN customer_master c ON c.custcode = v.custcode
         LEFT JOIN doctor_master d ON d.dcode = v.dcode AND d.tenant_code = v.tenant_code
+        LEFT JOIN og_queue o ON o.tenant_code = v.tenant_code
+                            AND o.custcode = v.custcode
+                            AND o.dcode = v.dcode
+                            AND o.og_token_no = v.token_no
+                            AND o.deleted = false
         WHERE v.tenant_code = @tenant_code
         AND v.investigation = 'doctor'
         AND v.deleted = false
@@ -306,77 +323,63 @@ namespace Medico_Backend.Class
         // ─────────────────────────────────────────
         // UPDATE STATUS (waiting → in_consultation → completed)
         // ─────────────────────────────────────────
-        public async Task<string> UpdateStatus(int ogentryid, string tenant_code, string status, int usercode, int computercode)
+        public async Task<OgQueueModel?> UpdateStatus(int ogentryid, string tenant_code, string status, int usercode, int computercode)
         {
-            try
+            using IDbConnection db = new NpgsqlConnection(db_conn);
+
+            string sql = @"
+        UPDATE og_queue
+        SET status = @status,
+            usercode = @usercode,
+            computercode = @computercode,
+            updated_at = @updated_at
+        WHERE ogentryid = @ogentryid
+        AND tenant_code = @tenant_code
+        AND deleted = false
+        RETURNING *";
+
+            return await db.QueryFirstOrDefaultAsync<OgQueueModel>(sql, new
             {
-                using IDbConnection db = new NpgsqlConnection(db_conn);
-
-                string sql = @"
-                    UPDATE og_queue
-                    SET status = @status,
-                        usercode = @usercode,
-                        computercode = @computercode,
-                        updated_at = @updated_at
-                    WHERE ogentryid = @ogentryid
-                    AND tenant_code = @tenant_code
-                    AND deleted = false";
-
-                var rows = await db.ExecuteAsync(sql, new
-                {
-                    ogentryid,
-                    tenant_code,
-                    status,
-                    usercode,
-                    computercode,
-                    updated_at = DateTime.UtcNow
-                });
-
-                return rows > 0 ? "Success" : "Record not found";
-            }
-            catch (Exception ex)
-            {
-                return ex.Message;
-            }
+                ogentryid,
+                tenant_code,
+                status,
+                usercode,
+                computercode,
+                updated_at = DateTime.UtcNow
+            });
         }
 
         // ─────────────────────────────────────────
         // UPDATE OUT TIME (patient leaves / consultation ends)
         // ─────────────────────────────────────────
-        public async Task<string> UpdateOutTime(int ogentryid, string tenant_code, TimeOnly out_time, string? status, int usercode, int computercode)
+        public async Task<OgQueueModel?> UpdateOutTime(int ogentryid, string tenant_code, TimeOnly out_time, string? status, string? notes, int usercode, int computercode)
         {
-            try
+            using IDbConnection db = new NpgsqlConnection(db_conn);
+
+            string sql = @"
+        UPDATE og_queue
+        SET out_time = @out_time,
+            status = COALESCE(@status, status),
+            notes = COALESCE(@notes, notes),
+            usercode = @usercode,
+            computercode = @computercode,
+            updated_at = @updated_at
+        WHERE ogentryid = @ogentryid
+        AND tenant_code = @tenant_code
+        AND deleted = false
+        RETURNING *";
+
+            return await db.QueryFirstOrDefaultAsync<OgQueueModel>(sql, new
             {
-                using IDbConnection db = new NpgsqlConnection(db_conn);
-
-                string sql = @"
-                    UPDATE og_queue
-                    SET out_time = @out_time,
-                        status = COALESCE(@status, status),
-                        usercode = @usercode,
-                        computercode = @computercode,
-                        updated_at = @updated_at
-                    WHERE ogentryid = @ogentryid
-                    AND tenant_code = @tenant_code
-                    AND deleted = false";
-
-                var rows = await db.ExecuteAsync(sql, new
-                {
-                    ogentryid,
-                    tenant_code,
-                    out_time,
-                    status,
-                    usercode,
-                    computercode,
-                    updated_at = DateTime.UtcNow
-                });
-
-                return rows > 0 ? "Success" : "Record not found";
-            }
-            catch (Exception ex)
-            {
-                return ex.Message;
-            }
+                ogentryid,
+                tenant_code,
+                out_time,
+                status,
+                notes,
+                usercode,
+                computercode,
+                updated_at = DateTime.UtcNow
+            });
         }
 
         // ─────────────────────────────────────────

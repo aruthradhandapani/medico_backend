@@ -18,8 +18,34 @@ namespace Medico_Backend.Class
         }
 
         // ─────────────────────────────────────────
-        // INSERT — generates a common daily token_no (not doctor-wise), resets every day
-        // Also pushes into OG queue immediately if investigation = 'doctor'
+        // Checks whether any of the 5 investigation slots holds this value
+        // ─────────────────────────────────────────
+        private static bool HasInvestigation(VitalsModel data, string value)
+        {
+            return string.Equals(data.in1, value, StringComparison.OrdinalIgnoreCase)
+                || string.Equals(data.in2, value, StringComparison.OrdinalIgnoreCase)
+                || string.Equals(data.in3, value, StringComparison.OrdinalIgnoreCase)
+                || string.Equals(data.in4, value, StringComparison.OrdinalIgnoreCase)
+                || string.Equals(data.in5, value, StringComparison.OrdinalIgnoreCase);
+        }
+
+        // ─────────────────────────────────────────
+        // A token number is a reserved "dummy" slot if it falls at
+        // 1, 26, 51, 76, 101, 126 ... (every 25th token)
+        // ─────────────────────────────────────────
+        private static bool IsDummySlot(int tokenNumber)
+        {
+            return (tokenNumber - 1) % 25 == 0;
+        }
+
+        // ─────────────────────────────────────────
+        // INSERT — token is always MAX(last issued token today) + 1.
+        // If that next slot lands on a dummy position, a placeholder row
+        // is auto-inserted first (no patient data), then the real patient
+        // takes the following token. Using MAX(token_no) instead of counting
+        // active rows means cancelled/deleted entries never cause renumbering
+        // or token reuse.
+        // Also pushes into OG queue immediately if 'doctor' is in any investigation slot
         // ─────────────────────────────────────────
         public async Task<InsertVitalsResult> Insert(VitalsModel data)
         {
@@ -31,25 +57,26 @@ namespace Medico_Backend.Class
 
                 var todayUtc = DateTime.UtcNow.Date;
 
-                // Lock on a hash of tenant_code+date so only one Insert per tenant/day runs the token logic at a time
                 long lockKey = (tenant_code: data.tenant_code, date: todayUtc).GetHashCode();
                 await db.ExecuteAsync("SELECT pg_advisory_xact_lock(@lockKey)", new { lockKey }, transaction);
 
-                // Guard against the same insert landing twice — a double-click, a
-                // client retry, whatever the cause — by reusing an identical entry
-                // if it was created moments ago instead of creating another one.
+                // Guard against the same insert landing twice (double-click / retry)
                 string dupSql = @"
-            SELECT vitalentryid, token_no
-            FROM vitals_entry
-            WHERE tenant_code = @tenant_code
-            AND custcode = @custcode
-            AND investigation = @investigation
-            AND test_name IS NOT DISTINCT FROM @test_name
-            AND dcode IS NOT DISTINCT FROM @dcode
-            AND deleted = false
-            AND created_at > (now() - interval '5 seconds')
-            ORDER BY created_at DESC
-            LIMIT 1";
+                    SELECT *
+                    FROM vitals_entry
+                    WHERE tenant_code = @tenant_code
+                    AND custcode = @custcode
+                    AND in1 IS NOT DISTINCT FROM @in1
+                    AND in2 IS NOT DISTINCT FROM @in2
+                    AND in3 IS NOT DISTINCT FROM @in3
+                    AND in4 IS NOT DISTINCT FROM @in4
+                    AND in5 IS NOT DISTINCT FROM @in5
+                    AND test_name IS NOT DISTINCT FROM @test_name
+                    AND dcode IS NOT DISTINCT FROM @dcode
+                    AND deleted = false
+                    AND created_at > (now() - interval '5 seconds')
+                    ORDER BY created_at DESC
+                    LIMIT 1";
 
                 var dup = await db.QueryFirstOrDefaultAsync<VitalsModel>(
                     dupSql,
@@ -57,7 +84,11 @@ namespace Medico_Backend.Class
                     {
                         tenant_code = data.tenant_code,
                         custcode = data.custcode,
-                        investigation = data.investigation,
+                        data.in1,
+                        data.in2,
+                        data.in3,
+                        data.in4,
+                        data.in5,
                         test_name = data.test_name,
                         dcode = data.dcode
                     },
@@ -69,17 +100,42 @@ namespace Medico_Backend.Class
                     return new InsertVitalsResult { message = "Success", token_no = dup.token_no };
                 }
 
-                string tokenSql = @"
-            SELECT COALESCE(MAX(token_no::int), 0)
-            FROM vitals_entry
-            WHERE tenant_code = @tenant_code
-            AND entered_date::date = @today
-            AND deleted = false";
+                // ── Last token issued today (dummy or real, deleted or not — token numbers are never reused) ──
+                var lastTokenStr = await db.ExecuteScalarAsync<string?>(@"
+                    SELECT token_no
+                    FROM vitals_entry
+                    WHERE tenant_code = @tenant_code
+                    AND entered_date::date = @today
+                    ORDER BY CAST(token_no AS INT) DESC
+                    LIMIT 1",
+                    new { tenant_code = data.tenant_code, today = todayUtc }, transaction);
 
-                var lastToken = await db.ExecuteScalarAsync<int>(
-                    tokenSql, new { tenant_code = data.tenant_code, today = todayUtc }, transaction);
+                int lastToken = lastTokenStr != null ? int.Parse(lastTokenStr) : 0;
+                int nextToken = lastToken + 1;
 
-                data.token_no = (lastToken + 1).ToString("D3");
+                // ── Auto-insert a reserved dummy row if this next slot is a dummy slot ──
+                if (IsDummySlot(nextToken))
+                {
+                    var dummy = new VitalsModel
+                    {
+                        tenant_code = data.tenant_code,
+                        token_no = nextToken.ToString("D3"),
+                        custcode = null,
+                        dcode = null,
+                        is_vip = true,      // marks this row as the reserved/dummy slot
+                        status = "dummy",
+                        entered_date = DateTime.UtcNow,
+                        created_at = DateTime.UtcNow,
+                        updated_at = DateTime.UtcNow,
+                        deleted = false
+                    };
+
+                    await db.InsertAsync(dummy, transaction);
+                    nextToken++;
+                }
+
+                data.token_no = nextToken.ToString("D3");
+                data.is_vip = false; // real patient rows are never the reserved dummy slot
                 data.entered_date = DateTime.UtcNow;
                 data.created_at = DateTime.UtcNow;
                 data.updated_at = DateTime.UtcNow;
@@ -91,12 +147,11 @@ namespace Medico_Backend.Class
 
                 if (newId > 0)
                 {
-                    if (string.Equals(data.investigation, "doctor", StringComparison.OrdinalIgnoreCase)
+                    if (HasInvestigation(data, "doctor")
                         && data.dcode.HasValue
                         && !string.IsNullOrEmpty(data.custcode))
                     {
                         await ogQueue.AddToQueue(data.tenant_code!, data.custcode!, data.dcode.Value, data.token_no!, data.arrival_time, data.test_name, "direct");
-
                     }
                     return new InsertVitalsResult { message = "Success", token_no = data.token_no };
                 }
@@ -125,8 +180,9 @@ namespace Medico_Backend.Class
                 if (existing == null)
                     return "Record not found for this tenant";
 
-                // token_no is not editable once generated
+                // token_no and is_vip are not editable once generated
                 data.token_no = existing.token_no;
+                data.is_vip = existing.is_vip;
                 data.entered_date = existing.entered_date;
                 data.created_at = existing.created_at;
                 data.updated_at = DateTime.UtcNow;
@@ -175,8 +231,7 @@ namespace Medico_Backend.Class
                 {
                     var v = await GetById(vitalentryid, tenant_code);
                     if (v != null
-                        && (string.Equals(v.investigation, "lab", StringComparison.OrdinalIgnoreCase)
-                            || string.Equals(v.investigation, "scan", StringComparison.OrdinalIgnoreCase))
+                        && (HasInvestigation(v, "lab") || HasInvestigation(v, "scan"))
                         && v.dcode.HasValue
                         && !string.IsNullOrEmpty(v.custcode))
                     {
@@ -194,6 +249,8 @@ namespace Medico_Backend.Class
 
         // ─────────────────────────────────────────
         // DELETE (soft delete → deleted = true)
+        // Token number is NOT reused — Insert() computes the next token from
+        // MAX(token_no) regardless of deleted status, so this is safe.
         // ─────────────────────────────────────────
         public async Task<string> Delete(int vitalentryid, string tenant_code)
         {
@@ -218,7 +275,7 @@ namespace Medico_Backend.Class
         }
 
         // ─────────────────────────────────────────
-        // GET ALL (active, non-deleted) — joined with customer & doctor for display
+        // GET ALL (active, non-deleted, non-dummy) — joined with customer & doctor for display
         // ─────────────────────────────────────────
         public async Task<IEnumerable<dynamic>> Get(string tenant_code)
         {
@@ -233,9 +290,14 @@ namespace Medico_Backend.Class
                     c.name AS patient_name,
                     v.dcode,
                     d.name AS doctor_name,
-                    v.investigation,
+                    v.in1,
+                    v.in2,
+                    v.in3,
+                    v.in4,
+                    v.in5,
                     v.test_name,
                     v.status,
+                    v.is_vip,
                     v.entered_date,
                     v.arrival_time,
                     v.usercode,
@@ -247,6 +309,7 @@ namespace Medico_Backend.Class
                 LEFT JOIN doctor_master d ON d.dcode = v.dcode AND d.tenant_code = v.tenant_code
                 WHERE v.tenant_code = @tenant_code
                 AND v.deleted = false
+                AND v.status != 'dummy'
                 ORDER BY v.created_at DESC";
 
             var result = await db.QueryAsync(sql, new { tenant_code });
@@ -272,6 +335,7 @@ namespace Medico_Backend.Class
 
         // ─────────────────────────────────────────
         // GET BY STATUS (e.g. token display screen filtering)
+        // Dummy rows are excluded unless the caller explicitly asks for status = "dummy"
         // ─────────────────────────────────────────
         public async Task<IEnumerable<dynamic>> GetByStatus(string status, string tenant_code)
         {
@@ -286,9 +350,14 @@ namespace Medico_Backend.Class
                     c.name AS patient_name,
                     v.dcode,
                     d.name AS doctor_name,
-                    v.investigation,
+                    v.in1,
+                    v.in2,
+                    v.in3,
+                    v.in4,
+                    v.in5,
                     v.test_name,
                     v.status,
+                    v.is_vip,
                     v.entered_date,
                     v.arrival_time,
                     v.usercode,
