@@ -10,6 +10,26 @@ namespace Medico_Backend.Class
     {
         private readonly string db_conn;
 
+        // Matches any of the 5 investigation slots (in1..in5), case-insensitive —
+        // same rule VitalsClass.HasInvestigation uses for "lab" / "scan" / "doctor"
+        private const string LabOrScanFilter = @"
+            (
+                v.in1 ILIKE ANY(ARRAY['lab','scan']) OR
+                v.in2 ILIKE ANY(ARRAY['lab','scan']) OR
+                v.in3 ILIKE ANY(ARRAY['lab','scan']) OR
+                v.in4 ILIKE ANY(ARRAY['lab','scan']) OR
+                v.in5 ILIKE ANY(ARRAY['lab','scan'])
+            )";
+
+        private const string DoctorFilter = @"
+            (
+                v.in1 ILIKE 'doctor' OR
+                v.in2 ILIKE 'doctor' OR
+                v.in3 ILIKE 'doctor' OR
+                v.in4 ILIKE 'doctor' OR
+                v.in5 ILIKE 'doctor'
+            )";
+
         public OgQueueClass(IConfiguration configuration)
         {
             db_conn = configuration.GetConnectionString("conn");
@@ -104,13 +124,13 @@ namespace Medico_Backend.Class
         }
 
         // ─────────────────────────────────────────
-        // LAB & SCAN LIST — all patients under investigation = 'lab' or 'scan', with current status
+        // LAB & SCAN LIST — all patients under investigation slot 'lab' or 'scan', with current status
         // ─────────────────────────────────────────
         public async Task<IEnumerable<dynamic>> GetLabScanList(string tenant_code, string? name, DateTime? date, string? status)
         {
             using IDbConnection db = new NpgsqlConnection(db_conn);
 
-            string sql = @"
+            string sql = $@"
         SELECT
             v.vitalentryid,
             o.ogentryid,
@@ -120,7 +140,7 @@ namespace Medico_Backend.Class
             c.mobile,
             v.dcode,
             d.name AS doctor_name,
-            v.investigation,
+            v.in1, v.in2, v.in3, v.in4, v.in5,
             v.test_name,
             v.status AS vitals_status,
             o.status AS queue_status,
@@ -137,9 +157,10 @@ namespace Medico_Backend.Class
                             AND o.og_token_no = v.token_no
                             AND o.deleted = false
         WHERE v.tenant_code = @tenant_code
-        AND v.investigation IN ('lab', 'scan')
+        AND {LabOrScanFilter}
         AND v.status = 'report_received'
         AND v.deleted = false
+        AND v.status != 'dummy'
         AND (@name IS NULL OR c.name ILIKE '%' || @name || '%')
         AND (@date IS NULL OR v.entered_date::date = @date)
         ORDER BY v.entered_date ASC";
@@ -153,13 +174,13 @@ namespace Medico_Backend.Class
         }
 
         // ─────────────────────────────────────────
-        // CONSULTATION LIST — all patients under investigation = 'doctor', with current status
+        // CONSULTATION LIST — all patients under investigation slot 'doctor', with current status
         // ─────────────────────────────────────────
         public async Task<IEnumerable<dynamic>> GetConsultationList(string tenant_code, string? name, DateTime? date, string? status)
         {
             using IDbConnection db = new NpgsqlConnection(db_conn);
 
-            string sql = @"
+            string sql = $@"
         SELECT
             v.vitalentryid,
             o.ogentryid,
@@ -169,12 +190,12 @@ namespace Medico_Backend.Class
             c.mobile,
             v.dcode,
             d.name AS doctor_name,
-            v.investigation,
+            v.in1, v.in2, v.in3, v.in4, v.in5,
             v.test_name,
-            v.status ,
-            o.status ,
+            v.status,
+            o.status AS queue_status,
             o.out_time,
-            o.notes ,
+            o.notes,
             v.entered_date,
             v.arrival_time
         FROM vitals_entry v
@@ -186,8 +207,9 @@ namespace Medico_Backend.Class
                             AND o.og_token_no = v.token_no
                             AND o.deleted = false
         WHERE v.tenant_code = @tenant_code
-        AND v.investigation = 'doctor'
+        AND {DoctorFilter}
         AND v.deleted = false
+        AND v.status != 'dummy'
         AND (@name IS NULL OR c.name ILIKE '%' || @name || '%')
         AND (@date IS NULL OR v.entered_date::date = @date)
         AND (@status IS NULL OR v.status = @status)
@@ -405,6 +427,85 @@ namespace Medico_Backend.Class
             {
                 return ex.Message;
             }
+        }
+        // ─────────────────────────────────────────
+        // MERGED LIST — lab/scan (report_received) + doctor consultation rows,
+        // combined into one feed, tagged with list_type so the UI can distinguish them.
+        // Optional list_type filter: "lab_scan" | "consultation" | null (both)
+        // ─────────────────────────────────────────
+        public async Task<IEnumerable<dynamic>> GetMergedList(string tenant_code, string? name, DateTime? date, string? status, string? list_type)
+        {
+            using IDbConnection db = new NpgsqlConnection(db_conn);
+
+            var filterDate = (date ?? DateTime.Now).Date;
+
+            string sql = $@"
+        SELECT
+            'lab_scan' AS list_type,
+            o.custcode,
+            c.name AS patient_name,
+            v.dcode,
+            d.name AS doctor_name,
+            o.arrival_time,
+            o.og_token_no AS token_no,
+            o.status,
+            o.og_token_no::int AS token_sort
+        FROM vitals_entry v
+        LEFT JOIN customerdb.customer_master c ON c.custcode = v.custcode
+        LEFT JOIN doctor_master d ON d.dcode = v.dcode AND d.tenant_code = v.tenant_code
+        LEFT JOIN og_queue o ON o.tenant_code = v.tenant_code
+                            AND o.custcode = v.custcode
+                            AND o.dcode = v.dcode
+                            AND o.og_token_no = v.token_no
+                            AND o.deleted = false
+        WHERE v.tenant_code = @tenant_code
+        AND {LabOrScanFilter}
+        AND v.status = 'report_received'
+        AND v.deleted = false
+        AND v.status != 'dummy'
+        AND (@name IS NULL OR c.name ILIKE '%' || @name || '%')
+        AND v.entered_date::date = @filterDate
+        AND (@list_type IS NULL OR @list_type = 'lab_scan')
+
+        UNION ALL
+
+        SELECT
+            'consultation' AS list_type,
+            o.custcode,
+            c.name AS patient_name,
+            v.dcode,
+            d.name AS doctor_name,
+            o.arrival_time,
+            o.og_token_no AS token_no,
+            o.status,
+            o.og_token_no::int AS token_sort
+        FROM vitals_entry v
+        LEFT JOIN customerdb.customer_master c ON c.custcode = v.custcode
+        LEFT JOIN doctor_master d ON d.dcode = v.dcode AND d.tenant_code = v.tenant_code
+        LEFT JOIN og_queue o ON o.tenant_code = v.tenant_code
+                            AND o.custcode = v.custcode
+                            AND o.dcode = v.dcode
+                            AND o.og_token_no = v.token_no
+                            AND o.deleted = false
+        WHERE v.tenant_code = @tenant_code
+        AND {DoctorFilter}
+        AND v.deleted = false
+        AND v.status != 'dummy'
+        AND (@name IS NULL OR c.name ILIKE '%' || @name || '%')
+        AND v.entered_date::date = @filterDate
+        AND (@status IS NULL OR v.status = @status)
+        AND (@list_type IS NULL OR @list_type = 'consultation')
+
+        ORDER BY token_sort ASC";
+
+            return await db.QueryAsync(sql, new
+            {
+                tenant_code,
+                name,
+                filterDate,
+                status,
+                list_type
+            });
         }
     }
 }

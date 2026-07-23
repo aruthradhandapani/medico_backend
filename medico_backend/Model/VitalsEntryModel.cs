@@ -43,5 +43,7 @@ namespace Medico_Backend.Model
         public DateTime updated_at { get; set; }
 
         public bool deleted { get; set; } = false;
+
+        public long? group_id { get; set; }
     }
 }

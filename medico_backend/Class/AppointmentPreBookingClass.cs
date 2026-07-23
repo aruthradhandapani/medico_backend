@@ -215,33 +215,56 @@ namespace Medico_Backend.Class
             {
                 using IDbConnection db = new NpgsqlConnection(db_conn);
 
-                var booking = await db.QueryFirstOrDefaultAsync<AppointmentPreBookingModel>(@"
-            SELECT * FROM appointment_pre_booking
+                // ── ATOMIC CLAIM ──
+                // Only succeeds if the booking is not already visited. Postgres locks the row
+                // during this UPDATE, so two concurrent calls can't both win — the loser gets null back.
+                var claimed = await db.QueryFirstOrDefaultAsync<AppointmentPreBookingModel>(@"
+            UPDATE appointment_pre_booking
+            SET status = 'visited',
+                ibsdate = @ibsdate
             WHERE preferenceid = @preferenceid
             AND tenant_code = @tenant_code
-            AND deleted = false",
-                    new { preferenceid, tenant_code });
+            AND deleted = false
+            AND status != 'visited'
+            RETURNING *",
+                    new { preferenceid, tenant_code, ibsdate = DateTime.UtcNow });
 
-                if (booking == null)
-                    return "Booking not found";
+                if (claimed == null)
+                {
+                    // Either doesn't exist, or someone else (a concurrent call) already claimed it
+                    var existing = await db.QueryFirstOrDefaultAsync<AppointmentPreBookingModel>(@"
+                SELECT * FROM appointment_pre_booking
+                WHERE preferenceid = @preferenceid AND tenant_code = @tenant_code AND deleted = false",
+                        new { preferenceid, tenant_code });
 
-                if (booking.status == "visited")
-                    return "Already marked as visited";
+                    if (existing == null) return "Booking not found";
+                    if (existing.status == "visited") return "Already marked as visited";
+                    return "Booking could not be claimed";
+                }
 
-                if (!booking.dcode.HasValue || string.IsNullOrEmpty(booking.custcode))
+                if (!claimed.dcode.HasValue || string.IsNullOrEmpty(claimed.custcode))
+                {
+                    // Roll back the claim — we can't proceed, so let this be retried later
+                    await db.ExecuteAsync(@"
+                UPDATE appointment_pre_booking
+                SET status = 'waiting'
+                WHERE preferenceid = @preferenceid AND tenant_code = @tenant_code",
+                        new { preferenceid, tenant_code });
+
                     return "Booking is missing custcode or dcode";
+                }
 
                 var vitalsData = new VitalsModel
                 {
                     tenant_code = tenant_code,
-                    custcode = booking.custcode,
-                    dcode = booking.dcode,
+                    custcode = claimed.custcode,
+                    dcode = claimed.dcode,
                     in1 = in1?.Trim().ToLowerInvariant(),
                     in2 = in2?.Trim().ToLowerInvariant(),
                     in3 = in3?.Trim().ToLowerInvariant(),
                     in4 = in4?.Trim().ToLowerInvariant(),
                     in5 = in5?.Trim().ToLowerInvariant(),
-                    test_name = test_name ?? booking.test_name ?? booking.service_type,
+                    test_name = test_name ?? claimed.test_name ?? claimed.service_type,
                     arrival_time = arrival_time,
                     status = "waiting",
                     is_vip = is_vip,
@@ -252,17 +275,18 @@ namespace Medico_Backend.Class
                 var result = await vitals.Insert(vitalsData);
 
                 if (result.message != "Success")
+                {
+                    // Vitals insert failed — release the claim so this booking can be retried
+                    await db.ExecuteAsync(@"
+                UPDATE appointment_pre_booking
+                SET status = 'waiting'
+                WHERE preferenceid = @preferenceid AND tenant_code = @tenant_code",
+                        new { preferenceid, tenant_code });
+
                     return $"Failed to create vitals entry: {result.message}";
+                }
 
-                var rows = await db.ExecuteAsync(@"
-            UPDATE appointment_pre_booking
-            SET status = 'visited',
-                ibsdate = @ibsdate
-            WHERE preferenceid = @preferenceid
-            AND tenant_code = @tenant_code",
-                    new { preferenceid, tenant_code, ibsdate = DateTime.UtcNow });
-
-                return rows > 0 ? $"Success - token_no: {result.token_no}" : "Failed to update booking status";
+                return $"Success - token_no: {result.token_no}";
             }
             catch (Exception ex)
             {

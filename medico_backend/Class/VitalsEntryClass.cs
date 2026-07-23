@@ -38,15 +38,6 @@ namespace Medico_Backend.Class
             return (tokenNumber - 1) % 25 == 0;
         }
 
-        // ─────────────────────────────────────────
-        // INSERT — token is always MAX(last issued token today) + 1.
-        // If that next slot lands on a dummy position, a placeholder row
-        // is auto-inserted first (no patient data), then the real patient
-        // takes the following token. Using MAX(token_no) instead of counting
-        // active rows means cancelled/deleted entries never cause renumbering
-        // or token reuse.
-        // Also pushes into OG queue immediately if 'doctor' is in any investigation slot
-        // ─────────────────────────────────────────
         public async Task<InsertVitalsResult> Insert(VitalsModel data)
         {
             try
@@ -57,7 +48,32 @@ namespace Medico_Backend.Class
 
                 var todayUtc = DateTime.UtcNow.Date;
 
-                long lockKey = (tenant_code: data.tenant_code, date: todayUtc).GetHashCode();
+                // ── NEW: resolve whether this doctor's queue is GROUP-shared or per-doctor ──
+                // dcode is mandatory at the controller level, so this always resolves.
+                var scope = await db.QueryFirstOrDefaultAsync<DoctorScope>(@"
+                    SELECT
+                        dm.group_id AS GroupId,
+                        COALESCE(dgm.token_type, 'DOCTOR') AS TokenType
+                    FROM doctor_master dm
+                    LEFT JOIN doctor_group_master dgm
+                           ON dgm.group_id = dm.group_id
+                          AND dgm.tenant_code = dm.tenant_code
+                          AND dgm.is_deleted = false
+                          AND dgm.is_active = true
+                    WHERE dm.dcode = @dcode
+                      AND dm.tenant_code = @tenant_code
+                      AND dm.deleted = false",
+                    new { dcode = data.dcode, tenant_code = data.tenant_code }, transaction);
+
+                bool isGroupScope = scope != null
+                                    && scope.GroupId.HasValue
+                                    && string.Equals(scope.TokenType, "GROUP", StringComparison.OrdinalIgnoreCase);
+
+                long? scopeGroupId = isGroupScope ? scope!.GroupId : null;
+
+                // lock key now includes the scope so unrelated queues don't block each other
+                string lockScopeToken = isGroupScope ? $"G{scopeGroupId}" : $"D{data.dcode}";
+                long lockKey = (tenant_code: data.tenant_code, date: todayUtc, scope: lockScopeToken).GetHashCode();
                 await db.ExecuteAsync("SELECT pg_advisory_xact_lock(@lockKey)", new { lockKey }, transaction);
 
                 // Guard against the same insert landing twice (double-click / retry)
@@ -100,20 +116,33 @@ namespace Medico_Backend.Class
                     return new InsertVitalsResult { message = "Success", token_no = dup.token_no };
                 }
 
-                // ── Last token issued today (dummy or real, deleted or not — token numbers are never reused) ──
-                var lastTokenStr = await db.ExecuteScalarAsync<string?>(@"
-                    SELECT token_no
-                    FROM vitals_entry
-                    WHERE tenant_code = @tenant_code
-                    AND entered_date::date = @today
-                    ORDER BY CAST(token_no AS INT) DESC
-                    LIMIT 1",
-                    new { tenant_code = data.tenant_code, today = todayUtc }, transaction);
+                // ── Last token issued today, SCOPED to this group (or this doctor individually) ──
+                string lastTokenSql = isGroupScope
+                    ? @"SELECT token_no
+                        FROM vitals_entry
+                        WHERE tenant_code = @tenant_code
+                        AND entered_date::date = @today
+                        AND group_id = @scopeGroupId
+                        ORDER BY CAST(token_no AS INT) DESC
+                        LIMIT 1"
+                    : @"SELECT token_no
+                        FROM vitals_entry
+                        WHERE tenant_code = @tenant_code
+                        AND entered_date::date = @today
+                        AND group_id IS NULL
+                        AND dcode = @dcode
+                        ORDER BY CAST(token_no AS INT) DESC
+                        LIMIT 1";
+
+                var lastTokenStr = await db.ExecuteScalarAsync<string?>(lastTokenSql,
+                    new { tenant_code = data.tenant_code, today = todayUtc, scopeGroupId, dcode = data.dcode },
+                    transaction);
 
                 int lastToken = lastTokenStr != null ? int.Parse(lastTokenStr) : 0;
                 int nextToken = lastToken + 1;
 
                 // ── Auto-insert a reserved dummy row if this next slot is a dummy slot ──
+                // Dummy is stamped with the SAME scope so it's picked up as "last token" for that queue.
                 if (IsDummySlot(nextToken))
                 {
                     var dummy = new VitalsModel
@@ -121,7 +150,8 @@ namespace Medico_Backend.Class
                         tenant_code = data.tenant_code,
                         token_no = nextToken.ToString("D3"),
                         custcode = null,
-                        dcode = null,
+                        dcode = isGroupScope ? null : data.dcode,   // individual queue keeps the dcode
+                        group_id = isGroupScope ? scopeGroupId : null, // group queue keeps the group_id
                         is_vip = true,      // marks this row as the reserved/dummy slot
                         status = "dummy",
                         entered_date = DateTime.UtcNow,
@@ -135,6 +165,7 @@ namespace Medico_Backend.Class
                 }
 
                 data.token_no = nextToken.ToString("D3");
+                data.group_id = scopeGroupId; // NULL for individual-queue doctors, set for group-queue doctors
                 data.is_vip = false; // real patient rows are never the reserved dummy slot
                 data.entered_date = DateTime.UtcNow;
                 data.created_at = DateTime.UtcNow;
@@ -162,6 +193,13 @@ namespace Medico_Backend.Class
             {
                 return new InsertVitalsResult { message = ex.Message, token_no = null };
             }
+        }
+
+        // small POCO for the doctor-scope lookup
+        private class DoctorScope
+        {
+            public long? GroupId { get; set; }
+            public string TokenType { get; set; } = "DOCTOR";
         }
 
         // ─────────────────────────────────────────

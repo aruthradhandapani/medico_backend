@@ -111,7 +111,11 @@ namespace Medico_Backend.Model
         public double? opcharge { get; set; }
 
         public string? tenant_code { get; set; }
+
         public string? doctorimage { get; set; }
+
         public bool showmobile { get; set; } = true;
+
+        public long? group_id { get; set; }
     }
 }

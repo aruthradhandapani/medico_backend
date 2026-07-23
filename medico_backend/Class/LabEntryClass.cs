@@ -11,18 +11,30 @@ namespace Medico_Backend.Class
         private readonly string db_conn;
         private readonly OgQueueClass ogQueue;
 
+        // Matches any of the 5 investigation slots (in1..in5), case-insensitive —
+        // same rule VitalsClass.HasInvestigation uses for "lab" / "scan" / "doctor"
+        private const string LabInvestigationFilter = @"
+            (
+                v.in1 ILIKE 'lab' OR
+                v.in2 ILIKE 'lab' OR
+                v.in3 ILIKE 'lab' OR
+                v.in4 ILIKE 'lab' OR
+                v.in5 ILIKE 'lab'
+            )";
+
         public LabResultEntryClass(IConfiguration configuration, OgQueueClass _ogQueue)
         {
             db_conn = configuration.GetConnectionString("conn");
             ogQueue = _ogQueue;
         }
 
-        // All lab entries, no filters — always scoped to investigation = 'lab'
+        // All lab entries, no filters — always scoped to any in1..in5 = 'lab'
+        // Dummy rows are excluded since they hold no real investigation data.
         public async Task<IEnumerable<LabResultEntryModel>> Get(string tenant_code)
         {
             using IDbConnection db = new NpgsqlConnection(db_conn);
 
-            string sql = @"
+            string sql = $@"
                 SELECT
                     v.vitalentryid,
                     v.token_no,
@@ -36,19 +48,20 @@ namespace Medico_Backend.Class
                 FROM vitals_entry v
                 LEFT JOIN customer_master c ON c.custcode = v.custcode
                 WHERE v.tenant_code = @tenant_code
-                AND v.investigation = 'lab'
+                AND {LabInvestigationFilter}
                 AND v.deleted = false
+                AND v.status != 'dummy'
                 ORDER BY v.updated_at DESC";
 
             return await db.QueryAsync<LabResultEntryModel>(sql, new { tenant_code });
         }
 
-        // Search by name + optional date, always scoped to investigation = 'lab'
+        // Search by name + optional date, always scoped to any in1..in5 = 'lab'
         public async Task<IEnumerable<LabResultEntryModel>> Search(string tenant_code, string? name, DateTime? date)
         {
             using IDbConnection db = new NpgsqlConnection(db_conn);
 
-            string sql = @"
+            string sql = $@"
                 SELECT
                     v.vitalentryid,
                     v.token_no,
@@ -62,8 +75,9 @@ namespace Medico_Backend.Class
                 FROM vitals_entry v
                 LEFT JOIN customer_master c ON c.custcode = v.custcode
                 WHERE v.tenant_code = @tenant_code
-                AND v.investigation = 'lab'
+                AND {LabInvestigationFilter}
                 AND v.deleted = false
+                AND v.status != 'dummy'
                 AND (@name IS NULL OR c.name ILIKE '%' || @name || '%')
                 AND (@date IS NULL OR v.entered_date::date = @date)
                 ORDER BY v.updated_at DESC";
@@ -80,16 +94,16 @@ namespace Medico_Backend.Class
             {
                 using IDbConnection db = new NpgsqlConnection(db_conn);
 
-                string sql = @"
-                    UPDATE vitals_entry
+                string sql = $@"
+                    UPDATE vitals_entry v
                     SET status = @status,
                         usercode = @usercode,
                         computercode = @computercode,
                         updated_at = @updated_at
-                    WHERE vitalentryid = @vitalentryid
-                    AND tenant_code = @tenant_code
-                    AND investigation = 'lab'
-                    AND deleted = false";
+                    WHERE v.vitalentryid = @vitalentryid
+                    AND v.tenant_code = @tenant_code
+                    AND {LabInvestigationFilter}
+                    AND v.deleted = false";
 
                 var rows = await db.ExecuteAsync(sql, new
                 {
@@ -121,6 +135,5 @@ namespace Medico_Backend.Class
                 return ex.Message;
             }
         }
-
     }
 }
