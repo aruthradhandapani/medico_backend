@@ -20,7 +20,12 @@ namespace Medico_Backend.Class
         v.in4 ILIKE ANY(ARRAY['lab','scan','ecg-echo']) OR
         v.in5 ILIKE ANY(ARRAY['lab','scan','ecg-echo'])
     )";
-
+        private const string AllLabScanCompletedFilter = @"
+    (v.in1 IS NULL OR NOT (v.in1 ILIKE ANY(ARRAY['lab','scan','ecg-echo'])) OR v.in1_status ILIKE 'report_received')
+    AND (v.in2 IS NULL OR NOT (v.in2 ILIKE ANY(ARRAY['lab','scan','ecg-echo'])) OR v.in2_status ILIKE 'report_received')
+    AND (v.in3 IS NULL OR NOT (v.in3 ILIKE ANY(ARRAY['lab','scan','ecg-echo'])) OR v.in3_status ILIKE 'report_received')
+    AND (v.in4 IS NULL OR NOT (v.in4 ILIKE ANY(ARRAY['lab','scan','ecg-echo'])) OR v.in4_status ILIKE 'report_received')
+    AND (v.in5 IS NULL OR NOT (v.in5 ILIKE ANY(ARRAY['lab','scan','ecg-echo'])) OR v.in5_status ILIKE 'report_received')";
         private const string DoctorFilter = @"
             (
                 v.in1 ILIKE 'doctor' OR
@@ -142,7 +147,20 @@ namespace Medico_Backend.Class
             d.name AS doctor_name,
             v.in1, v.in2, v.in3, v.in4, v.in5,
             v.test_name,
-            v.status AS vitals_status,
+            CASE
+                WHEN v.in1 ILIKE ANY(ARRAY['lab','scan','ecg-echo']) THEN v.in1
+                WHEN v.in2 ILIKE ANY(ARRAY['lab','scan','ecg-echo']) THEN v.in2
+                WHEN v.in3 ILIKE ANY(ARRAY['lab','scan','ecg-echo']) THEN v.in3
+                WHEN v.in4 ILIKE ANY(ARRAY['lab','scan','ecg-echo']) THEN v.in4
+                WHEN v.in5 ILIKE ANY(ARRAY['lab','scan','ecg-echo']) THEN v.in5
+            END AS investigation_type,
+            CASE
+                WHEN v.in1 ILIKE ANY(ARRAY['lab','scan','ecg-echo']) THEN v.in1_status
+                WHEN v.in2 ILIKE ANY(ARRAY['lab','scan','ecg-echo']) THEN v.in2_status
+                WHEN v.in3 ILIKE ANY(ARRAY['lab','scan','ecg-echo']) THEN v.in3_status
+                WHEN v.in4 ILIKE ANY(ARRAY['lab','scan','ecg-echo']) THEN v.in4_status
+                WHEN v.in5 ILIKE ANY(ARRAY['lab','scan','ecg-echo']) THEN v.in5_status
+            END AS vitals_status,
             o.status AS queue_status,
             o.out_time,
             o.notes,
@@ -161,10 +179,18 @@ namespace Medico_Backend.Class
                             AND o.deleted = false
         WHERE v.tenant_code = @tenant_code
         AND {LabOrScanFilter}
+        AND {AllLabScanCompletedFilter}
         AND v.deleted = false
         AND (@name IS NULL OR c.name ILIKE '%' || @name || '%')
         AND (@date IS NULL OR v.entered_date::date = @date)
-        AND (@status IS NULL OR v.status = @status)
+        AND (@status IS NULL OR
+             CASE
+                WHEN v.in1 ILIKE ANY(ARRAY['lab','scan','ecg-echo']) THEN v.in1_status
+                WHEN v.in2 ILIKE ANY(ARRAY['lab','scan','ecg-echo']) THEN v.in2_status
+                WHEN v.in3 ILIKE ANY(ARRAY['lab','scan','ecg-echo']) THEN v.in3_status
+                WHEN v.in4 ILIKE ANY(ARRAY['lab','scan','ecg-echo']) THEN v.in4_status
+                WHEN v.in5 ILIKE ANY(ARRAY['lab','scan','ecg-echo']) THEN v.in5_status
+             END = @status)
         ORDER BY v.token_no::int ASC";
 
             return await db.QueryAsync(sql, new
@@ -195,7 +221,14 @@ namespace Medico_Backend.Class
             d.name AS doctor_name,
             v.in1, v.in2, v.in3, v.in4, v.in5,
             v.test_name,
-            v.status,
+            CASE
+                WHEN v.in1 ILIKE 'doctor' THEN v.in1_status
+                WHEN v.in2 ILIKE 'doctor' THEN v.in2_status
+                WHEN v.in3 ILIKE 'doctor' THEN v.in3_status
+                WHEN v.in4 ILIKE 'doctor' THEN v.in4_status
+                WHEN v.in5 ILIKE 'doctor' THEN v.in5_status
+                ELSE v.status
+            END AS status,
             o.status AS queue_status,
             o.out_time,
             o.notes,
@@ -217,7 +250,15 @@ LEFT JOIN customerdb.customer_master c
         AND v.deleted = false
         AND (@name IS NULL OR c.name ILIKE '%' || @name || '%' OR v.custcode = 'RESERVED')
         AND (@date IS NULL OR v.entered_date::date = @date)
-        AND (@status IS NULL OR v.status = @status)
+        AND (@status IS NULL OR
+             CASE
+                WHEN v.in1 ILIKE 'doctor' THEN v.in1_status
+                WHEN v.in2 ILIKE 'doctor' THEN v.in2_status
+                WHEN v.in3 ILIKE 'doctor' THEN v.in3_status
+                WHEN v.in4 ILIKE 'doctor' THEN v.in4_status
+                WHEN v.in5 ILIKE 'doctor' THEN v.in5_status
+                ELSE v.status
+             END = @status)
         ORDER BY v.token_no::int ASC";
 
             return await db.QueryAsync(sql, new
@@ -347,9 +388,6 @@ LEFT JOIN customerdb.customer_master c
             return await db.QueryAsync(sql, new { status, tenant_code });
         }
 
-        // ─────────────────────────────────────────
-        // UPDATE STATUS (waiting → in_consultation → completed)
-        // ─────────────────────────────────────────
         public async Task<OgQueueModel?> UpdateStatus(int ogentryid, string tenant_code, string status, int usercode, int computercode)
         {
             using IDbConnection db = new NpgsqlConnection(db_conn);
@@ -365,7 +403,7 @@ LEFT JOIN customerdb.customer_master c
         AND deleted = false
         RETURNING *";
 
-            return await db.QueryFirstOrDefaultAsync<OgQueueModel>(sql, new
+            var updated = await db.QueryFirstOrDefaultAsync<OgQueueModel>(sql, new
             {
                 ogentryid,
                 tenant_code,
@@ -374,8 +412,45 @@ LEFT JOIN customerdb.customer_master c
                 computercode,
                 updated_at = DateTime.UtcNow
             });
+
+            if (updated != null)
+            {
+                await SyncStatusToVitals(tenant_code, updated.custcode, updated.dcode, updated.og_token_no, status);
+            }
+
+            return updated;
         }
 
+        // ─────────────────────────────────────────
+        // og_queue is always the DOCTOR-consultation queue, whether the patient
+        // entered directly or arrived after labs/scans were completed. So any
+        // status change here (waiting / in_consultation / completed) always
+        // reflects onto the 'doctor' slot in vitals_entry — never lab/scan/ecg-echo,
+        // those are updated separately via VitalsClass.UpdateStatus/UpdateSlotStatus.
+        // ─────────────────────────────────────────
+        private async Task SyncStatusToVitals(string tenant_code, string? custcode, int? dcode, string? token_no, string status)
+        {
+            if (string.IsNullOrEmpty(custcode) || !dcode.HasValue || string.IsNullOrEmpty(token_no))
+                return;
+
+            using IDbConnection db = new NpgsqlConnection(db_conn);
+
+            string sql = @"
+        UPDATE vitals_entry
+        SET in1_status = CASE WHEN in1 ILIKE 'doctor' THEN @status ELSE in1_status END,
+            in2_status = CASE WHEN in2 ILIKE 'doctor' THEN @status ELSE in2_status END,
+            in3_status = CASE WHEN in3 ILIKE 'doctor' THEN @status ELSE in3_status END,
+            in4_status = CASE WHEN in4 ILIKE 'doctor' THEN @status ELSE in4_status END,
+            in5_status = CASE WHEN in5 ILIKE 'doctor' THEN @status ELSE in5_status END,
+            updated_at = @updated_at
+        WHERE tenant_code = @tenant_code
+        AND custcode = @custcode
+        AND dcode = @dcode
+        AND token_no = @token_no
+        AND deleted = false";
+
+            await db.ExecuteAsync(sql, new { tenant_code, custcode, dcode, token_no, status, updated_at = DateTime.UtcNow });
+        }
         // ─────────────────────────────────────────
         // UPDATE OUT TIME (patient leaves / consultation ends)
         // ─────────────────────────────────────────
@@ -396,7 +471,7 @@ LEFT JOIN customerdb.customer_master c
         AND deleted = false
         RETURNING *";
 
-            return await db.QueryFirstOrDefaultAsync<OgQueueModel>(sql, new
+            var updated = await db.QueryFirstOrDefaultAsync<OgQueueModel>(sql, new
             {
                 ogentryid,
                 tenant_code,
@@ -407,6 +482,13 @@ LEFT JOIN customerdb.customer_master c
                 computercode,
                 updated_at = DateTime.UtcNow
             });
+
+            if (updated != null && !string.IsNullOrEmpty(status))
+            {
+                await SyncStatusToVitals(tenant_code, updated.custcode, updated.dcode, updated.og_token_no, status);
+            }
+
+            return updated;
         }
 
         // ─────────────────────────────────────────
@@ -433,11 +515,6 @@ LEFT JOIN customerdb.customer_master c
                 return ex.Message;
             }
         }
-        // ─────────────────────────────────────────
-        // MERGED LIST — lab/scan (report_received) + doctor consultation rows,
-        // combined into one feed, tagged with list_type so the UI can distinguish them.
-        // Optional list_type filter: "lab_scan" | "consultation" | null (both)
-        // ─────────────────────────────────────────
         public async Task<IEnumerable<dynamic>> GetMergedList(string tenant_code, string? name, DateTime? date, string? status, string? list_type)
         {
             using IDbConnection db = new NpgsqlConnection(db_conn);
@@ -445,16 +522,16 @@ LEFT JOIN customerdb.customer_master c
             var filterDate = (date ?? DateTime.Now).Date;
 
             string sql = $@"
-        SELECT
+SELECT
     'lab_scan' AS list_type,
     o.custcode,
     c.name AS patient_name,
     v.dcode,
     d.name AS doctor_name,
-    o.arrival_time,
-    o.og_token_no AS token_no,
+    COALESCE(o.arrival_time, v.arrival_time) AS arrival_time,
+    COALESCE(o.og_token_no, v.token_no) AS token_no,
     o.status,
-    o.og_token_no::int AS token_sort
+    COALESCE(o.og_token_no, v.token_no)::int AS token_sort
 FROM vitals_entry v
 LEFT JOIN customerdb.customer_registration_master r
     ON r.custcode = v.custcode AND r.tenant_code = v.tenant_code
@@ -468,25 +545,26 @@ LEFT JOIN og_queue o ON o.tenant_code = v.tenant_code
                     AND o.deleted = false
 WHERE v.tenant_code = @tenant_code
 AND {LabOrScanFilter}
-AND v.status = 'report_received'
+AND {AllLabScanCompletedFilter}
 AND v.deleted = false
-AND v.status != 'dummy'
+AND v.status != 'reserved'
 AND (@name IS NULL OR c.name ILIKE '%' || @name || '%')
 AND v.entered_date::date = @filterDate
 AND (@list_type IS NULL OR @list_type = 'lab_scan')
+AND (@status IS NULL OR o.status = @status)
 
 UNION ALL
 
 SELECT
     'consultation' AS list_type,
-    o.custcode,
-    CASE WHEN o.custcode = 'RESERVED' THEN 'Reserved' ELSE c.name END AS patient_name,
+    v.custcode,
+    CASE WHEN v.custcode = 'RESERVED' THEN 'Reserved' ELSE c.name END AS patient_name,
     v.dcode,
     d.name AS doctor_name,
-    o.arrival_time,
-    o.og_token_no AS token_no,
+    COALESCE(o.arrival_time, v.arrival_time) AS arrival_time,
+    COALESCE(o.og_token_no, v.token_no) AS token_no,
     o.status,
-    o.og_token_no::int AS token_sort
+    COALESCE(o.og_token_no, v.token_no)::int AS token_sort
 FROM vitals_entry v
 LEFT JOIN customerdb.customer_registration_master r
     ON r.custcode = v.custcode AND r.tenant_code = v.tenant_code
@@ -501,12 +579,10 @@ LEFT JOIN og_queue o ON o.tenant_code = v.tenant_code
 WHERE v.tenant_code = @tenant_code
 AND {DoctorFilter}
 AND v.deleted = false
-AND v.status != 'dummy'
-AND (@name IS NULL OR c.name ILIKE '%' || @name || '%')
+AND (@name IS NULL OR c.name ILIKE '%' || @name || '%' OR v.custcode = 'RESERVED')
 AND v.entered_date::date = @filterDate
-AND (@status IS NULL OR v.status = @status)
 AND (@list_type IS NULL OR @list_type = 'consultation')
-
+AND (@status IS NULL OR o.status = @status)
 
 ORDER BY token_sort ASC";
 

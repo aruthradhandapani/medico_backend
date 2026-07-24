@@ -35,23 +35,27 @@ namespace Medico_Backend.Class
             using IDbConnection db = new NpgsqlConnection(db_conn);
 
             string sql = $@"
-                SELECT
-                    v.vitalentryid,
-                    v.token_no,
-                    v.custcode,
-                    c.name AS patient_name,
-                    c.mobile,
-                    v.test_name,
-                    v.status,
-                    v.entered_date,
-                    v.updated_at
-                FROM vitals_entry v
-                LEFT JOIN customer_master c ON c.custcode = v.custcode
-                WHERE v.tenant_code = @tenant_code
-                AND {LabInvestigationFilter}
-                AND v.deleted = false
-                AND v.status != 'dummy'
-                ORDER BY v.updated_at DESC";
+        SELECT
+            v.vitalentryid,
+            v.token_no,
+            v.custcode,
+            c.name AS patient_name,
+            c.mobile,
+            CASE
+                WHEN v.in1 ILIKE 'lab' THEN v.in1_status
+                WHEN v.in2 ILIKE 'lab' THEN v.in2_status
+                WHEN v.in3 ILIKE 'lab' THEN v.in3_status
+                WHEN v.in4 ILIKE 'lab' THEN v.in4_status
+                WHEN v.in5 ILIKE 'lab' THEN v.in5_status
+            END AS status,
+            v.entered_date,
+            v.updated_at
+        FROM vitals_entry v
+        LEFT JOIN customer_master c ON c.custcode = v.custcode
+        WHERE v.tenant_code = @tenant_code
+        AND {LabInvestigationFilter}
+        AND v.deleted = false
+        ORDER BY v.updated_at DESC";
 
             return await db.QueryAsync<LabResultEntryModel>(sql, new { tenant_code });
         }
@@ -68,7 +72,6 @@ namespace Medico_Backend.Class
                     v.custcode,
                     c.name AS patient_name,
                     c.mobile,
-                    v.test_name,
                     v.status,
                     v.entered_date,
                     v.updated_at
@@ -88,22 +91,47 @@ namespace Medico_Backend.Class
 
         // Updates vitals_entry.status directly — reflects instantly in
         // main Vitals get/get-by-status and the token screen, since it's the same table.
+        // Updates the specific in{n}_status column that holds 'lab' for this row —
+        // not the shared vitals_entry.status — so it doesn't clobber other investigations
+        // (e.g. scan or doctor) tracked on the same row.
         public async Task<string> UpdateStatus(int vitalentryid, string tenant_code, string status, int usercode, int computercode)
         {
             try
             {
                 using IDbConnection db = new NpgsqlConnection(db_conn);
 
+                // Find the row first to determine which slot holds "lab"
+                var v = await db.QueryFirstOrDefaultAsync<VitalsModel>(@"
+            SELECT * FROM vitals_entry
+            WHERE vitalentryid = @vitalentryid
+            AND tenant_code = @tenant_code
+            AND deleted = false",
+                    new { vitalentryid, tenant_code });
+
+                if (v == null)
+                    return "Record not found";
+
+                string? labSlot = null;
+                if (string.Equals(v.in1, "lab", StringComparison.OrdinalIgnoreCase)) labSlot = "in1";
+                else if (string.Equals(v.in2, "lab", StringComparison.OrdinalIgnoreCase)) labSlot = "in2";
+                else if (string.Equals(v.in3, "lab", StringComparison.OrdinalIgnoreCase)) labSlot = "in3";
+                else if (string.Equals(v.in4, "lab", StringComparison.OrdinalIgnoreCase)) labSlot = "in4";
+                else if (string.Equals(v.in5, "lab", StringComparison.OrdinalIgnoreCase)) labSlot = "in5";
+
+                if (labSlot == null)
+                    return "This record has no 'lab' investigation slot";
+
+                string statusColumn = $"{labSlot}_status";
+
                 string sql = $@"
-                    UPDATE vitals_entry v
-                    SET status = @status,
-                        usercode = @usercode,
-                        computercode = @computercode,
-                        updated_at = @updated_at
-                    WHERE v.vitalentryid = @vitalentryid
-                    AND v.tenant_code = @tenant_code
-                    AND {LabInvestigationFilter}
-                    AND v.deleted = false";
+            UPDATE vitals_entry
+            SET {statusColumn} = @status,
+                usercode = @usercode,
+                computercode = @computercode,
+                updated_at = @updated_at
+            WHERE vitalentryid = @vitalentryid
+            AND tenant_code = @tenant_code
+            AND deleted = false";
 
                 var rows = await db.ExecuteAsync(sql, new
                 {
@@ -117,18 +145,13 @@ namespace Medico_Backend.Class
 
                 if (rows > 0 && string.Equals(status, "report_received", StringComparison.OrdinalIgnoreCase))
                 {
-                    var v = await db.QueryFirstOrDefaultAsync<VitalsModel>(@"
-                        SELECT * FROM vitals_entry
-                        WHERE vitalentryid = @vitalentryid AND tenant_code = @tenant_code AND deleted = false",
-                        new { vitalentryid, tenant_code });
-
-                    if (v != null && v.dcode.HasValue && !string.IsNullOrEmpty(v.custcode))
+                    if (v.dcode.HasValue && !string.IsNullOrEmpty(v.custcode))
                     {
                         await ogQueue.AddToQueue(tenant_code, v.custcode!, v.dcode.Value, v.token_no!, v.arrival_time, v.test_name, "test_completed");
                     }
                 }
 
-                return rows > 0 ? "Success" : "Record not found";
+                return rows > 0 ? "Success" : "Failed";
             }
             catch (Exception ex)
             {

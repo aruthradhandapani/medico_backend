@@ -16,12 +16,18 @@ namespace Medico_Backend.Model
 
         public int? dcode { get; set; }
 
-        // REPLACED "investigation" (single string) with 5 slots
+       
         public string? in1 { get; set; }
         public string? in2 { get; set; }
         public string? in3 { get; set; }
         public string? in4 { get; set; }
         public string? in5 { get; set; }
+
+        public string? in1_status { get; set; }
+        public string? in2_status { get; set; }
+        public string? in3_status { get; set; }
+        public string? in4_status { get; set; }
+        public string? in5_status { get; set; }
 
         public string? test_name { get; set; }
 

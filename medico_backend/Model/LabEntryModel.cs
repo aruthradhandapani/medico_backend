@@ -9,7 +9,6 @@ namespace Medico_Backend.Model
         public string? custcode { get; set; }
         public string? patient_name { get; set; }
         public string? mobile { get; set; }
-        public string? test_name { get; set; }
         public string? status { get; set; }
         public DateTime entered_date { get; set; }
         public DateTime updated_at { get; set; }

@@ -109,11 +109,28 @@ namespace Medico_Backend.Controllers
             var data = await cls.GetAllDummyList(tenant_code);
             return Ok(data);
         }
+        [HttpPost("update-slot-status")]
+        public async Task<IActionResult> UpdateSlotStatus([FromBody] UpdateSlotStatusRequest req, [FromHeader(Name = "tenant_code")] string tenant_code)
+        {
+            if (string.IsNullOrEmpty(tenant_code))
+                return BadRequest("tenant_code header is required");
+
+            var result = await cls.UpdateSlotStatus(req.vitalentryid, tenant_code, req.slot, req.status, req.usercode, req.computercode);
+            return Ok(result);
+        }
     }
 
     public class UpdateVitalsStatusRequest
     {
         public int vitalentryid { get; set; }
+        public string status { get; set; } = "";
+        public int usercode { get; set; } = 1;
+        public int computercode { get; set; } = 1;
+    }
+    public class UpdateSlotStatusRequest
+    {
+        public int vitalentryid { get; set; }
+        public string slot { get; set; } = "";   // "in1", "in2", "in3", "in4", or "in5"
         public string status { get; set; } = "";
         public int usercode { get; set; } = 1;
         public int computercode { get; set; } = 1;

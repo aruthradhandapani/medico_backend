@@ -173,7 +173,7 @@ namespace Medico_Backend.Class
                         in1 = "doctor",
                         is_vip = true,
                         status = "reserved",
-                        arrival_time = TimeOnly.FromDateTime(DateTime.Now),
+                        arrival_time = data.arrival_time ?? TimeOnly.FromDateTime(DateTime.Now),
                         entered_date = DateTime.UtcNow,
                         created_at = DateTime.UtcNow,
                         updated_at = DateTime.UtcNow,
@@ -197,6 +197,13 @@ namespace Medico_Backend.Class
                 data.created_at = DateTime.UtcNow;
                 data.updated_at = DateTime.UtcNow;
                 data.deleted = false;
+
+                data.in1_status = !string.IsNullOrEmpty(data.in1) ? (data.in1_status ?? "waiting_for_test") : null;
+                data.in2_status = !string.IsNullOrEmpty(data.in2) ? (data.in2_status ?? "waiting_for_test") : null;
+                data.in3_status = !string.IsNullOrEmpty(data.in3) ? (data.in3_status ?? "waiting_for_test") : null;
+                data.in4_status = !string.IsNullOrEmpty(data.in4) ? (data.in4_status ?? "waiting_for_test") : null;
+                data.in5_status = !string.IsNullOrEmpty(data.in5) ? (data.in5_status ?? "waiting_for_test") : null;
+
 
                 var newId = await db.InsertAsync(data, transaction);
 
@@ -364,6 +371,11 @@ namespace Medico_Backend.Class
                     v.in3,
                     v.in4,
                     v.in5,
+                    v.in1_status,
+                    v.in2_status,
+                    v.in3_status,
+                    v.in4_status,
+                    v.in5_status,
                     v.test_name,
                     v.status,
                     v.is_vip,
@@ -477,6 +489,81 @@ namespace Medico_Backend.Class
         ORDER BY v.entered_date DESC";
 
             return await db.QueryAsync(sql, new { tenant_code });
+        }
+        // ─────────────────────────────────────────
+        // UPDATE A SINGLE INVESTIGATION SLOT'S STATUS (e.g. lab report received,
+        // while doctor consultation for the same visit is still pending).
+        // slotNumber: 1-5, corresponding to in1_status .. in5_status
+        // Pushes to OG queue when THAT SLOT's investigation type becomes report_received.
+        // ─────────────────────────────────────────
+        private static readonly HashSet<string> ValidSlots = new(StringComparer.OrdinalIgnoreCase)
+{
+    "in1", "in2", "in3", "in4", "in5"
+};
+
+        public async Task<string> UpdateSlotStatus(int vitalentryid, string tenant_code, string slot, string status, int usercode, int computercode)
+        {
+            try
+            {
+                if (string.IsNullOrWhiteSpace(slot) || !ValidSlots.Contains(slot))
+                    return "slot must be one of: in1, in2, in3, in4, in5";
+
+                using IDbConnection db = new NpgsqlConnection(db_conn);
+
+                string slotLower = slot.ToLowerInvariant();
+                string statusColumn = $"{slotLower}_status";
+
+                string sql = $@"
+            UPDATE vitals_entry
+            SET {statusColumn} = @status,
+                usercode = @usercode,
+                computercode = @computercode,
+                updated_at = @updated_at
+            WHERE vitalentryid = @vitalentryid
+            AND tenant_code = @tenant_code
+            AND deleted = false
+            AND {slotLower} IS NOT NULL";
+
+                var rows = await db.ExecuteAsync(sql, new
+                {
+                    vitalentryid,
+                    tenant_code,
+                    status,
+                    usercode,
+                    computercode,
+                    updated_at = DateTime.UtcNow
+                });
+
+                if (rows > 0 && string.Equals(status, "report_received", StringComparison.OrdinalIgnoreCase))
+                {
+                    var v = await GetById(vitalentryid, tenant_code);
+                    if (v != null && v.dcode.HasValue && !string.IsNullOrEmpty(v.custcode))
+                    {
+                        string? investigationValue = slotLower switch
+                        {
+                            "in1" => v.in1,
+                            "in2" => v.in2,
+                            "in3" => v.in3,
+                            "in4" => v.in4,
+                            "in5" => v.in5,
+                            _ => null
+                        };
+
+                        if (string.Equals(investigationValue, "lab", StringComparison.OrdinalIgnoreCase)
+                            || string.Equals(investigationValue, "scan", StringComparison.OrdinalIgnoreCase)
+                            || string.Equals(investigationValue, "ecg-echo", StringComparison.OrdinalIgnoreCase))
+                        {
+                            await ogQueue.AddToQueue(tenant_code, v.custcode!, v.dcode.Value, v.token_no!, v.arrival_time, v.test_name, "test_completed");
+                        }
+                    }
+                }
+
+                return rows > 0 ? "Success" : "Record not found or slot is empty";
+            }
+            catch (Exception ex)
+            {
+                return ex.Message;
+            }
         }
     }
 
