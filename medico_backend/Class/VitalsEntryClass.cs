@@ -47,6 +47,9 @@ namespace Medico_Backend.Class
                 using var transaction = db.BeginTransaction();
 
                 var todayUtc = DateTime.UtcNow.Date;
+                int? pendingReservedDcode = null;
+                string? pendingReservedTokenNo = null;
+                TimeOnly? pendingReservedArrivalTime = null;
 
                 // ── NEW: resolve whether this doctor's queue is GROUP-shared or per-doctor ──
                 // dcode is mandatory at the controller level, so this always resolves.
@@ -141,19 +144,36 @@ namespace Medico_Backend.Class
                 int lastToken = lastTokenStr != null ? int.Parse(lastTokenStr) : 0;
                 int nextToken = lastToken + 1;
 
-                // ── Auto-insert a reserved dummy row if this next slot is a dummy slot ──
-                // Dummy is stamped with the SAME scope so it's picked up as "last token" for that queue.
                 if (IsDummySlot(nextToken))
                 {
+                    int? dummyDcode = data.dcode;
+
+                    if (isGroupScope)
+                    {
+                        var anyGroupDoctorDcode = await db.ExecuteScalarAsync<int?>(@"
+            SELECT dm.dcode
+            FROM doctor_master dm
+            WHERE dm.group_id = @scopeGroupId
+            AND dm.tenant_code = @tenant_code
+            AND dm.deleted = false
+            ORDER BY dm.dcode
+            LIMIT 1",
+                            new { scopeGroupId, tenant_code = data.tenant_code }, transaction);
+
+                        dummyDcode = anyGroupDoctorDcode ?? data.dcode;
+                    }
+
                     var dummy = new VitalsModel
                     {
                         tenant_code = data.tenant_code,
                         token_no = nextToken.ToString("D3"),
-                        custcode = null,
-                        dcode = isGroupScope ? null : data.dcode,   // individual queue keeps the dcode
-                        group_id = isGroupScope ? scopeGroupId : null, // group queue keeps the group_id
-                        is_vip = true,      // marks this row as the reserved/dummy slot
-                        status = "dummy",
+                        custcode = "RESERVED",
+                        dcode = dummyDcode,
+                        group_id = isGroupScope ? scopeGroupId : null,
+                        in1 = "doctor",
+                        is_vip = true,
+                        status = "reserved",
+                        arrival_time = TimeOnly.FromDateTime(DateTime.Now),
                         entered_date = DateTime.UtcNow,
                         created_at = DateTime.UtcNow,
                         updated_at = DateTime.UtcNow,
@@ -161,6 +181,12 @@ namespace Medico_Backend.Class
                     };
 
                     await db.InsertAsync(dummy, transaction);
+
+                    // ✅ capture so we can push into og_queue AFTER commit succeeds
+                    pendingReservedDcode = dummyDcode;
+                    pendingReservedTokenNo = dummy.token_no;
+                    pendingReservedArrivalTime = dummy.arrival_time;
+
                     nextToken++;
                 }
 
@@ -175,6 +201,11 @@ namespace Medico_Backend.Class
                 var newId = await db.InsertAsync(data, transaction);
 
                 transaction.Commit();
+
+                if (pendingReservedTokenNo != null)
+                {
+                    await ogQueue.AddReservedToQueue(data.tenant_code!, pendingReservedDcode, pendingReservedTokenNo, pendingReservedArrivalTime);
+                }
 
                 if (newId > 0)
                 {
@@ -269,7 +300,7 @@ namespace Medico_Backend.Class
                 {
                     var v = await GetById(vitalentryid, tenant_code);
                     if (v != null
-                        && (HasInvestigation(v, "lab") || HasInvestigation(v, "scan"))
+                        && (HasInvestigation(v, "lab") || HasInvestigation(v, "scan") || HasInvestigation(v, "ecg-echo"))
                         && v.dcode.HasValue
                         && !string.IsNullOrEmpty(v.custcode))
                     {
@@ -412,6 +443,40 @@ namespace Medico_Backend.Class
 
             var result = await db.QueryAsync(sql, new { status, tenant_code });
             return result;
+        }
+
+        // ─────────────────────────────────────────
+        // GET ALL DUMMY TOKENS (no filters) — every reserved VIP slot across all doctors
+        // ─────────────────────────────────────────
+        public async Task<IEnumerable<dynamic>> GetAllDummyList(string tenant_code)
+        {
+            using IDbConnection db = new NpgsqlConnection(db_conn);
+
+            string sql = @"
+        SELECT
+            v.vitalentryid,
+            v.token_no,
+            v.custcode,
+            'Reserved' AS patient_name,
+            v.dcode,
+            d.name AS doctor_name,
+            v.group_id,
+            v.in1,
+            v.is_vip,
+            v.status,
+            v.arrival_time,
+            v.entered_date,
+            v.created_at
+        FROM vitals_entry v
+        LEFT JOIN doctor_master d ON d.dcode = v.dcode AND d.tenant_code = v.tenant_code
+        WHERE v.tenant_code = @tenant_code
+        AND v.status = 'reserved'
+        AND v.is_vip = true
+        AND v.in1 ILIKE 'doctor'
+        AND v.deleted = false
+        ORDER BY v.entered_date DESC";
+
+            return await db.QueryAsync(sql, new { tenant_code });
         }
     }
 

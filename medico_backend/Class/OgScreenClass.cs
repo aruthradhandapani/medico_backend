@@ -13,13 +13,13 @@ namespace Medico_Backend.Class
         // Matches any of the 5 investigation slots (in1..in5), case-insensitive —
         // same rule VitalsClass.HasInvestigation uses for "lab" / "scan" / "doctor"
         private const string LabOrScanFilter = @"
-            (
-                v.in1 ILIKE ANY(ARRAY['lab','scan']) OR
-                v.in2 ILIKE ANY(ARRAY['lab','scan']) OR
-                v.in3 ILIKE ANY(ARRAY['lab','scan']) OR
-                v.in4 ILIKE ANY(ARRAY['lab','scan']) OR
-                v.in5 ILIKE ANY(ARRAY['lab','scan'])
-            )";
+    (
+        v.in1 ILIKE ANY(ARRAY['lab','scan','ecg-echo']) OR
+        v.in2 ILIKE ANY(ARRAY['lab','scan','ecg-echo']) OR
+        v.in3 ILIKE ANY(ARRAY['lab','scan','ecg-echo']) OR
+        v.in4 ILIKE ANY(ARRAY['lab','scan','ecg-echo']) OR
+        v.in5 ILIKE ANY(ARRAY['lab','scan','ecg-echo'])
+    )";
 
         private const string DoctorFilter = @"
             (
@@ -149,7 +149,10 @@ namespace Medico_Backend.Class
             v.entered_date,
             v.arrival_time
         FROM vitals_entry v
-        LEFT JOIN customer_master c ON c.custcode = v.custcode
+        LEFT JOIN customerdb.customer_registration_master r
+            ON r.custcode = v.custcode AND r.tenant_code = v.tenant_code
+        LEFT JOIN customerdb.customer_master c
+            ON c.custid = r.custid
         LEFT JOIN doctor_master d ON d.dcode = v.dcode AND d.tenant_code = v.tenant_code
         LEFT JOIN og_queue o ON o.tenant_code = v.tenant_code
                             AND o.custcode = v.custcode
@@ -158,18 +161,18 @@ namespace Medico_Backend.Class
                             AND o.deleted = false
         WHERE v.tenant_code = @tenant_code
         AND {LabOrScanFilter}
-        AND v.status = 'report_received'
         AND v.deleted = false
-        AND v.status != 'dummy'
         AND (@name IS NULL OR c.name ILIKE '%' || @name || '%')
         AND (@date IS NULL OR v.entered_date::date = @date)
-        ORDER BY v.entered_date ASC";
+        AND (@status IS NULL OR v.status = @status)
+        ORDER BY v.token_no::int ASC";
 
             return await db.QueryAsync(sql, new
             {
                 tenant_code,
                 name,
-                date = date.HasValue ? date.Value.Date : (DateTime?)null
+                date = date.HasValue ? date.Value.Date : (DateTime?)null,
+                status
             });
         }
 
@@ -186,7 +189,7 @@ namespace Medico_Backend.Class
             o.ogentryid,
             v.token_no,
             v.custcode,
-            c.name AS patient_name,
+            CASE WHEN v.custcode = 'RESERVED' THEN 'Reserved' ELSE c.name END AS patient_name,
             c.mobile,
             v.dcode,
             d.name AS doctor_name,
@@ -199,7 +202,10 @@ namespace Medico_Backend.Class
             v.entered_date,
             v.arrival_time
         FROM vitals_entry v
-        LEFT JOIN customer_master c ON c.custcode = v.custcode
+       LEFT JOIN customerdb.customer_registration_master r
+    ON r.custcode = v.custcode AND r.tenant_code = v.tenant_code
+LEFT JOIN customerdb.customer_master c
+    ON c.custid = r.custid
         LEFT JOIN doctor_master d ON d.dcode = v.dcode AND d.tenant_code = v.tenant_code
         LEFT JOIN og_queue o ON o.tenant_code = v.tenant_code
                             AND o.custcode = v.custcode
@@ -209,11 +215,10 @@ namespace Medico_Backend.Class
         WHERE v.tenant_code = @tenant_code
         AND {DoctorFilter}
         AND v.deleted = false
-        AND v.status != 'dummy'
-        AND (@name IS NULL OR c.name ILIKE '%' || @name || '%')
+        AND (@name IS NULL OR c.name ILIKE '%' || @name || '%' OR v.custcode = 'RESERVED')
         AND (@date IS NULL OR v.entered_date::date = @date)
         AND (@status IS NULL OR v.status = @status)
-        ORDER BY v.entered_date ASC";
+        ORDER BY v.token_no::int ASC";
 
             return await db.QueryAsync(sql, new
             {
@@ -441,62 +446,69 @@ namespace Medico_Backend.Class
 
             string sql = $@"
         SELECT
-            'lab_scan' AS list_type,
-            o.custcode,
-            c.name AS patient_name,
-            v.dcode,
-            d.name AS doctor_name,
-            o.arrival_time,
-            o.og_token_no AS token_no,
-            o.status,
-            o.og_token_no::int AS token_sort
-        FROM vitals_entry v
-        LEFT JOIN customerdb.customer_master c ON c.custcode = v.custcode
-        LEFT JOIN doctor_master d ON d.dcode = v.dcode AND d.tenant_code = v.tenant_code
-        LEFT JOIN og_queue o ON o.tenant_code = v.tenant_code
-                            AND o.custcode = v.custcode
-                            AND o.dcode = v.dcode
-                            AND o.og_token_no = v.token_no
-                            AND o.deleted = false
-        WHERE v.tenant_code = @tenant_code
-        AND {LabOrScanFilter}
-        AND v.status = 'report_received'
-        AND v.deleted = false
-        AND v.status != 'dummy'
-        AND (@name IS NULL OR c.name ILIKE '%' || @name || '%')
-        AND v.entered_date::date = @filterDate
-        AND (@list_type IS NULL OR @list_type = 'lab_scan')
+    'lab_scan' AS list_type,
+    o.custcode,
+    c.name AS patient_name,
+    v.dcode,
+    d.name AS doctor_name,
+    o.arrival_time,
+    o.og_token_no AS token_no,
+    o.status,
+    o.og_token_no::int AS token_sort
+FROM vitals_entry v
+LEFT JOIN customerdb.customer_registration_master r
+    ON r.custcode = v.custcode AND r.tenant_code = v.tenant_code
+LEFT JOIN customerdb.customer_master c
+    ON c.custid = r.custid
+LEFT JOIN doctor_master d ON d.dcode = v.dcode AND d.tenant_code = v.tenant_code
+LEFT JOIN og_queue o ON o.tenant_code = v.tenant_code
+                    AND o.custcode = v.custcode
+                    AND o.dcode = v.dcode
+                    AND o.og_token_no = v.token_no
+                    AND o.deleted = false
+WHERE v.tenant_code = @tenant_code
+AND {LabOrScanFilter}
+AND v.status = 'report_received'
+AND v.deleted = false
+AND v.status != 'dummy'
+AND (@name IS NULL OR c.name ILIKE '%' || @name || '%')
+AND v.entered_date::date = @filterDate
+AND (@list_type IS NULL OR @list_type = 'lab_scan')
 
-        UNION ALL
+UNION ALL
 
-        SELECT
-            'consultation' AS list_type,
-            o.custcode,
-            c.name AS patient_name,
-            v.dcode,
-            d.name AS doctor_name,
-            o.arrival_time,
-            o.og_token_no AS token_no,
-            o.status,
-            o.og_token_no::int AS token_sort
-        FROM vitals_entry v
-        LEFT JOIN customerdb.customer_master c ON c.custcode = v.custcode
-        LEFT JOIN doctor_master d ON d.dcode = v.dcode AND d.tenant_code = v.tenant_code
-        LEFT JOIN og_queue o ON o.tenant_code = v.tenant_code
-                            AND o.custcode = v.custcode
-                            AND o.dcode = v.dcode
-                            AND o.og_token_no = v.token_no
-                            AND o.deleted = false
-        WHERE v.tenant_code = @tenant_code
-        AND {DoctorFilter}
-        AND v.deleted = false
-        AND v.status != 'dummy'
-        AND (@name IS NULL OR c.name ILIKE '%' || @name || '%')
-        AND v.entered_date::date = @filterDate
-        AND (@status IS NULL OR v.status = @status)
-        AND (@list_type IS NULL OR @list_type = 'consultation')
+SELECT
+    'consultation' AS list_type,
+    o.custcode,
+    CASE WHEN o.custcode = 'RESERVED' THEN 'Reserved' ELSE c.name END AS patient_name,
+    v.dcode,
+    d.name AS doctor_name,
+    o.arrival_time,
+    o.og_token_no AS token_no,
+    o.status,
+    o.og_token_no::int AS token_sort
+FROM vitals_entry v
+LEFT JOIN customerdb.customer_registration_master r
+    ON r.custcode = v.custcode AND r.tenant_code = v.tenant_code
+LEFT JOIN customerdb.customer_master c
+    ON c.custid = r.custid
+LEFT JOIN doctor_master d ON d.dcode = v.dcode AND d.tenant_code = v.tenant_code
+LEFT JOIN og_queue o ON o.tenant_code = v.tenant_code
+                    AND o.custcode = v.custcode
+                    AND o.dcode = v.dcode
+                    AND o.og_token_no = v.token_no
+                    AND o.deleted = false
+WHERE v.tenant_code = @tenant_code
+AND {DoctorFilter}
+AND v.deleted = false
+AND v.status != 'dummy'
+AND (@name IS NULL OR c.name ILIKE '%' || @name || '%')
+AND v.entered_date::date = @filterDate
+AND (@status IS NULL OR v.status = @status)
+AND (@list_type IS NULL OR @list_type = 'consultation')
 
-        ORDER BY token_sort ASC";
+
+ORDER BY token_sort ASC";
 
             return await db.QueryAsync(sql, new
             {
@@ -506,6 +518,55 @@ namespace Medico_Backend.Class
                 status,
                 list_type
             });
+        }
+        // ─────────────────────────────────────────
+        // Adds a RESERVED/dummy token to the OG queue so it has a real ogentryid
+        // too, matching how real patient rows work. Dedup is on tenant+dcode+token_no+day
+        // since custcode is always the same literal "RESERVED" marker.
+        // ─────────────────────────────────────────
+        public async Task<string> AddReservedToQueue(string tenant_code, int? dcode, string token_no, TimeOnly? arrival_time)
+        {
+            try
+            {
+                using IDbConnection db = new NpgsqlConnection(db_conn);
+
+                var todayUtc = DateTime.UtcNow.Date;
+
+                var already = await db.ExecuteScalarAsync<int>(@"
+            SELECT COUNT(1)
+            FROM og_queue
+            WHERE tenant_code = @tenant_code
+            AND dcode IS NOT DISTINCT FROM @dcode
+            AND og_token_no = @token_no
+            AND created_at::date = @today
+            AND deleted = false",
+                    new { tenant_code, dcode, token_no, today = todayUtc });
+
+                if (already > 0)
+                    return "Already in queue";
+
+                var entry = new OgQueueModel
+                {
+                    tenant_code = tenant_code,
+                    og_token_no = token_no,
+                    custcode = "RESERVED",
+                    dcode = dcode,
+                    arrival_time = arrival_time,
+                    notes = "Reserved VIP slot",
+                    entry_type = "reserved",
+                    status = "reserved",
+                    created_at = DateTime.UtcNow,
+                    updated_at = DateTime.UtcNow,
+                    deleted = false
+                };
+
+                var newId = await db.InsertAsync(entry);
+                return newId > 0 ? "Success" : "Failed";
+            }
+            catch (Exception ex)
+            {
+                return ex.Message;
+            }
         }
     }
 }

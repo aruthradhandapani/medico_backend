@@ -100,6 +100,15 @@ namespace Medico_Backend.Controllers
             var result = await cls.Delete(vitalentryid, tenant_code);
             return Ok(result);
         }
+        [HttpGet("get-all-dummy-list")]
+        public async Task<IActionResult> GetAllDummyList([FromHeader(Name = "tenant_code")] string tenant_code)
+        {
+            if (string.IsNullOrEmpty(tenant_code))
+                return BadRequest("tenant_code header is required");
+
+            var data = await cls.GetAllDummyList(tenant_code);
+            return Ok(data);
+        }
     }
 
     public class UpdateVitalsStatusRequest

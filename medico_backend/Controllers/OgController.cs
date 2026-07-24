@@ -141,6 +141,7 @@ namespace Medico_Backend.Controllers
             var data = await cls.GetMergedList(tenant_code, name, date, status, list_type);
             return Ok(data);
         }
+        
     }
 
 }
