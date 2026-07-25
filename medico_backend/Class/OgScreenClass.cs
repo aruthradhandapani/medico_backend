@@ -528,6 +528,9 @@ SELECT
     c.name AS patient_name,
     v.dcode,
     d.name AS doctor_name,
+    d.qualification AS doctor_qualification,
+    sp.name AS doctor_specialization,
+    d.bedno AS room_no,
     COALESCE(o.arrival_time, v.arrival_time) AS arrival_time,
     COALESCE(o.og_token_no, v.token_no) AS token_no,
     o.status,
@@ -538,6 +541,7 @@ LEFT JOIN customerdb.customer_registration_master r
 LEFT JOIN customerdb.customer_master c
     ON c.custid = r.custid
 LEFT JOIN doctor_master d ON d.dcode = v.dcode AND d.tenant_code = v.tenant_code
+LEFT JOIN doctor_specialty_master sp ON sp.spcode = d.spcode AND sp.tenant_code = d.tenant_code AND sp.deleted = false
 LEFT JOIN og_queue o ON o.tenant_code = v.tenant_code
                     AND o.custcode = v.custcode
                     AND o.dcode = v.dcode
@@ -561,6 +565,9 @@ SELECT
     CASE WHEN v.custcode = 'RESERVED' THEN 'Reserved' ELSE c.name END AS patient_name,
     v.dcode,
     d.name AS doctor_name,
+    d.qualification AS doctor_qualification,
+    sp.name AS doctor_specialization,
+    d.bedno AS room_no,
     COALESCE(o.arrival_time, v.arrival_time) AS arrival_time,
     COALESCE(o.og_token_no, v.token_no) AS token_no,
     o.status,
@@ -571,6 +578,7 @@ LEFT JOIN customerdb.customer_registration_master r
 LEFT JOIN customerdb.customer_master c
     ON c.custid = r.custid
 LEFT JOIN doctor_master d ON d.dcode = v.dcode AND d.tenant_code = v.tenant_code
+LEFT JOIN doctor_specialty_master sp ON sp.spcode = d.spcode AND sp.tenant_code = d.tenant_code AND sp.deleted = false
 LEFT JOIN og_queue o ON o.tenant_code = v.tenant_code
                     AND o.custcode = v.custcode
                     AND o.dcode = v.dcode
