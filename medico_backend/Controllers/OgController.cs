@@ -121,13 +121,13 @@ namespace Medico_Backend.Controllers
 
         [HttpGet("consultation-list")]
         public async Task<IActionResult> GetConsultationList(
-            [FromHeader(Name = "tenant_code")] string tenant_code,
-            string? name, DateTime? date, string? status)
+    string? name, DateTime? date, string? status, int? dcode,
+    [FromHeader(Name = "tenant_code")] string tenant_code)
         {
             if (string.IsNullOrEmpty(tenant_code))
                 return BadRequest("tenant_code header is required");
 
-            var data = await cls.GetConsultationList(tenant_code, name, date, status);
+            var data = await cls.GetConsultationList(tenant_code, name, date, status, dcode);
             return Ok(data);
         }
         [HttpGet("merged-list")]

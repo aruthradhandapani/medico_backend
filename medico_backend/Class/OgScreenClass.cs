@@ -34,6 +34,14 @@ namespace Medico_Backend.Class
                 v.in4 ILIKE 'doctor' OR
                 v.in5 ILIKE 'doctor'
             )";
+        private const string PendingLabScanFilter = @"
+    (
+        (v.in1 ILIKE ANY(ARRAY['lab','scan','ecg-echo']) AND (v.in1_status IS NULL OR v.in1_status NOT ILIKE 'report_received')) OR
+        (v.in2 ILIKE ANY(ARRAY['lab','scan','ecg-echo']) AND (v.in2_status IS NULL OR v.in2_status NOT ILIKE 'report_received')) OR
+        (v.in3 ILIKE ANY(ARRAY['lab','scan','ecg-echo']) AND (v.in3_status IS NULL OR v.in3_status NOT ILIKE 'report_received')) OR
+        (v.in4 ILIKE ANY(ARRAY['lab','scan','ecg-echo']) AND (v.in4_status IS NULL OR v.in4_status NOT ILIKE 'report_received')) OR
+        (v.in5 ILIKE ANY(ARRAY['lab','scan','ecg-echo']) AND (v.in5_status IS NULL OR v.in5_status NOT ILIKE 'report_received'))
+    )";
 
         public OgQueueClass(IConfiguration configuration)
         {
@@ -147,20 +155,22 @@ namespace Medico_Backend.Class
             d.name AS doctor_name,
             v.in1, v.in2, v.in3, v.in4, v.in5,
             v.test_name,
+            v.group_id,
+            g.group_name,
             CASE
-                WHEN v.in1 ILIKE ANY(ARRAY['lab','scan','ecg-echo']) THEN v.in1
-                WHEN v.in2 ILIKE ANY(ARRAY['lab','scan','ecg-echo']) THEN v.in2
-                WHEN v.in3 ILIKE ANY(ARRAY['lab','scan','ecg-echo']) THEN v.in3
-                WHEN v.in4 ILIKE ANY(ARRAY['lab','scan','ecg-echo']) THEN v.in4
-                WHEN v.in5 ILIKE ANY(ARRAY['lab','scan','ecg-echo']) THEN v.in5
-            END AS investigation_type,
-            CASE
-                WHEN v.in1 ILIKE ANY(ARRAY['lab','scan','ecg-echo']) THEN v.in1_status
-                WHEN v.in2 ILIKE ANY(ARRAY['lab','scan','ecg-echo']) THEN v.in2_status
-                WHEN v.in3 ILIKE ANY(ARRAY['lab','scan','ecg-echo']) THEN v.in3_status
-                WHEN v.in4 ILIKE ANY(ARRAY['lab','scan','ecg-echo']) THEN v.in4_status
-                WHEN v.in5 ILIKE ANY(ARRAY['lab','scan','ecg-echo']) THEN v.in5_status
-            END AS vitals_status,
+    WHEN v.in1 ILIKE ANY(ARRAY['lab','scan','ecg-echo']) AND (v.in1_status IS NULL OR v.in1_status NOT ILIKE 'report_received') THEN v.in1
+    WHEN v.in2 ILIKE ANY(ARRAY['lab','scan','ecg-echo']) AND (v.in2_status IS NULL OR v.in2_status NOT ILIKE 'report_received') THEN v.in2
+    WHEN v.in3 ILIKE ANY(ARRAY['lab','scan','ecg-echo']) AND (v.in3_status IS NULL OR v.in3_status NOT ILIKE 'report_received') THEN v.in3
+    WHEN v.in4 ILIKE ANY(ARRAY['lab','scan','ecg-echo']) AND (v.in4_status IS NULL OR v.in4_status NOT ILIKE 'report_received') THEN v.in4
+    WHEN v.in5 ILIKE ANY(ARRAY['lab','scan','ecg-echo']) AND (v.in5_status IS NULL OR v.in5_status NOT ILIKE 'report_received') THEN v.in5
+END AS investigation_type,
+CASE
+    WHEN v.in1 ILIKE ANY(ARRAY['lab','scan','ecg-echo']) AND (v.in1_status IS NULL OR v.in1_status NOT ILIKE 'report_received') THEN v.in1_status
+    WHEN v.in2 ILIKE ANY(ARRAY['lab','scan','ecg-echo']) AND (v.in2_status IS NULL OR v.in2_status NOT ILIKE 'report_received') THEN v.in2_status
+    WHEN v.in3 ILIKE ANY(ARRAY['lab','scan','ecg-echo']) AND (v.in3_status IS NULL OR v.in3_status NOT ILIKE 'report_received') THEN v.in3_status
+    WHEN v.in4 ILIKE ANY(ARRAY['lab','scan','ecg-echo']) AND (v.in4_status IS NULL OR v.in4_status NOT ILIKE 'report_received') THEN v.in4_status
+    WHEN v.in5 ILIKE ANY(ARRAY['lab','scan','ecg-echo']) AND (v.in5_status IS NULL OR v.in5_status NOT ILIKE 'report_received') THEN v.in5_status
+END AS vitals_status,
             o.status AS queue_status,
             o.out_time,
             o.notes,
@@ -172,25 +182,25 @@ namespace Medico_Backend.Class
         LEFT JOIN customerdb.customer_master c
             ON c.custid = r.custid
         LEFT JOIN doctor_master d ON d.dcode = v.dcode AND d.tenant_code = v.tenant_code
+        LEFT JOIN doctor_group_master g ON g.group_id = v.group_id AND g.tenant_code = v.tenant_code AND g.is_deleted = false
         LEFT JOIN og_queue o ON o.tenant_code = v.tenant_code
                             AND o.custcode = v.custcode
                             AND o.dcode = v.dcode
                             AND o.og_token_no = v.token_no
                             AND o.deleted = false
         WHERE v.tenant_code = @tenant_code
-        AND {LabOrScanFilter}
-        AND {AllLabScanCompletedFilter}
+        AND {PendingLabScanFilter}
         AND v.deleted = false
         AND (@name IS NULL OR c.name ILIKE '%' || @name || '%')
         AND (@date IS NULL OR v.entered_date::date = @date)
         AND (@status IS NULL OR
-             CASE
-                WHEN v.in1 ILIKE ANY(ARRAY['lab','scan','ecg-echo']) THEN v.in1_status
-                WHEN v.in2 ILIKE ANY(ARRAY['lab','scan','ecg-echo']) THEN v.in2_status
-                WHEN v.in3 ILIKE ANY(ARRAY['lab','scan','ecg-echo']) THEN v.in3_status
-                WHEN v.in4 ILIKE ANY(ARRAY['lab','scan','ecg-echo']) THEN v.in4_status
-                WHEN v.in5 ILIKE ANY(ARRAY['lab','scan','ecg-echo']) THEN v.in5_status
-             END = @status)
+     CASE
+        WHEN v.in1 ILIKE ANY(ARRAY['lab','scan','ecg-echo']) AND (v.in1_status IS NULL OR v.in1_status NOT ILIKE 'report_received') THEN v.in1_status
+        WHEN v.in2 ILIKE ANY(ARRAY['lab','scan','ecg-echo']) AND (v.in2_status IS NULL OR v.in2_status NOT ILIKE 'report_received') THEN v.in2_status
+        WHEN v.in3 ILIKE ANY(ARRAY['lab','scan','ecg-echo']) AND (v.in3_status IS NULL OR v.in3_status NOT ILIKE 'report_received') THEN v.in3_status
+        WHEN v.in4 ILIKE ANY(ARRAY['lab','scan','ecg-echo']) AND (v.in4_status IS NULL OR v.in4_status NOT ILIKE 'report_received') THEN v.in4_status
+        WHEN v.in5 ILIKE ANY(ARRAY['lab','scan','ecg-echo']) AND (v.in5_status IS NULL OR v.in5_status NOT ILIKE 'report_received') THEN v.in5_status
+     END = @status)
         ORDER BY v.token_no::int ASC";
 
             return await db.QueryAsync(sql, new
@@ -205,9 +215,17 @@ namespace Medico_Backend.Class
         // ─────────────────────────────────────────
         // CONSULTATION LIST — all patients under investigation slot 'doctor', with current status
         // ─────────────────────────────────────────
-        public async Task<IEnumerable<dynamic>> GetConsultationList(string tenant_code, string? name, DateTime? date, string? status)
+        public async Task<IEnumerable<dynamic>> GetConsultationList(string tenant_code, string? name, DateTime? date, string? status, int? dcode)
         {
             using IDbConnection db = new NpgsqlConnection(db_conn);
+
+            bool isGroupScope = false;
+            long? scopeGroupId = null;
+
+            if (dcode.HasValue)
+            {
+                (isGroupScope, scopeGroupId) = await ResolveDoctorScope(db, dcode.Value, tenant_code);
+            }
 
             string sql = $@"
         SELECT
@@ -221,6 +239,8 @@ namespace Medico_Backend.Class
             d.name AS doctor_name,
             v.in1, v.in2, v.in3, v.in4, v.in5,
             v.test_name,
+            v.group_id,
+            g.group_name,
             CASE
                 WHEN v.in1 ILIKE 'doctor' THEN v.in1_status
                 WHEN v.in2 ILIKE 'doctor' THEN v.in2_status
@@ -235,11 +255,12 @@ namespace Medico_Backend.Class
             v.entered_date,
             v.arrival_time
         FROM vitals_entry v
-       LEFT JOIN customerdb.customer_registration_master r
-    ON r.custcode = v.custcode AND r.tenant_code = v.tenant_code
-LEFT JOIN customerdb.customer_master c
-    ON c.custid = r.custid
+        LEFT JOIN customerdb.customer_registration_master r
+            ON r.custcode = v.custcode AND r.tenant_code = v.tenant_code
+        LEFT JOIN customerdb.customer_master c
+            ON c.custid = r.custid
         LEFT JOIN doctor_master d ON d.dcode = v.dcode AND d.tenant_code = v.tenant_code
+        LEFT JOIN doctor_group_master g ON g.group_id = v.group_id AND g.tenant_code = v.tenant_code AND g.is_deleted = false
         LEFT JOIN og_queue o ON o.tenant_code = v.tenant_code
                             AND o.custcode = v.custcode
                             AND o.dcode = v.dcode
@@ -250,6 +271,11 @@ LEFT JOIN customerdb.customer_master c
         AND v.deleted = false
         AND (@name IS NULL OR c.name ILIKE '%' || @name || '%' OR v.custcode = 'RESERVED')
         AND (@date IS NULL OR v.entered_date::date = @date)
+        AND (
+              @dcode IS NULL
+              OR (@isGroupScope = true AND v.group_id = @scopeGroupId)
+              OR (@isGroupScope = false AND v.dcode = @dcode)
+            )
         AND (@status IS NULL OR
              CASE
                 WHEN v.in1 ILIKE 'doctor' THEN v.in1_status
@@ -266,7 +292,10 @@ LEFT JOIN customerdb.customer_master c
                 tenant_code,
                 name,
                 date = date.HasValue ? date.Value.Date : (DateTime?)null,
-                status
+                status,
+                dcode,
+                isGroupScope,
+                scopeGroupId
             });
         }
 
@@ -530,6 +559,8 @@ SELECT
     d.name AS doctor_name,
     d.qualification AS doctor_qualification,
     sp.name AS doctor_specialization,
+    v.group_id,
+    g.group_name,
     d.bedno AS room_no,
     COALESCE(o.arrival_time, v.arrival_time) AS arrival_time,
     COALESCE(o.og_token_no, v.token_no) AS token_no,
@@ -542,14 +573,14 @@ LEFT JOIN customerdb.customer_master c
     ON c.custid = r.custid
 LEFT JOIN doctor_master d ON d.dcode = v.dcode AND d.tenant_code = v.tenant_code
 LEFT JOIN doctor_specialty_master sp ON sp.spcode = d.spcode AND sp.tenant_code = d.tenant_code AND sp.deleted = false
+LEFT JOIN doctor_group_master g ON g.group_id = v.group_id AND g.tenant_code = v.tenant_code AND g.is_deleted = false
 LEFT JOIN og_queue o ON o.tenant_code = v.tenant_code
                     AND o.custcode = v.custcode
                     AND o.dcode = v.dcode
                     AND o.og_token_no = v.token_no
                     AND o.deleted = false
 WHERE v.tenant_code = @tenant_code
-AND {LabOrScanFilter}
-AND {AllLabScanCompletedFilter}
+AND {PendingLabScanFilter}
 AND v.deleted = false
 AND v.status != 'reserved'
 AND (@name IS NULL OR c.name ILIKE '%' || @name || '%')
@@ -567,6 +598,8 @@ SELECT
     d.name AS doctor_name,
     d.qualification AS doctor_qualification,
     sp.name AS doctor_specialization,
+    v.group_id,
+    g.group_name,
     d.bedno AS room_no,
     COALESCE(o.arrival_time, v.arrival_time) AS arrival_time,
     COALESCE(o.og_token_no, v.token_no) AS token_no,
@@ -579,6 +612,7 @@ LEFT JOIN customerdb.customer_master c
     ON c.custid = r.custid
 LEFT JOIN doctor_master d ON d.dcode = v.dcode AND d.tenant_code = v.tenant_code
 LEFT JOIN doctor_specialty_master sp ON sp.spcode = d.spcode AND sp.tenant_code = d.tenant_code AND sp.deleted = false
+LEFT JOIN doctor_group_master g ON g.group_id = v.group_id AND g.tenant_code = v.tenant_code AND g.is_deleted = false
 LEFT JOIN og_queue o ON o.tenant_code = v.tenant_code
                     AND o.custcode = v.custcode
                     AND o.dcode = v.dcode
@@ -651,6 +685,41 @@ ORDER BY token_sort ASC";
             {
                 return ex.Message;
             }
+        }
+        // small POCO for the doctor-scope lookup (mirrors VitalsClass's private one, public here since OgQueueClass needs it too)
+        private class DoctorScopeInfo
+        {
+            public long? GroupId { get; set; }
+            public string TokenType { get; set; } = "DOCTOR";
+        }
+
+        // ─────────────────────────────────────────
+        // Resolves whether a given doctor belongs to a GROUP-shared token queue.
+        // Mirrors VitalsClass.Insert()'s scope resolution so consultation-list
+        // filtering matches how tokens were actually generated.
+        // ─────────────────────────────────────────
+        private async Task<(bool isGroupScope, long? groupId)> ResolveDoctorScope(IDbConnection db, int dcode, string tenant_code)
+        {
+            var scope = await db.QueryFirstOrDefaultAsync<DoctorScopeInfo>(@"
+        SELECT
+            dm.group_id AS GroupId,
+            COALESCE(dgm.token_type, 'DOCTOR') AS TokenType
+        FROM doctor_master dm
+        LEFT JOIN doctor_group_master dgm
+               ON dgm.group_id = dm.group_id
+              AND dgm.tenant_code = dm.tenant_code
+              AND dgm.is_deleted = false
+              AND dgm.is_active = true
+        WHERE dm.dcode = @dcode
+          AND dm.tenant_code = @tenant_code
+          AND dm.deleted = false",
+                new { dcode, tenant_code });
+
+            bool isGroupScope = scope != null
+                                && scope.GroupId.HasValue
+                                && string.Equals(scope.TokenType, "GROUP", StringComparison.OrdinalIgnoreCase);
+
+            return (isGroupScope, isGroupScope ? scope!.GroupId : null);
         }
     }
 }
