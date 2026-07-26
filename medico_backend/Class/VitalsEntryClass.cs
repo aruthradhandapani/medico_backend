@@ -650,7 +650,7 @@ namespace Medico_Backend.Class
         //   which is what makes them appear under GetConsultationList / DoctorFilter.
         // ─────────────────────────────────────────
         
-        private async Task<string> PromoteToConsultationIfReady(int vitalentryid, string tenant_code)
+        public async Task<string> PromoteToConsultationIfReady(int vitalentryid, string tenant_code)
         {
             var v = await GetById(vitalentryid, tenant_code);
             if (v == null)

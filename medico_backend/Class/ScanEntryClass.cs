@@ -9,6 +9,7 @@ namespace Medico_Backend.Class
     {
         private readonly string db_conn;
         private readonly OgQueueClass ogQueue;
+        private readonly VitalsClass vitals;
 
         private const string ScanInvestigationFilter = @"
             (
@@ -19,10 +20,11 @@ namespace Medico_Backend.Class
                 v.in5 ILIKE 'scan'
             )";
 
-        public ScanResultEntryClass(IConfiguration configuration, OgQueueClass _ogQueue)
+        public ScanResultEntryClass(IConfiguration configuration, OgQueueClass _ogQueue, VitalsClass _vitals)
         {
             db_conn = configuration.GetConnectionString("conn");
             ogQueue = _ogQueue;
+            vitals = _vitals;
         }
 
         // ─────────────────────────────────────────
@@ -150,10 +152,10 @@ namespace Medico_Backend.Class
 
                 if (rows > 0 && string.Equals(status, "report_received", StringComparison.OrdinalIgnoreCase))
                 {
-                    if (v.dcode.HasValue && !string.IsNullOrEmpty(v.custcode))
-                    {
-                        await ogQueue.AddToQueue(tenant_code, v.custcode!, v.dcode.Value, v.token_no!, v.arrival_time, v.test_name, "test_completed");
-                    }
+                    // was: raw ogQueue.AddToQueue(...) — now routes through the same
+                    // "all slots done + ensure doctor slot exists" logic as VitalsClass
+                    var promoteResult = await vitals.PromoteToConsultationIfReady(vitalentryid, tenant_code);
+                    return $"Success ({promoteResult})";
                 }
 
                 return rows > 0 ? "Success" : "Failed";
@@ -163,5 +165,6 @@ namespace Medico_Backend.Class
                 return ex.Message;
             }
         }
+
     }
 }

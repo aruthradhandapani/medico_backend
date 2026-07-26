@@ -10,6 +10,14 @@ namespace Medico_Backend.Class
     {
         private readonly string db_conn;
         private readonly OgQueueClass ogQueue;
+        private readonly VitalsClass vitals;   // add this
+
+        public LabResultEntryClass(IConfiguration configuration, OgQueueClass _ogQueue, VitalsClass _vitals)
+        {
+            db_conn = configuration.GetConnectionString("conn");
+            ogQueue = _ogQueue;
+            vitals = _vitals;                  // add this
+        }
 
         // Matches any of the 5 investigation slots (in1..in5), case-insensitive —
         // same rule VitalsClass.HasInvestigation uses for "lab" / "scan" / "doctor"
@@ -21,12 +29,6 @@ namespace Medico_Backend.Class
                 v.in4 ILIKE 'lab' OR
                 v.in5 ILIKE 'lab'
             )";
-
-        public LabResultEntryClass(IConfiguration configuration, OgQueueClass _ogQueue)
-        {
-            db_conn = configuration.GetConnectionString("conn");
-            ogQueue = _ogQueue;
-        }
 
         // All lab entries, no filters — always scoped to any in1..in5 = 'lab'
         // Dummy rows are excluded since they hold no real investigation data.
@@ -100,12 +102,11 @@ namespace Medico_Backend.Class
             {
                 using IDbConnection db = new NpgsqlConnection(db_conn);
 
-                // Find the row first to determine which slot holds "lab"
                 var v = await db.QueryFirstOrDefaultAsync<VitalsModel>(@"
-            SELECT * FROM vitals_entry
-            WHERE vitalentryid = @vitalentryid
-            AND tenant_code = @tenant_code
-            AND deleted = false",
+                SELECT * FROM vitals_entry
+                WHERE vitalentryid = @vitalentryid
+                AND tenant_code = @tenant_code
+                AND deleted = false",
                     new { vitalentryid, tenant_code });
 
                 if (v == null)
@@ -124,14 +125,14 @@ namespace Medico_Backend.Class
                 string statusColumn = $"{labSlot}_status";
 
                 string sql = $@"
-            UPDATE vitals_entry
-            SET {statusColumn} = @status,
-                usercode = @usercode,
-                computercode = @computercode,
-                updated_at = @updated_at
-            WHERE vitalentryid = @vitalentryid
-            AND tenant_code = @tenant_code
-            AND deleted = false";
+                UPDATE vitals_entry
+                SET {statusColumn} = @status,
+                    usercode = @usercode,
+                    computercode = @computercode,
+                    updated_at = @updated_at
+                WHERE vitalentryid = @vitalentryid
+                AND tenant_code = @tenant_code
+                AND deleted = false";
 
                 var rows = await db.ExecuteAsync(sql, new
                 {
@@ -145,10 +146,10 @@ namespace Medico_Backend.Class
 
                 if (rows > 0 && string.Equals(status, "report_received", StringComparison.OrdinalIgnoreCase))
                 {
-                    if (v.dcode.HasValue && !string.IsNullOrEmpty(v.custcode))
-                    {
-                        await ogQueue.AddToQueue(tenant_code, v.custcode!, v.dcode.Value, v.token_no!, v.arrival_time, v.test_name, "test_completed");
-                    }
+                    // was: raw ogQueue.AddToQueue(...) — now routes through the same
+                    // "all slots done + ensure doctor slot exists" logic as VitalsClass
+                    var promoteResult = await vitals.PromoteToConsultationIfReady(vitalentryid, tenant_code);
+                    return $"Success ({promoteResult})";
                 }
 
                 return rows > 0 ? "Success" : "Failed";
