@@ -84,15 +84,18 @@ namespace medico_backend.Class
         }
 
         // ── Fetch pending unbilled charges for the billing screen ──
-        public async Task<List<UnbilledChargeRow>> GetUnbilledByVisit(string opvisitid, string tenant_code)
+        public async Task<List<UnbilledChargeRow>> GetUnbilledByVisit(
+    string? opvisitid, string? ip_id, string tenant_code)
         {
             using var db = GetConnection();
             var rows = await db.QueryAsync<UnbilledChargeRow>(
                 @"SELECT * FROM unbilledcharges
-                  WHERE opvisitid = @opvisitid AND tenant_code = @tenant_code
-                  AND (billedstatus = false OR billedstatus IS NULL)
-                  ORDER BY chargedate",
-                new { opvisitid, tenant_code });
+          WHERE ((@opvisitid IS NOT NULL AND opvisitid = @opvisitid)
+                 OR (@ip_id IS NOT NULL AND ip_id = CAST(@ip_id AS uuid)))
+          AND tenant_code = @tenant_code
+          AND (billedstatus = false OR billedstatus IS NULL)
+          ORDER BY chargedate",
+                new { opvisitid, ip_id, tenant_code });
             return rows.ToList();
         }
 

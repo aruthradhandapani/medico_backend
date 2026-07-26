@@ -29,18 +29,20 @@ namespace medico_backend.Controllers
             return Ok(new { message = res });
         }
 
-        // GET api/UnbilledCharges/by-visit?opvisitid=...
+        // GET api/UnbilledCharges/by-visit?opvisitid=...   (OP)
+        // GET api/UnbilledCharges/by-visit?ip_id=...        (IP)
         [HttpGet("by-visit")]
-        public async Task<IActionResult> GetByVisit([FromQuery] string opvisitid)
+        public async Task<IActionResult> GetByVisit(
+            [FromQuery] string? opvisitid, [FromQuery] string? ip_id)
         {
-            if (string.IsNullOrWhiteSpace(opvisitid))
-                return BadRequest("opvisitid is required");
+            if (string.IsNullOrWhiteSpace(opvisitid) && string.IsNullOrWhiteSpace(ip_id))
+                return BadRequest("opvisitid or ip_id is required");
 
             var tenant = Request.Headers["tenant_code"].ToString();
             if (string.IsNullOrWhiteSpace(tenant))
                 return BadRequest("tenant_code header is required");
 
-            var data = await cls.GetUnbilledByVisit(opvisitid, tenant);
+            var data = await cls.GetUnbilledByVisit(opvisitid, ip_id, tenant);
             return Ok(data);
         }
 
