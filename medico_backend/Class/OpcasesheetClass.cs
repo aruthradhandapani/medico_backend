@@ -609,6 +609,7 @@ namespace medico_backend.Class
             {
                 sheet_id = sheet.sheet_id.ToString(),
                 op_id = sheet.op_id?.ToString(),
+                ip_id = sheet.ip_id?.ToString(),
                 custid = sheet.custid,
                 dcode = sheet.dcode,
                 visit_date = sheet.visit_date,
@@ -949,6 +950,7 @@ namespace medico_backend.Class
                 {
                     sheet_id = s.sheet_id.ToString(),
                     op_id = s.op_id?.ToString(),
+                    ip_id = s.ip_id?.ToString(),
                     custid = s.custid,
                     dcode = s.dcode,
                     visit_date = s.visit_date,
