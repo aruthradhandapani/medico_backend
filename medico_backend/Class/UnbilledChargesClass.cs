@@ -58,32 +58,29 @@ namespace medico_backend.Class
         }
 
         // ── Add investigation test charges (called from case sheet save, same tx) ──
-        public async Task AddInvestigationCharges(
-            IDbConnection db, IDbTransaction tx,
-            string op_id, decimal custid, string tenant_code,
-            IEnumerable<(string inv_det_id, int? test_code, decimal quantity, decimal? rate, decimal? amount)> tests)
+        public async Task AddInvestigationChargeRow(
+    IDbConnection db, IDbTransaction tx, string? op_id, Guid? ip_id, decimal custid, string tenant_code,
+    string entryId, int? testCode, decimal quantity, decimal? rate, decimal? amount)
         {
-            foreach (var t in tests)
+            var row = new UnbilledChargeRow
             {
-                var row = new UnbilledChargeRow
-                {
-                    unbilledid = Guid.NewGuid().ToString(),
-                    entrytype = "INVESTIGATION",
-                    entryid = t.inv_det_id,
-                    chargedate = DateTime.UtcNow,
-                    custid = custid,
-                    opvisitid = op_id,
-                    tcode = t.test_code,
-                    quantity = (double?)t.quantity,
-                    rate = (double?)t.rate,
-                    amount = (double?)t.amount,
-                    discount = 0,
-                    charityamount = 0,
-                    billedstatus = false,
-                    tenant_code = tenant_code
-                };
-                await db.InsertAsync(row, tx);
-            }
+                unbilledid = Guid.NewGuid().ToString(),
+                entrytype = "INVESTIGATION",
+                entryid = entryId,
+                chargedate = DateTime.UtcNow,
+                custid = custid,
+                opvisitid = op_id,
+                ip_id = ip_id,
+                tcode = testCode,
+                quantity = (double?)quantity,
+                rate = (double?)rate,
+                amount = (double?)amount,
+                discount = 0,
+                charityamount = 0,
+                billedstatus = false,
+                tenant_code = tenant_code
+            };
+            await db.InsertAsync(row, tx);
         }
 
         // ── Fetch pending unbilled charges for the billing screen ──
@@ -131,7 +128,7 @@ namespace medico_backend.Class
                 tx);
         }
         public async Task AddInvestigationChargeRow(
-    IDbConnection db, string op_id, decimal custid, string tenant_code,
+    IDbConnection db, string? op_id, Guid? ip_id, decimal custid, string tenant_code,
     string entryId, int? testCode, decimal quantity, decimal? rate, decimal? amount)
         {
             var row = new UnbilledChargeRow
@@ -142,6 +139,7 @@ namespace medico_backend.Class
                 chargedate = DateTime.UtcNow,
                 custid = custid,
                 opvisitid = op_id,
+                ip_id = ip_id,              // NEW
                 tcode = testCode,
                 quantity = (double?)quantity,
                 rate = (double?)rate,

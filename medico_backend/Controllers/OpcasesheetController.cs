@@ -101,9 +101,6 @@ namespace medico_backend.Controllers
             if (string.IsNullOrWhiteSpace(tenant))
                 return BadRequest("tenant_code header is required");
 
-            if (string.IsNullOrWhiteSpace(req.op_id))
-                return BadRequest("op_id is required");
-
             var res = await cls.SaveCaseSheet(req, tenant);
 
             if (res.StartsWith("OP Registration not found") ||
@@ -159,13 +156,14 @@ namespace medico_backend.Controllers
         // }
         // ─────────────────────────────────────────────────────────
         [HttpGet("by-visit")]
-        public async Task<IActionResult> GetByVisit([FromQuery] string op_id)
+        public async Task<IActionResult> GetByVisit(
+    [FromQuery] string? op_id, [FromQuery] string? ip_id)
         {
-            if (string.IsNullOrWhiteSpace(op_id))
-                return BadRequest("op_id is required");
+            if (string.IsNullOrWhiteSpace(op_id) && string.IsNullOrWhiteSpace(ip_id))
+                return BadRequest("op_id or ip_id is required");
 
             var tenant = Request.Headers["tenant_code"].ToString();
-            var data = await cls.GetCaseSheetByVisit(op_id, tenant);
+            var data = await cls.GetCaseSheetByVisit(op_id, ip_id, tenant);
 
             if (data == null)
                 return NotFound("No case sheet found for this visit");
@@ -173,18 +171,15 @@ namespace medico_backend.Controllers
             return Ok(data);
         }
 
-        // ─────────────────────────────────────────────────────────
-        // GET api/CaseSheet/prescription?op_id=...
-        // Returns only the prescription for a visit
-        // ─────────────────────────────────────────────────────────
         [HttpGet("prescription")]
-        public async Task<IActionResult> GetPrescription([FromQuery] string op_id)
+        public async Task<IActionResult> GetPrescription(
+            [FromQuery] string? op_id, [FromQuery] string? ip_id)
         {
-            if (string.IsNullOrWhiteSpace(op_id))
-                return BadRequest("op_id is required");
+            if (string.IsNullOrWhiteSpace(op_id) && string.IsNullOrWhiteSpace(ip_id))
+                return BadRequest("op_id or ip_id is required");
 
             var tenant = Request.Headers["tenant_code"].ToString();
-            var data = await cls.GetPrescription(op_id, tenant);
+            var data = await cls.GetPrescription(op_id, ip_id, tenant);
 
             if (data == null)
                 return NotFound("No prescription found for this visit");
@@ -192,25 +187,21 @@ namespace medico_backend.Controllers
             return Ok(data);
         }
 
-        // ─────────────────────────────────────────────────────────
-        // GET api/CaseSheet/investigation?op_id=...
-        // Returns only the investigation order for a visit
-        // ─────────────────────────────────────────────────────────
         [HttpGet("investigation")]
-        public async Task<IActionResult> GetInvestigation([FromQuery] string op_id)
+        public async Task<IActionResult> GetInvestigation(
+            [FromQuery] string? op_id, [FromQuery] string? ip_id)
         {
-            if (string.IsNullOrWhiteSpace(op_id))
-                return BadRequest("op_id is required");
+            if (string.IsNullOrWhiteSpace(op_id) && string.IsNullOrWhiteSpace(ip_id))
+                return BadRequest("op_id or ip_id is required");
 
             var tenant = Request.Headers["tenant_code"].ToString();
-            var data = await cls.GetInvestigation(op_id, tenant);
+            var data = await cls.GetInvestigation(op_id, ip_id, tenant);
 
             if (data == null)
                 return NotFound("No investigation found for this visit");
 
             return Ok(data);
         }
-
         // ─────────────────────────────────────────────────────────
         // GET api/CaseSheet/history?custid=...&pageNo=1&pageSize=10
         // Returns all past case sheets for a patient (for EMR view)

@@ -9,7 +9,8 @@ namespace medico_backend.Model
     {
         [ExplicitKey]
         public Guid sheet_id { get; set; } = Guid.NewGuid();
-        public Guid op_id { get; set; }
+        public Guid? op_id { get; set; }
+        public Guid? ip_id { get; set; }
         public decimal custid { get; set; }
         public int dcode { get; set; }
         public DateTime? visit_date { get; set; } = DateTime.UtcNow.Date;
@@ -46,7 +47,8 @@ namespace medico_backend.Model
         [ExplicitKey]
         public Guid diag_id { get; set; } = Guid.NewGuid();
         public Guid sheet_id { get; set; }
-        public Guid op_id { get; set; }
+        public Guid? op_id { get; set; }
+        public Guid? ip_id { get; set; }
         public decimal custid { get; set; }
         public int dcode { get; set; }
         public DateTime visit_date { get; set; }
@@ -80,7 +82,8 @@ namespace medico_backend.Model
         [ExplicitKey]
         public Guid symptom_id { get; set; } = Guid.NewGuid();
         public Guid sheet_id { get; set; }
-        public Guid op_id { get; set; }
+        public Guid? op_id { get; set; }
+        public Guid? ip_id { get; set; }
         public decimal custid { get; set; }
         public int sno { get; set; }
 
@@ -103,7 +106,8 @@ namespace medico_backend.Model
         public Guid pr_id { get; set; } = Guid.NewGuid();
         public string pr_code { get; set; } = string.Empty;   // PR/2026/06/0001
         public Guid? sheet_id { get; set; }
-        public Guid op_id { get; set; }
+        public Guid? op_id { get; set; }
+        public Guid? ip_id { get; set; }
         public decimal custid { get; set; }
         public int dcode { get; set; }
         public DateTime visit_date { get; set; }
@@ -172,7 +176,8 @@ namespace medico_backend.Model
         public Guid inv_id { get; set; } = Guid.NewGuid();
         public string inv_code { get; set; } = string.Empty;   // INV/2026/06/0001
         public Guid? sheet_id { get; set; }
-        public Guid op_id { get; set; }
+        public Guid? op_id { get; set; }
+        public Guid? ip_id { get; set; }
         public decimal custid { get; set; }
         public int dcode { get; set; }
         public DateTime visit_date { get; set; }
@@ -239,7 +244,8 @@ namespace medico_backend.Model
     public class SaveCaseSheetRequest
     {
         // Visit identifiers
-        public string op_id { get; set; } = string.Empty;
+        public string? op_id { get; set; } = string.Empty;
+        public string? ip_id { get; set; }
         public decimal custid { get; set; }
         public int dcode { get; set; }
 
@@ -392,6 +398,7 @@ namespace medico_backend.Model
     {
         public string? sheet_id { get; set; }
         public string? op_id { get; set; }
+        public string? ip_id { get; set; }
         public decimal custid { get; set; }
         public int dcode { get; set; }
         public DateTime? visit_date { get; set; }
