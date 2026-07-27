@@ -223,7 +223,21 @@ namespace medico_backend.Class
                 }
                 if (cutoffEnd > segStart)
                     segments.Add((segRmt, segBed, segStart, cutoffEnd, isDischarged)); // closed only if discharged
+                // ══════════════ INSERT THE CLIP LOGIC HERE ══════════════
+                DateTime? lastBilledCutoff = await db.ExecuteScalarAsync<DateTime?>(
+                    @"SELECT MAX(chargedate) FROM unbilledcharges
+                      WHERE entrytype = 'ROOMRENT' AND ip_id = @ip_id AND tenant_code = @tenant_code
+                      AND billedstatus = true",
+                    new { ip_id, tenant_code });
 
+                if (lastBilledCutoff.HasValue)
+                {
+                    var cutoff = NormalizeUtc(lastBilledCutoff.Value);
+                    segments = segments
+                        .Where(s => s.to > cutoff)
+                        .Select(s => s.from < cutoff ? (s.rmtcode, s.bedcode, cutoff, s.to, s.isClosed) : s)
+                        .ToList();
+                }
                 int inserted = 0, skippedExisting = 0, skippedNoRoomType = 0;
 
                 foreach (var seg in segments)

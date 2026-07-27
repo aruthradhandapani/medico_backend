@@ -28,7 +28,10 @@ namespace medico_backend.Controllers
         {
             var tenant = Request.Headers["tenant_code"].ToString();
             var res = await cls.Discharge(req, tenant);
-            return Ok(res);
+
+            if (res == "Success") return Ok(new { message = res });
+            if (res.Contains("not found")) return NotFound(new { message = res });
+            return BadRequest(new { message = res });
         }
 
         // NOTE: bed/room transfers now go through BedTransferController -> POST /api/BedTransfer/insert

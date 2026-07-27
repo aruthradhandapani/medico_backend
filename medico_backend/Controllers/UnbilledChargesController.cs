@@ -33,7 +33,7 @@ namespace medico_backend.Controllers
         // GET api/UnbilledCharges/by-visit?ip_id=...        (IP)
         [HttpGet("by-visit")]
         public async Task<IActionResult> GetByVisit(
-            [FromQuery] string? opvisitid, [FromQuery] string? ip_id)
+    [FromQuery] string? opvisitid, [FromQuery] string? ip_id)
         {
             if (string.IsNullOrWhiteSpace(opvisitid) && string.IsNullOrWhiteSpace(ip_id))
                 return BadRequest("opvisitid or ip_id is required");
@@ -41,6 +41,10 @@ namespace medico_backend.Controllers
             var tenant = Request.Headers["tenant_code"].ToString();
             if (string.IsNullOrWhiteSpace(tenant))
                 return BadRequest("tenant_code header is required");
+
+            // Keep ROOMRENT fresh before listing — same pattern as ip-room-rent-summary
+            if (!string.IsNullOrWhiteSpace(ip_id) && Guid.TryParse(ip_id, out var ipGuid))
+                await cls.RecalculateRoomRent(ipGuid, tenant);
 
             var data = await cls.GetUnbilledByVisit(opvisitid, ip_id, tenant);
             return Ok(data);
