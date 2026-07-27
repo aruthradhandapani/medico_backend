@@ -3334,6 +3334,200 @@ WHERE stockcode=@stockcode;";
                 throw new Exception("Purchase return failed: " + ex.Message);
             }
         }
+                public async Task<long> InsertSalesReturn(sales_return_request request)
+        {
+            using IDbConnection db = new NpgsqlConnection(con);
+            db.Open();
+
+            using var transaction = db.BeginTransaction();
+
+            try
+            {
+                var detail = await db.QueryFirstOrDefaultAsync<sales_detail>(@"
+SELECT
+    salesdetailcode,
+    salescode,
+    itemcode,
+    quantity,
+    freequantity,
+    uomcode,
+    rate,
+    discountpercentage,
+    discountamount,
+    taxpercentage,
+    taxamount,
+    amount,
+    totalamount,
+    batchno,
+    manufacturingdate,
+    expirydate,
+    soldqty,
+    COALESCE(returnedqty,0) AS returnedqty,
+    warehousecode,
+    tenantcode
+FROM public.sales_detail
+WHERE salesdetailcode=@salesdetailcode
+AND tenantcode=@tenantcode;",
+            new
+            {
+                request.salesdetailcode,
+                request.tenantcode
+            }, transaction);
+
+                if (detail == null)
+                    throw new Exception("Sales detail not found.");
+
+                decimal totalqty = request.returnqty * request.packsize;
+
+                decimal availableqty = detail.soldqty - detail.returnedqty;
+
+                if (totalqty > availableqty)
+                    throw new Exception($"Cannot return {totalqty}. Only {availableqty} available.");
+
+                decimal amount = totalqty * detail.rate;
+
+                await db.ExecuteAsync(@"
+UPDATE public.sales_detail
+SET returnedqty = COALESCE(returnedqty,0) + @totalqty
+WHERE salesdetailcode=@salesdetailcode;",
+                new
+                {
+                    totalqty,
+                    request.salesdetailcode
+                }, transaction);
+
+                await db.ExecuteAsync(@"
+UPDATE public.stock_master
+SET
+    returnqty = COALESCE(returnqty,0) + @totalqty,
+    closingstock = COALESCE(closingstock,0) + @totalqty,
+    stockvalue = (COALESCE(closingstock,0) + @totalqty) * unitcost,
+    modifieddate = CURRENT_TIMESTAMP
+WHERE itemcode=@itemcode
+AND batchno=@batchno
+AND tenantcode=@tenantcode
+AND (@warehousecode IS NULL OR warehousecode=@warehousecode);",
+                new
+                {
+                    totalqty,
+                    request.itemcode,
+                    request.batchno,
+                    request.tenantcode,
+                    request.warehousecode
+                }, transaction);
+
+                long returncode = await db.ExecuteScalarAsync<long>(@"
+INSERT INTO public.sales_return_master
+(
+    salesdetailcode,
+    salescode,
+    itemcode,
+    customercode,
+    batchno,
+    returnqty,
+    packsize,
+    totalqty,
+    rate,
+    amount,
+    warehousecode,
+    remarks,
+    isactive,
+    deleted,
+    createddate,
+    usercode,
+    tenantcode
+)
+VALUES
+(
+    @salesdetailcode,
+    @salescode,
+    @itemcode,
+    @customercode,
+    @batchno,
+    @returnqty,
+    @packsize,
+    @totalqty,
+    @rate,
+    @amount,
+    @warehousecode,
+    @remarks,
+    true,
+    false,
+    CURRENT_TIMESTAMP,
+    @usercode,
+    @tenantcode
+)
+RETURNING salesreturncode;",
+                new
+                {
+                    request.salesdetailcode,
+                    request.salescode,
+                    request.itemcode,
+                    request.customercode,
+                    request.batchno,
+                    request.returnqty,
+                    request.packsize,
+                    totalqty,
+                    rate = detail.rate,
+                    amount,
+                    request.warehousecode,
+                    request.remarks,
+                    request.usercode,
+                    request.tenantcode
+                }, transaction);
+
+                transaction.Commit();
+
+                return returncode;
+            }
+            catch (Exception ex)
+            {
+                transaction.Rollback();
+                throw new Exception("Sales Return Failed : " + ex.Message);
+            }
+        }
+        public async Task<IEnumerable<sales_return_lookup_result>> GetSalesReturnLookup(
+     long itemcode, string? batchno, string tenantcode)
+        {
+            using IDbConnection db = new NpgsqlConnection(con);
+
+            string query = @"
+SELECT
+    sd.salesdetailcode,
+    sd.salescode,
+    sd.itemcode,
+    im.itemname,
+    sd.batchno,
+    sm.customercode,
+    NULL AS customername,
+    sm.patientid,
+    sm.patientname,
+    sd.rate,
+    sd.quantity AS deliveredqty,
+    COALESCE(sd.returnedqty, 0) AS returnedqty,
+    (sd.quantity - COALESCE(sd.returnedqty, 0)) AS availableqty,
+    im.packsize,
+    sd.warehousecode
+FROM public.sales_detail sd
+INNER JOIN public.sales_master sm
+    ON sm.salescode = sd.salescode
+LEFT JOIN public.item_master im
+    ON im.itemcode = sd.itemcode
+WHERE sd.itemcode = @itemcode
+  AND (@batchno IS NULL OR sd.batchno = @batchno)
+  AND sm.deleted = false
+  AND sd.tenantcode = @tenantcode
+ORDER BY sd.salesdetailcode DESC;";
+
+            return await db.QueryAsync<sales_return_lookup_result>(
+                query,
+                new
+                {
+                    itemcode,
+                    batchno,
+                    tenantcode
+                });
+        }
     }
 }    
 
