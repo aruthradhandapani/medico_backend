@@ -655,6 +655,9 @@ public class purchase_detail
      // Sales Specific
 
      public decimal soldqty { get; set; }
+      public decimal returnedqty { get; set; }
+
+     
 
      public long? warehousecode { get; set; }
 
