@@ -1514,6 +1514,66 @@ public async Task<IActionResult> GetList()
                 return BadRequest(new { Status = "Failed", Message = ex.Message });
             }
         }
+         // Step 2: Submit Sales Return
+ [HttpPost("insertsalesreturn")]
+ public async Task<IActionResult> InsertSalesReturn([FromBody] sales_return_request request)
+ {
+     try
+     {
+         var tenantcode = GetTenantCode();
+         if (string.IsNullOrEmpty(tenantcode))
+             return MissingTenantCode();
+
+         request.tenantcode = tenantcode;
+
+         var result = await itemclass.InsertSalesReturn(request);
+
+         return Ok(new
+         {
+             Status = "Success",
+             Message = "Sales return processed successfully",
+             SalesReturnCode = result
+         });
+     }
+     catch (Exception ex)
+     {
+         return BadRequest(new
+         {
+             Status = "Failed",
+             Message = ex.Message
+         });
+     }
+ }
+ [HttpGet("getsalesreturn")]
+ public async Task<IActionResult> GetSalesReturnLookup(long itemcode, string? batchno = null)
+ {
+     try
+     {
+         var tenantcode = GetTenantCode();
+
+         if (string.IsNullOrWhiteSpace(tenantcode))
+             return MissingTenantCode();
+
+         var result = await itemclass.GetSalesReturnLookup(
+             itemcode,
+             batchno,
+             tenantcode);
+
+         return Ok(new
+         {
+             Status = "Success",
+             Data = result
+         });
+     }
+     catch (Exception ex)
+     {
+         return BadRequest(new
+         {
+             Status = "Failed",
+             Message = ex.Message
+         });
+     }
+ }
     }
 }
     
