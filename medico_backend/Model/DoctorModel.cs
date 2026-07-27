@@ -19,6 +19,7 @@ namespace Medico_Backend.Model
         public string? shortname { get; set; }
 
         public int? spcode { get; set; }
+        public int? room_no { get; set; }
 
         public int? tcode { get; set; }
 
