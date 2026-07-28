@@ -208,15 +208,35 @@ namespace medico_backend.Class
             {
                 using IDbConnection db = new NpgsqlConnection(_db_conn);
 
-                string checkSql = @"SELECT op_id FROM op_registration
-                            WHERE  op_id       = @op_id
-                            AND    tenant_code = @tenant_code
-                            AND    isdeleted   = false";
+                bool hasOp = data.op_id.HasValue && data.op_id != Guid.Empty;
+                bool hasIp = data.ip_id.HasValue && data.ip_id != Guid.Empty;
 
-                var op = await db.QueryFirstOrDefaultAsync(
-                    checkSql, new { data.op_id, data.tenant_code });
+                if (!hasOp && !hasIp)
+                    return "Either op_id or ip_id is required";
 
-                if (op == null) return "OP Registration not found";
+                if (hasOp)
+                {
+                    var op = await db.QueryFirstOrDefaultAsync(
+                        @"SELECT op_id FROM op_registration
+                  WHERE  op_id       = @op_id
+                  AND    tenant_code = @tenant_code
+                  AND    isdeleted   = false",
+                        new { data.op_id, data.tenant_code });
+
+                    if (op == null) return "OP Registration not found";
+                }
+
+                if (hasIp)
+                {
+                    var ip = await db.QueryFirstOrDefaultAsync(
+                        @"SELECT ip_id FROM ip_registration
+                  WHERE  ip_id       = @ip_id
+                  AND    tenant_code = @tenant_code
+                  AND    isdeleted   = false",
+                        new { data.ip_id, data.tenant_code });
+
+                    if (ip == null) return "IP Registration not found";
+                }
 
                 // Auto calculate BMI if height and weight provided
                 if (data.height_cm > 0 && data.weight_kg > 0)
@@ -230,27 +250,27 @@ namespace medico_backend.Class
                 data.updated_at = DateTime.SpecifyKind(DateTime.UtcNow, DateTimeKind.Utc);
 
                 string insertSql = @"INSERT INTO patient_vitals
-            (vital_id, op_id, op_no, custid, dcode,
-             height_cm, weight_kg, bmi, temperature_f,
-             pulse_rate, respiratory_rate,
-             bp_systolic, bp_diastolic, spo2,
-             sugar_level, pain_scale,
-             waist_cm, hip_cm,
-             pedal_oedema, jvp, cvs, rs, cns, abdomen,
-             cardiac_monitor, cd_echo, blood_chemistry,
-             allergy_notes, hba1c, ecg_notes, head_circumference_cm,
-             entered_by, tenant_code, isdeleted, created_at, updated_at)
-           VALUES
-            (@vital_id, @op_id, @op_no, @custid, @dcode,
-             @height_cm, @weight_kg, @bmi, @temperature_f,
-             @pulse_rate, @respiratory_rate,
-             @bp_systolic, @bp_diastolic, @spo2,
-             @sugar_level, @pain_scale,
-             @waist_cm, @hip_cm,
-             @pedal_oedema, @jvp, @cvs, @rs, @cns, @abdomen,
-             @cardiac_monitor, @cd_echo, @blood_chemistry,
-             @allergy_notes, @hba1c, @ecg_notes, @head_circumference_cm,
-             @entered_by, @tenant_code, @isdeleted, @created_at, @updated_at)";
+        (vital_id, op_id, op_no, ip_id, ip_no, custid, dcode,
+         height_cm, weight_kg, bmi, temperature_f,
+         pulse_rate, respiratory_rate,
+         bp_systolic, bp_diastolic, spo2,
+         sugar_level, pain_scale,
+         waist_cm, hip_cm,
+         pedal_oedema, jvp, cvs, rs, cns, abdomen,
+         cardiac_monitor, cd_echo, blood_chemistry,
+         allergy_notes, hba1c, ecg_notes, head_circumference_cm,
+         entered_by, tenant_code, isdeleted, created_at, updated_at)
+       VALUES
+        (@vital_id, @op_id, @op_no, @ip_id, @ip_no, @custid, @dcode,
+         @height_cm, @weight_kg, @bmi, @temperature_f,
+         @pulse_rate, @respiratory_rate,
+         @bp_systolic, @bp_diastolic, @spo2,
+         @sugar_level, @pain_scale,
+         @waist_cm, @hip_cm,
+         @pedal_oedema, @jvp, @cvs, @rs, @cns, @abdomen,
+         @cardiac_monitor, @cd_echo, @blood_chemistry,
+         @allergy_notes, @hba1c, @ecg_notes, @head_circumference_cm,
+         @entered_by, @tenant_code, @isdeleted, @created_at, @updated_at)";
 
                 await db.ExecuteAsync(insertSql, data);
 
@@ -381,18 +401,19 @@ namespace medico_backend.Class
         // GET ALL VITALS — by op_id or custid
         // ─────────────────────────────────────────
         public async Task<List<PatientVitalsModel>> GetAllVitals(
-            string tenant_code, Guid? op_id = null, decimal? custid = null)
+     string tenant_code, Guid? op_id = null, Guid? ip_id = null, decimal? custid = null)
         {
             using IDbConnection db = new NpgsqlConnection(_db_conn);
 
             string sql = @"SELECT * FROM patient_vitals
-                   WHERE isdeleted   = false
-                   AND   tenant_code = @tenant_code
-                   AND   (@op_id   IS NULL OR op_id  = @op_id)
-                   AND   (@custid  IS NULL OR custid = @custid)
-                   ORDER BY created_at DESC";
+           WHERE isdeleted   = false
+           AND   tenant_code = @tenant_code
+           AND   (@op_id  IS NULL OR op_id  = @op_id)
+           AND   (@ip_id  IS NULL OR ip_id  = @ip_id)
+           AND   (@custid IS NULL OR custid = @custid)
+           ORDER BY created_at DESC";
 
-            var res = await db.QueryAsync<PatientVitalsModel>(sql, new { tenant_code, op_id, custid });
+            var res = await db.QueryAsync<PatientVitalsModel>(sql, new { tenant_code, op_id, ip_id, custid });
             return res.ToList();
         }
 

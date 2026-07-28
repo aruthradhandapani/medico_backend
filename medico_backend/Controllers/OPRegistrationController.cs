@@ -75,14 +75,14 @@ namespace medico_backend.Controllers
         // GET api/OpRegistration/vitals/all
         // Query params: op_id OR custid (at least one required)
         [HttpGet("vitals/all")]
-        public async Task<IActionResult> GetAllVitals(Guid? op_id, decimal? custid)
+        public async Task<IActionResult> GetAllVitals(Guid? op_id, Guid? ip_id, decimal? custid)
         {
             var tenant = Request.Headers["tenant_code"].ToString();
 
-            if (op_id == null && custid == null)
-                return BadRequest("Provide at least one filter: op_id or custid");
+            if (op_id == null && ip_id == null && custid == null)
+                return BadRequest("Provide at least one filter: op_id, ip_id, or custid");
 
-            var data = await cls.GetAllVitals(tenant, op_id, custid);
+            var data = await cls.GetAllVitals(tenant, op_id, ip_id, custid);
             return Ok(data);
         }
 

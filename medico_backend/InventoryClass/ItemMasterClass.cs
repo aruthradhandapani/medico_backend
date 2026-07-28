@@ -1079,8 +1079,6 @@ namespace medico_backend.InventoryClass
                 new { itemcode, tenantcode });
         }
 
-        // ─── INDENT MASTER ────────────────────────────────────────────────────────────
-
         public async Task<long> InsertIndent(indent_request request)
         {
             using (IDbConnection db = new NpgsqlConnection(con))
@@ -1092,34 +1090,39 @@ namespace medico_backend.InventoryClass
                     try
                     {
                         string masterQuery = @"
-                            INSERT INTO public.indent_master
-                            (
-                                indentno, indentdate, requestedby,
-                                departmentcode, branchcode, remarks,
-                                approvalstatus, isactive, deleted,
-                                createddate, tenantcode
-                            )
-                            VALUES
-                            (
-                                @indentno, @indentdate, @requestedby,
-                                @departmentcode, @branchcode, @remarks,
-                                @approvalstatus, @isactive, @deleted,
-                                CURRENT_TIMESTAMP, @tenantcode
-                            )
-                            RETURNING indentcode;";
+                    INSERT INTO public.indent_master
+                    (
+                        indentno, indentdate, requestedby,
+                        departmentcode, branchcode, remarks,
+                        approvalstatus, isactive, deleted,
+                        createddate, tenantcode
+                    )
+                    VALUES
+                    (
+                        @indentno, @indentdate, @requestedby,
+                        @departmentcode, @branchcode, @remarks,
+                        @approvalstatus, @isactive, @deleted,
+                        CURRENT_TIMESTAMP, @tenantcode
+                    )
+                    RETURNING indentcode;";
 
                         long indentcode = await db.ExecuteScalarAsync<long>(masterQuery, request.master, transaction);
 
                         string detailQuery = @"
-                            INSERT INTO public.indent_detail
-                            (indentcode, itemcode, requestedqty, approvedqty, issuedqty, remarks)
-                            VALUES
-                            (@indentcode, @itemcode, @requestedqty, @approvedqty, @issuedqty, @remarks);";
+                    INSERT INTO public.indent_detail
+                    (indentcode, itemcode, purchasedetailcode, requestedqty, approvedqty, issuedqty, remarks)
+                    VALUES
+                    (@indentcode, @itemcode, @purchasedetailcode, @requestedqty, @approvedqty, @issuedqty, @remarks);";
 
                         foreach (var item in request.details)
                         {
                             item.indentcode = indentcode;
                             await db.ExecuteAsync(detailQuery, item, transaction);
+                        }
+
+                        if (string.Equals(request.master.approvalstatus, "Approved", StringComparison.OrdinalIgnoreCase))
+                        {
+                            await IssueIndentStock(db, transaction, request.details, request.master.tenantcode);
                         }
 
                         transaction.Commit();
@@ -1145,18 +1148,18 @@ namespace medico_backend.InventoryClass
                     try
                     {
                         await db.ExecuteAsync(@"
-                            UPDATE public.indent_master
-                            SET
-                                indentno       = @indentno,
-                                indentdate     = @indentdate,
-                                requestedby    = @requestedby,
-                                departmentcode = @departmentcode,
-                                branchcode     = @branchcode,
-                                remarks        = @remarks,
-                                approvalstatus = @approvalstatus,
-                                tenantcode     = @tenantcode
-                            WHERE indentcode = @indentcode
-                              AND tenantcode = @tenantcode;",
+                    UPDATE public.indent_master
+                    SET
+                        indentno       = @indentno,
+                        indentdate     = @indentdate,
+                        requestedby    = @requestedby,
+                        departmentcode = @departmentcode,
+                        branchcode     = @branchcode,
+                        remarks        = @remarks,
+                        approvalstatus = @approvalstatus,
+                        tenantcode     = @tenantcode
+                    WHERE indentcode = @indentcode
+                      AND tenantcode = @tenantcode;",
                             request.master, transaction);
 
                         await db.ExecuteAsync(
@@ -1164,15 +1167,20 @@ namespace medico_backend.InventoryClass
                             new { indentcode = request.master.indentcode }, transaction);
 
                         string insertDetail = @"
-                            INSERT INTO public.indent_detail
-                            (indentcode, itemcode, requestedqty, approvedqty, issuedqty, remarks)
-                            VALUES
-                            (@indentcode, @itemcode, @requestedqty, @approvedqty, @issuedqty, @remarks);";
+                    INSERT INTO public.indent_detail
+                    (indentcode, itemcode, purchasedetailcode, requestedqty, approvedqty, issuedqty, remarks)
+                    VALUES
+                    (@indentcode, @itemcode, @purchasedetailcode, @requestedqty, @approvedqty, @issuedqty, @remarks);";
 
                         foreach (var item in request.details)
                         {
                             item.indentcode = request.master.indentcode;
                             await db.ExecuteAsync(insertDetail, item, transaction);
+                        }
+
+                        if (string.Equals(request.master.approvalstatus, "Approved", StringComparison.OrdinalIgnoreCase))
+                        {
+                            await IssueIndentStock(db, transaction, request.details, request.master.tenantcode);
                         }
 
                         transaction.Commit();
@@ -1184,6 +1192,69 @@ namespace medico_backend.InventoryClass
                         throw new Exception("Indent update failed: " + ex.Message);
                     }
                 }
+            }
+        }
+
+        // ── Helper: draw issued quantity down from the specific purchase batch,
+        //     and mirror the reduction onto stock_master (same pattern as InsertPurchaseReturn) ──
+        private async Task IssueIndentStock(
+            IDbConnection db, IDbTransaction transaction,
+            IEnumerable<indent_detail> details, string tenantcode)
+        {
+            foreach (var item in details)
+            {
+                if (item.issuedqty <= 0) continue;
+
+                // Pull the specific purchase batch this indent item is issued against.
+                var purchase = await db.QueryFirstOrDefaultAsync<purchase_detail>(@"
+            SELECT
+                purchasedetailcode, purchasecode, itemcode,
+                receivedqty,
+                COALESCE(returnedqty, 0) AS returnedqty,
+                COALESCE(issuedqty, 0) AS issuedqty,
+                batchno, warehousecode, rate, tenantcode
+            FROM public.purchase_detail
+            WHERE purchasedetailcode = @purchasedetailcode
+              AND tenantcode = @tenantcode;",
+                    new { item.purchasedetailcode, tenantcode }, transaction);
+
+                if (purchase == null)
+                    throw new Exception($"Purchase batch {item.purchasedetailcode} not found for item {item.itemcode}");
+
+                decimal availableqty = purchase.receivedqty - purchase.returnedqty - purchase.issuedqty;
+
+                if (item.issuedqty > availableqty)
+                    throw new Exception($"Cannot issue {item.issuedqty} for item {item.itemcode}; only {availableqty} available in batch {purchase.batchno}");
+
+                // 1) Update purchase_detail — track cumulative issued qty against this batch
+                await db.ExecuteAsync(@"
+            UPDATE public.purchase_detail
+            SET issuedqty = COALESCE(issuedqty, 0) + @issuedqty
+            WHERE purchasedetailcode = @purchasedetailcode;",
+                    new { item.issuedqty, item.purchasedetailcode }, transaction);
+
+                // 2) Update stock_master — reduce closing stock for that item/batch/warehouse
+                int rows = await db.ExecuteAsync(@"
+            UPDATE public.stock_master
+            SET
+                closingstock = closingstock - @issuedqty,
+                stockvalue   = (closingstock - @issuedqty) * unitcost,
+                modifieddate = CURRENT_TIMESTAMP
+            WHERE itemcode = @itemcode
+              AND batchno = @batchno
+              AND warehousecode = @warehousecode
+              AND tenantcode = @tenantcode;",
+                    new
+                    {
+                        item.issuedqty,
+                        item.itemcode,
+                        purchase.batchno,
+                        purchase.warehousecode,
+                        tenantcode
+                    }, transaction);
+
+                if (rows == 0)
+                    throw new Exception($"Stock not found for item {item.itemcode}, batch {purchase.batchno}, warehouse {purchase.warehousecode}");
             }
         }
 

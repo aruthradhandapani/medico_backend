@@ -228,9 +228,9 @@ public class purchase_detail
 
     public decimal quantity { get; set; }
 
-    public decimal freequantity { get; set; }
+        public decimal freequantity { get; set; }
 
-    public long? uomcode { get; set; }
+        public long? uomcode { get; set; }
 
     public decimal rate { get; set; }
 
@@ -260,6 +260,7 @@ public class purchase_detail
 
         public decimal rejectedqty { get; set; }
         public decimal returnedqty { get; set; }
+        public decimal issuedqty { get; set; }
 
         // Warehouse / Store
         public long warehousecode { get; set; }
@@ -353,6 +354,7 @@ public class purchase_detail
 
         // Item Reference
         public long itemcode { get; set; }
+        public long purchasedetailcode { get; set; }
 
         // Quantity
         public decimal requestedqty { get; set; }

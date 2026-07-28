@@ -380,9 +380,7 @@ namespace medico_backend.Class
 
                 tx.Commit();
                 return "Success";
-
-                tx.Commit();
-                return "Success";
+                
             }
             catch (Exception ex)
             {

@@ -40,8 +40,10 @@ namespace medico_backend.Model
         {
             [ExplicitKey]
             public Guid vital_id { get; set; } = Guid.NewGuid();
-            public Guid op_id { get; set; }
-            public string op_no { get; set; } = string.Empty;
+            public Guid? op_id { get; set; }          
+            public string? op_no { get; set; }        
+            public Guid? ip_id { get; set; }          
+            public string? ip_no { get; set; }
             public decimal custid { get; set; }
             public int dcode { get; set; }
 
@@ -59,21 +61,21 @@ namespace medico_backend.Model
             // ── Additional Measurements ───────────────────
             public decimal? sugar_level { get; set; }
             public int? pain_scale { get; set; }
-            public decimal? waist_cm { get; set; }          // ✅ NEW — from old table
-            public decimal? hip_cm { get; set; }            // ✅ NEW — from old table
+            public decimal? waist_cm { get; set; }          
+            public decimal? hip_cm { get; set; }            
 
             // ── Clinical Examination ──────────────────────
-            public string? pedal_oedema { get; set; }       // ✅ NEW — from old table
-            public string? jvp { get; set; }                // ✅ NEW — from old table
-            public string? cvs { get; set; }                // ✅ NEW — cardiovascular system
-            public string? rs { get; set; }                 // ✅ NEW — respiratory system
-            public string? cns { get; set; }                // ✅ NEW — central nervous system
-            public string? abdomen { get; set; }            // ✅ NEW — from old table
+            public string? pedal_oedema { get; set; }       
+            public string? jvp { get; set; }               
+            public string? cvs { get; set; }               
+            public string? rs { get; set; }                 
+            public string? cns { get; set; }                
+            public string? abdomen { get; set; }            
 
             // ── Investigations ────────────────────────────
-            public string? cardiac_monitor { get; set; }    // ✅ NEW — from old table
-            public string? cd_echo { get; set; }            // ✅ NEW — from old table
-            public string? blood_chemistry { get; set; }    // ✅ NEW — from old table
+            public string? cardiac_monitor { get; set; }    
+            public string? cd_echo { get; set; }            
+            public string? blood_chemistry { get; set; }    
             public string? allergy_notes { get; set; }
 
             // ── Special Dept ──────────────────────────────
