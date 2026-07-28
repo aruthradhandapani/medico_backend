@@ -524,6 +524,27 @@ END AS vitals_status,
         // ─────────────────────────────────────────
         // DELETE (soft delete)
         // ─────────────────────────────────────────
+        public async Task<string> Delete(int ogentryid, string tenant_code)
+        {
+            try
+            {
+                using IDbConnection db = new NpgsqlConnection(db_conn);
+
+                string sql = @"
+                    UPDATE og_queue
+                    SET deleted = true,
+                        updated_at = @updated_at
+                    WHERE ogentryid = @ogentryid
+                    AND tenant_code = @tenant_code";
+
+                var rows = await db.ExecuteAsync(sql, new { ogentryid, tenant_code, updated_at = DateTime.UtcNow });
+                return rows > 0 ? "Success" : "Record not found";
+            }
+            catch (Exception ex)
+            {
+                return ex.Message;
+            }
+        }
         public async Task<IEnumerable<dynamic>> GetMergedList(string tenant_code, string? name, DateTime? date, string? status, string? list_type)
         {
             using IDbConnection db = new NpgsqlConnection(db_conn);

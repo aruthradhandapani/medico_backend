@@ -395,5 +395,20 @@ namespace medico_backend.Class
                 new { ip_id, tenant_code });
             return (outstandingBalance ?? 0) <= 0.05;   // matches the 0.05 tolerance used elsewhere in HmsBillingClass
         }
+        // ── Get all unbilled charges for a tenant, optionally narrowed by op_id or ip_id ──
+        public async Task<List<UnbilledChargeRow>> GetAllUnbilled(
+            string tenant_code, string? op_id = null, Guid? ip_id = null)
+        {
+            using var db = GetConnection();
+            var rows = await db.QueryAsync<UnbilledChargeRow>(
+                @"SELECT * FROM unbilledcharges
+          WHERE tenant_code = @tenant_code
+          AND (billedstatus = false OR billedstatus IS NULL)
+          AND (@op_id IS NULL OR opvisitid = @op_id)
+          AND (@ip_id IS NULL OR ip_id = @ip_id)
+          ORDER BY chargedate",
+                new { tenant_code, op_id, ip_id });
+            return rows.ToList();
+        }
     }
 }
