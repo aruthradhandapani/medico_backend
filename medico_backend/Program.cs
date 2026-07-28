@@ -169,6 +169,8 @@ builder.Services.AddScoped<AppointmentPreBookingClass>();
 builder.Services.AddScoped<AppointmentPreBookingController>();
 builder.Services.AddScoped<DoctorGroupMasterClass>();
 builder.Services.AddScoped<DoctorGroupMasterController>();
+builder.Services.AddScoped<DashboardClass>();
+builder.Services.AddScoped<DashboardController>(); 
 
 builder.Services.AddSingleton<IAmazonS3>(sp =>
 {
