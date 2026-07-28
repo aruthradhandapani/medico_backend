@@ -403,7 +403,6 @@ namespace medico_backend.Class
             var rows = await db.QueryAsync<UnbilledChargeRow>(
                 @"SELECT * FROM unbilledcharges
           WHERE tenant_code = @tenant_code
-          AND (billedstatus = false OR billedstatus IS NULL)
           AND (@op_id IS NULL OR opvisitid = @op_id)
           AND (@ip_id IS NULL OR ip_id = @ip_id)
           ORDER BY chargedate",
