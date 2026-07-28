@@ -2970,35 +2970,38 @@ WHERE stockcode=@stockcode;";
                 }
             }
         }
-        public async Task<IEnumerable<sales_master>> GetSales()
-        {
-            using (var conn = new NpgsqlConnection(con))
-            {
-                string query = @"
-    SELECT *
-    FROM sales_master
-    WHERE deleted = false
-    ORDER BY salescode DESC";
-
-                return await conn.QueryAsync<sales_master>(query);
-            }
-        }
-        public async Task<string> DeleteSales(long salescode)
+              public async Task<IEnumerable<sales_request>> GetSales()
         {
             using (var conn = new NpgsqlConnection(con))
             {
                 await conn.OpenAsync();
 
-                string query = @"
-    UPDATE sales_master
-    SET deleted = true,
-        isactive = false,
-        modifieddate = NOW()
-    WHERE salescode = @salescode";
+                // Get all sales masters
+                string masterQuery = @"
+SELECT *
+FROM sales_master
+WHERE deleted = false
+ORDER BY salescode DESC;";
 
-                await conn.ExecuteAsync(query, new { salescode });
+                var masters = (await conn.QueryAsync<sales_master>(masterQuery)).ToList();
 
-                return "Sales Deleted Successfully";
+                // Get all sales details
+                string detailQuery = @"
+SELECT *
+FROM sales_detail
+ORDER BY salesdetailcode;";
+
+                var details = (await conn.QueryAsync<sales_detail>(detailQuery)).ToList();
+
+                var result = masters.Select(master => new sales_request
+                {
+                    master = master,
+                    details = details
+                                .Where(x => x.salescode == master.salescode)
+                                .ToList()
+                });
+
+                return result;
             }
         }
         public async Task<string> UpsertWarehouse(warehouse_master warehouse)
