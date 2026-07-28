@@ -3557,7 +3557,7 @@ RETURNING salesreturncode;",
                 throw new Exception("Sales Return Failed : " + ex.Message);
             }
         }
-        public async Task<IEnumerable<sales_return_lookup_result>> GetSalesReturnLookup(
+              public async Task<IEnumerable<sales_return_lookup_result>> GetSalesReturnLookup(
      long itemcode, string? batchno, string tenantcode)
         {
             using IDbConnection db = new NpgsqlConnection(con);
