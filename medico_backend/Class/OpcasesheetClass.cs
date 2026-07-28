@@ -918,39 +918,62 @@ namespace medico_backend.Class
         }
 
         // ─────────────────────────────────────────────────────────
-        // GET PATIENT HISTORY (all visits case sheets)
+        // GET PATIENT HISTORY (all visits case sheets) — custid based
+        // One row per visit (op_id, or ip_id when op_id is null). Child data
+        // (symptoms/diagnosis/prescription/investigation) is looked up by the
+        // VISIT (op_id/ip_id), not the exact sheet_id — because duplicate
+        // op_case_sheet rows for the same visit can each hold a different
+        // piece of the data (e.g. prescription on one sheet, investigation
+        // on another). Matching by visit instead of sheet_id ensures nothing
+        // gets silently dropped.
         // ─────────────────────────────────────────────────────────
         public async Task<List<CaseSheetViewModel>> GetPatientHistory(
             decimal custid, string tenant_code, int pageSize = 10, int pageNo = 1)
         {
             using IDbConnection db = new NpgsqlConnection(_db_conn);
 
-            var sheets = (await db.QueryAsync<OpCaseSheetModel>(
-    @"SELECT sheet_id, op_id, ip_id, custid, dcode,
-             visit_date::timestamp AS visit_date,
-             chief_complaint, symptoms, examination,
-             advise, notes,
-             followup_date::timestamp AS followup_date,
-             followup_notes, is_consulted, sheet_status,
-             tenant_code, isdeleted, created_at, updated_at
-      FROM   op_case_sheet
-      WHERE  custid      = @custid
-      AND    tenant_code = @tenant_code
-      AND    isdeleted   = false
-      ORDER  BY visit_date DESC
-      LIMIT  @pageSize OFFSET @offset",
-    new { custid, tenant_code, pageSize, offset = (pageNo - 1) * pageSize }))
-    .ToList();
+            string sheetsSql = @"
+        SELECT * FROM (
+            SELECT DISTINCT ON (COALESCE(s.op_id::text, s.ip_id::text))
+                s.sheet_id, s.op_id, s.ip_id, s.custid, s.dcode,
+                s.visit_date::timestamp AS visit_date,
+                s.chief_complaint, s.symptoms, s.examination,
+                s.advise, s.notes,
+                s.followup_date::timestamp AS followup_date,
+                s.followup_notes, s.is_consulted, s.sheet_status,
+                s.tenant_code, s.isdeleted, s.created_at, s.updated_at,
+                c.name AS patient_name,
+                c.mobile,
+                d.name AS doctor_name
+            FROM   op_case_sheet s
+            LEFT JOIN customerdb.customer_master c ON c.custid = s.custid
+            LEFT JOIN doctor_master d ON d.dcode = s.dcode AND d.tenant_code = s.tenant_code
+            WHERE  s.custid      = @custid
+            AND    s.tenant_code = @tenant_code
+            AND    s.isdeleted   = false
+            ORDER  BY COALESCE(s.op_id::text, s.ip_id::text), s.updated_at DESC
+        ) dedup
+        ORDER BY visit_date DESC
+        LIMIT  @pageSize OFFSET @offset";
+
+            var sheets = (await db.QueryAsync(sheetsSql,
+                new { custid, tenant_code, pageSize, offset = (pageNo - 1) * pageSize })).ToList();
 
             var result = new List<CaseSheetViewModel>();
 
             foreach (var s in sheets)
             {
+                Guid sheetId = (Guid)s.sheet_id;
+                string? opId = s.op_id?.ToString();
+                string? ipId = s.ip_id?.ToString();
+                bool hasOp = !string.IsNullOrWhiteSpace(opId);
+                bool hasIp = !string.IsNullOrWhiteSpace(ipId);
+
                 var vm = new CaseSheetViewModel
                 {
-                    sheet_id = s.sheet_id.ToString(),
-                    op_id = s.op_id?.ToString(),
-                    ip_id = s.ip_id?.ToString(),
+                    sheet_id = sheetId.ToString(),
+                    op_id = opId,
+                    ip_id = ipId,
                     custid = s.custid,
                     dcode = s.dcode,
                     visit_date = s.visit_date,
@@ -965,39 +988,50 @@ namespace medico_backend.Class
                     sheet_status = s.sheet_status
                 };
 
-                // Symptoms
+                // Symptoms — matched by visit (op_id/ip_id), not just this one sheet_id,
+                // so symptoms saved under a sibling duplicate sheet still show up.
                 vm.symptom_list = (await db.QueryAsync<OpCaseSheetSymptomModel>(
-                    @"SELECT * FROM op_case_sheet_symptoms
-                      WHERE  sheet_id = @sheet_id
-                      ORDER  BY sno",
-                    new { sheet_id = s.sheet_id })).ToList();
+                    @"SELECT sym.* FROM op_case_sheet_symptoms sym
+              JOIN   op_case_sheet cs ON cs.sheet_id = sym.sheet_id
+              WHERE  cs.tenant_code = @tenant_code
+              AND    cs.isdeleted   = false
+              AND    ((@op_id IS NOT NULL AND cs.op_id = CAST(@op_id AS uuid))
+                      OR (@ip_id IS NOT NULL AND cs.ip_id = CAST(@ip_id AS uuid)))
+              ORDER  BY sym.sno",
+                    new { op_id = hasOp ? opId : null, ip_id = hasIp ? ipId : null, tenant_code })).ToList();
 
-                // Diagnosis — FIXED: was referencing undefined "sheet", now uses "s"
+                // Diagnosis — same visit-based match
                 vm.diagnosis_list = (await db.QueryAsync<OpCaseSheetDiagnosisModel>(
-    @"SELECT diag_id, sheet_id, op_id, ip_id, custid, dcode,
-             visit_date::timestamp AS visit_date,
-             sno, icd_code, icd_description, diagnosis_text,
-             diagnosis_type, condition_type, severity, status,
-             tenant_code, isdeleted, created_at
-      FROM   op_case_sheet_diagnosis
-      WHERE  sheet_id  = @sheet_id
-      AND    isdeleted = false
-      ORDER  BY sno",
-    new { sheet_id = s.sheet_id })).ToList();
+                    @"SELECT diag.diag_id, diag.sheet_id, diag.op_id, diag.ip_id, diag.custid, diag.dcode,
+                     diag.visit_date::timestamp AS visit_date,
+                     diag.sno, diag.icd_code, diag.icd_description, diag.diagnosis_text,
+                     diag.diagnosis_type, diag.condition_type, diag.severity, diag.status,
+                     diag.tenant_code, diag.isdeleted, diag.created_at
+              FROM   op_case_sheet_diagnosis diag
+              JOIN   op_case_sheet cs ON cs.sheet_id = diag.sheet_id
+              WHERE  diag.isdeleted  = false
+              AND    cs.tenant_code  = @tenant_code
+              AND    cs.isdeleted    = false
+              AND    ((@op_id IS NOT NULL AND cs.op_id = CAST(@op_id AS uuid))
+                      OR (@ip_id IS NOT NULL AND cs.ip_id = CAST(@ip_id AS uuid)))
+              ORDER  BY diag.sno",
+                    new { op_id = hasOp ? opId : null, ip_id = hasIp ? ipId : null, tenant_code })).ToList();
 
-                // Prescription
+                // Prescription — matched by visit directly against op_prescription_master
+                // (which already carries op_id/ip_id), same pattern as GetPrescription()
                 var prMst = await db.QueryFirstOrDefaultAsync<OpPrescriptionMasterModel>(
                     @"SELECT pr_id, pr_code, sheet_id, op_id, ip_id, custid, dcode,
                      visit_date::timestamp AS visit_date,
                      pr_date, topremarks, bottonremarks,
                      is_dispensed, tenant_code, isdeleted, created_at, updated_at
               FROM   op_prescription_master
-              WHERE  sheet_id    = @sheet_id
+              WHERE  ((@op_id IS NOT NULL AND op_id = CAST(@op_id AS uuid))
+                      OR (@ip_id IS NOT NULL AND ip_id = CAST(@ip_id AS uuid)))
               AND    tenant_code = @tenant_code
               AND    isdeleted   = false
               ORDER  BY created_at DESC
               LIMIT  1",
-                    new { sheet_id = s.sheet_id, tenant_code });
+                    new { op_id = hasOp ? opId : null, ip_id = hasIp ? ipId : null, tenant_code });
 
                 if (prMst != null)
                 {
@@ -1020,19 +1054,20 @@ namespace medico_backend.Class
                     };
                 }
 
-                // Investigation
+                // Investigation — matched by visit directly against op_investigation_master
                 var invMst = await db.QueryFirstOrDefaultAsync<OpInvestigationMasterModel>(
                     @"SELECT inv_id, inv_code, sheet_id, op_id, ip_id, custid, dcode,
                      visit_date::timestamp AS visit_date,
                      inv_date, notes, is_urgent, status,
                      tenant_code, isdeleted, created_at, updated_at
               FROM   op_investigation_master
-              WHERE  sheet_id    = @sheet_id
+              WHERE  ((@op_id IS NOT NULL AND op_id = CAST(@op_id AS uuid))
+                      OR (@ip_id IS NOT NULL AND ip_id = CAST(@ip_id AS uuid)))
               AND    tenant_code = @tenant_code
               AND    isdeleted   = false
               ORDER  BY created_at DESC
               LIMIT  1",
-                    new { sheet_id = s.sheet_id, tenant_code });
+                    new { op_id = hasOp ? opId : null, ip_id = hasIp ? ipId : null, tenant_code });
 
                 if (invMst != null)
                 {
