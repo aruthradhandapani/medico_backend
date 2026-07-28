@@ -1360,28 +1360,7 @@ namespace medico_backend.InventoryController
          Data = data
      });
  }
- [HttpDelete("deletesales")]
- public async Task<IActionResult> DeleteSales(long salescode)
- {
-     try
-     {
-         var result = await itemclass.DeleteSales(salescode);
 
-         return Ok(new
-         {
-             Status = "Success",
-             Message = result
-         });
-     }
-     catch (Exception ex)
-     {
-         return BadRequest(new
-         {
-             Status = "Error",
-             Message = ex.Message
-         });
-     }
- }
   [HttpPost("upsertwarehouse")]
  public async Task<IActionResult> Upsert([FromBody] warehouse_master warehouse)
  {
