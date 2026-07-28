@@ -216,18 +216,29 @@ namespace medico_backend.Class
         // ─────────────────────────────────────────
         // GET ALL (with filters)
         // ─────────────────────────────────────────
-        public async Task<List<IpRegistrationModel>> GetAll(
-            string tenant_code, string? ip_status = null, int? dcode = null)
+        // Same shape as IpRegistrationModel plus joined patient display fields.
+        public class IpRegistrationListModel : IpRegistrationModel
+        {
+            public string? patient_name { get; set; }
+            public string? mobile { get; set; }
+        }
+        public async Task<List<IpRegistrationListModel>> GetAll(
+    string tenant_code, string? ip_status = null, int? dcode = null)
         {
             using IDbConnection db = new NpgsqlConnection(_db_conn);
 
-            string sql = @"SELECT * FROM ip_registration
-                           WHERE isdeleted = false AND tenant_code = @tenant_code
-                           AND (@ip_status IS NULL OR ip_status = @ip_status)
-                           AND (@dcode IS NULL OR dcode = @dcode)
-                           ORDER BY admitdate DESC";
+            string sql = @"SELECT
+                        i.*,
+                        c.name AS patient_name,
+                        c.mobile
+                   FROM ip_registration i
+                   LEFT JOIN customerdb.customer_master c ON c.custid = i.custid
+                   WHERE i.isdeleted = false AND i.tenant_code = @tenant_code
+                   AND (@ip_status IS NULL OR i.ip_status = @ip_status)
+                   AND (@dcode IS NULL OR i.dcode = @dcode)
+                   ORDER BY i.admitdate DESC";
 
-            var res = await db.QueryAsync<IpRegistrationModel>(sql, new { tenant_code, ip_status = ip_status?.ToUpper(), dcode });
+            var res = await db.QueryAsync<IpRegistrationListModel>(sql, new { tenant_code, ip_status = ip_status?.ToUpper(), dcode });
             return res.ToList();
         }
 
