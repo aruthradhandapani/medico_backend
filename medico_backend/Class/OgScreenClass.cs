@@ -266,6 +266,7 @@ END AS vitals_status,
                             AND o.dcode = v.dcode
                             AND o.og_token_no = v.token_no
                             AND o.deleted = false
+                            AND o.created_at::date = v.entered_date::date
         WHERE v.tenant_code = @tenant_code
         AND {DoctorFilter}
         AND v.deleted = false
@@ -523,27 +524,6 @@ END AS vitals_status,
         // ─────────────────────────────────────────
         // DELETE (soft delete)
         // ─────────────────────────────────────────
-        public async Task<string> Delete(int ogentryid, string tenant_code)
-        {
-            try
-            {
-                using IDbConnection db = new NpgsqlConnection(db_conn);
-
-                string sql = @"
-                    UPDATE og_queue
-                    SET deleted = true,
-                        updated_at = @updated_at
-                    WHERE ogentryid = @ogentryid
-                    AND tenant_code = @tenant_code";
-
-                var rows = await db.ExecuteAsync(sql, new { ogentryid, tenant_code, updated_at = DateTime.UtcNow });
-                return rows > 0 ? "Success" : "Record not found";
-            }
-            catch (Exception ex)
-            {
-                return ex.Message;
-            }
-        }
         public async Task<IEnumerable<dynamic>> GetMergedList(string tenant_code, string? name, DateTime? date, string? status, string? list_type)
         {
             using IDbConnection db = new NpgsqlConnection(db_conn);
@@ -579,6 +559,7 @@ LEFT JOIN og_queue o ON o.tenant_code = v.tenant_code
                     AND o.dcode = v.dcode
                     AND o.og_token_no = v.token_no
                     AND o.deleted = false
+                    AND o.created_at::date = v.entered_date::date
 WHERE v.tenant_code = @tenant_code
 AND {PendingLabScanFilter}
 AND v.deleted = false
@@ -618,6 +599,7 @@ LEFT JOIN og_queue o ON o.tenant_code = v.tenant_code
                     AND o.dcode = v.dcode
                     AND o.og_token_no = v.token_no
                     AND o.deleted = false
+                    AND o.created_at::date = v.entered_date::date
 WHERE v.tenant_code = @tenant_code
 AND {DoctorFilter}
 AND v.deleted = false
