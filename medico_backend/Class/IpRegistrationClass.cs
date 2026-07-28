@@ -221,6 +221,8 @@ namespace medico_backend.Class
         {
             public string? patient_name { get; set; }
             public string? mobile { get; set; }
+
+            public bool? isvip { get; set; }
         }
         public async Task<List<IpRegistrationListModel>> GetAll(
     string tenant_code, string? ip_status = null, int? dcode = null)
@@ -230,7 +232,8 @@ namespace medico_backend.Class
             string sql = @"SELECT
                         i.*,
                         c.name AS patient_name,
-                        c.mobile
+                        c.mobile,
+                        c.isvip
                    FROM ip_registration i
                    LEFT JOIN customerdb.customer_master c ON c.custid = i.custid
                    WHERE i.isdeleted = false AND i.tenant_code = @tenant_code

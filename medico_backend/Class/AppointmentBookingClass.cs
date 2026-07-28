@@ -418,6 +418,8 @@ VALUES
         {
             public string? patient_name { get; set; }
             public string? mobile { get; set; }
+
+            public bool? isvip { get; set; }
         }
         public async Task<List<AppointmentBookingListModel>> GetAll(string tenant_code)
         {
@@ -434,7 +436,8 @@ VALUES
                         b.created_at AT TIME ZONE 'UTC' AS created_at,
                         b.updated_at AT TIME ZONE 'UTC' AS updated_at,
                         c.name AS patient_name,
-                        c.mobile
+                        c.mobile,
+                        c.isvip
                    FROM   appointment_booking b
                    LEFT JOIN customerdb.customer_master c ON c.custid = b.custid
                    WHERE  b.isdeleted   = false

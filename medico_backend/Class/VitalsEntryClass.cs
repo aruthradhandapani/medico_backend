@@ -404,6 +404,7 @@ namespace Medico_Backend.Class
                     v.vitalentryid,
                     v.tenant_code,
                     v.token_no,
+                    c.isvip,
                     v.custcode,
                     c.name AS patient_name,
                     v.dcode,

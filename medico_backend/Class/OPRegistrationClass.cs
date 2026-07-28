@@ -313,7 +313,8 @@ namespace medico_backend.Class
         SELECT
             o.*,
             c.name AS patient_name,
-            c.mobile
+            c.mobile,
+            c.isvip
         FROM op_registration o
         LEFT JOIN customerdb.customer_master c ON c.custid = o.custid
         WHERE o.isdeleted = false
@@ -342,6 +343,8 @@ namespace medico_backend.Class
         {
             public string? patient_name { get; set; }
             public string? mobile { get; set; }
+
+            public bool? isvip { get; set; }
         }
 
         // ─────────────────────────────────────────
