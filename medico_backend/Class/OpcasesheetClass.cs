@@ -298,19 +298,16 @@ namespace medico_backend.Class
             }
         }
 
-        // ─────────────────────────────────────────────────────────
-        // SAVE PRESCRIPTION
-        // ─────────────────────────────────────────────────────────
         private async Task<string> SavePrescription(
-            IDbConnection db,
-            IDbTransaction tx,
-            CaseSheetPrescriptionRequest req,
-            Guid sheetId,
-            string? op_id,
-            string? ip_id,
-            decimal custid,
-            int dcode,
-            string tenant_code)
+    IDbConnection db,
+    IDbTransaction tx,
+    CaseSheetPrescriptionRequest req,
+    Guid sheetId,
+    string? op_id,
+    string? ip_id,
+    decimal custid,
+    int dcode,
+    string tenant_code)
         {
             bool isNew = string.IsNullOrWhiteSpace(req.pr_code);
             string prCode = isNew
@@ -324,23 +321,23 @@ namespace medico_backend.Class
                 prId = Guid.NewGuid();
                 await db.ExecuteAsync(
                     @"INSERT INTO op_prescription_master
-                      (pr_id, pr_code, sheet_id, op_id, ip_id, custid, dcode, visit_date,
-                       pr_date, topremarks, bottonremarks,
-                       is_dispensed, tenant_code, isdeleted, created_at, updated_at)
-                      VALUES
-                      (@pr_id, @pr_code, @sheet_id, CAST(@op_id AS uuid), CAST(@ip_id AS uuid),
-                       @custid, @dcode, NOW()::date,
-                       NOW(), @topremarks, @bottonremarks,
-                       false, @tenant_code, false, NOW(), NOW())",
+              (pr_id, pr_code, sheet_id, op_id, ip_id, custid, dcode, visit_date,
+               pr_date, topremarks, bottonremarks,
+               is_dispensed, tenant_code, isdeleted, created_at, updated_at)
+              VALUES
+              (@pr_id, @pr_code, @sheet_id, CAST(@op_id AS uuid), CAST(@ip_id AS uuid),
+               @custid, @dcode, NOW()::date,
+               NOW(), @topremarks, @bottonremarks,
+               false, @tenant_code, false, NOW(), NOW())",
                     new { pr_id = prId, pr_code = prCode, sheet_id = sheetId, op_id, ip_id, custid, dcode, req.topremarks, req.bottonremarks, tenant_code }, tx);
             }
             else
             {
                 var mst = await db.QueryFirstOrDefaultAsync(
                     @"SELECT pr_id FROM op_prescription_master
-                      WHERE  pr_code     = @pr_code
-                      AND    tenant_code = @tenant_code
-                      AND    isdeleted   = false",
+              WHERE  pr_code     = @pr_code
+              AND    tenant_code = @tenant_code
+              AND    isdeleted   = false",
                     new { pr_code = prCode, tenant_code }, tx);
 
                 if (mst == null) throw new Exception("Prescription not found for update");
@@ -348,14 +345,27 @@ namespace medico_backend.Class
 
                 await db.ExecuteAsync(
                     @"UPDATE op_prescription_master
-                      SET    topremarks    = @topremarks,
-                             bottonremarks = @bottonremarks,
-                             updated_at    = NOW()
-                      WHERE  pr_code       = @pr_code
-                      AND    tenant_code   = @tenant_code
-                      AND    isdeleted     = false",
+              SET    topremarks    = @topremarks,
+                     bottonremarks = @bottonremarks,
+                     updated_at    = NOW()
+              WHERE  pr_code       = @pr_code
+              AND    tenant_code   = @tenant_code",
                     new { pr_code = prCode, req.topremarks, req.bottonremarks, tenant_code }, tx);
             }
+
+            // Clear stale unbilled PRESCRIPTION rows for this visit BEFORE deleting
+            // op_prescription_detail (only pending/unbilled ones — already-billed
+            // rows are untouched since they belong to a bill already generated)
+            await db.ExecuteAsync(
+                @"DELETE FROM unbilledcharges
+          WHERE entrytype = 'PRESCRIPTION'
+          AND (
+                (@op_id IS NOT NULL AND opvisitid = @op_id)
+             OR (@ip_id IS NOT NULL AND ip_id = CAST(@ip_id AS uuid))
+              )
+          AND tenant_code = @tenant_code
+          AND (billedstatus = false OR billedstatus IS NULL)",
+                new { op_id, ip_id, tenant_code }, tx);
 
             // Delete + re-insert detail lines
             await db.ExecuteAsync(
@@ -368,23 +378,26 @@ namespace medico_backend.Class
                     ? null
                     : Guid.Parse(item.diag_id);
 
+                Guid prDetId = Guid.NewGuid();   // generated here so we can link unbilledcharges
+
                 await db.ExecuteAsync(
                     @"INSERT INTO op_prescription_detail
-                      (pr_det_id, pr_id, pr_code, diag_id, sno,
-                       drug_name, drug_code, generic_name, drug_category,
-                       morning, afternoon, evening, night,
-                       before_food, after_food, days, qty, route,
-                       rate, mrp, is_billed, notes,
-                       tenant_code, isdeleted, created_at)
-                      VALUES
-                      (gen_random_uuid(), @pr_id, @pr_code, @diag_id, @sno,
-                       @drug_name, @drug_code, @generic_name, @drug_category,
-                       @morning, @afternoon, @evening, @night,
-                       @before_food, @after_food, @days, @qty, @route,
-                       @rate, @mrp, false, @notes,
-                       @tenant_code, false, NOW())",
+              (pr_det_id, pr_id, pr_code, diag_id, sno,
+               drug_name, drug_code, generic_name, drug_category,
+               morning, afternoon, evening, night,
+               before_food, after_food, days, qty, route,
+               rate, mrp, is_billed, notes,
+               tenant_code, isdeleted, created_at)
+              VALUES
+              (@pr_det_id, @pr_id, @pr_code, @diag_id, @sno,
+               @drug_name, @drug_code, @generic_name, @drug_category,
+               @morning, @afternoon, @evening, @night,
+               @before_food, @after_food, @days, @qty, @route,
+               @rate, @mrp, false, @notes,
+               @tenant_code, false, NOW())",
                     new
                     {
+                        pr_det_id = prDetId,
                         pr_id = prId,
                         pr_code = prCode,
                         diag_id = diagId,
@@ -407,6 +420,14 @@ namespace medico_backend.Class
                         item.notes,
                         tenant_code
                     }, tx);
+
+                // Push into unbilledcharges so it shows up on the billing screen
+                await _unbilledCls.AddPrescriptionChargeRow(
+                    db, tx, op_id,
+                    string.IsNullOrWhiteSpace(ip_id) ? (Guid?)null : Guid.Parse(ip_id),
+                    custid, tenant_code,
+                    prDetId.ToString(), item.drug_code, item.qty, item.rate,
+                    (item.rate ?? 0) * (item.qty ?? 0));
             }
 
             return prCode;
