@@ -877,7 +877,12 @@ namespace medico_backend.Class
            (COALESCE(m.discountamount,0) + COALESCE(m.specialdiscount,0)) as discount_amount,
            m.totalamount as net_amount, m.paidamount as paid_amount, 
            m.enteredbhcode, m.cntcode,
-           m.opvisitid, m.dateofbirth, m.dcode
+           m.opvisitid, m.dateofbirth, m.dcode,
+           CASE 
+             WHEN m.ip_id IS NOT NULL THEN 'IP' 
+             WHEN m.opvisitid IS NOT NULL THEN 'OP' 
+             ELSE 'LAB' 
+           END as type
     FROM lab_request_master m
     {queryConditions}
     ORDER BY m.requestdatetime DESC 
