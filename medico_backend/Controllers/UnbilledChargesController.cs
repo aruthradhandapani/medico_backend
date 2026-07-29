@@ -89,7 +89,7 @@ namespace medico_backend.Controllers
         [HttpGet("room-testgroup-breakdown")]
         public async Task<IActionResult> RoomTestGroupBreakdown(int rmtcode)
         {
-            var tenant = Request.Headers["tenant_code"].ToString();
+            var tenant = Request.Headers["tenant_code"].ToString(); 
             if (string.IsNullOrWhiteSpace(tenant)) return BadRequest("tenant_code header is required");
             return Ok(await cls.GetTestGroupBreakdown(rmtcode, tenant));
         }

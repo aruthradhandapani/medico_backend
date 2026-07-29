@@ -408,31 +408,6 @@ namespace medico_backend.Class
           ORDER BY chargedate",
                 new { tenant_code, op_id, ip_id });
             return rows.ToList();
-        }
-        // ── Add prescription drug charges (called from case sheet save, same tx) ──
-        public async Task AddPrescriptionChargeRow(
-            IDbConnection db, IDbTransaction tx, string? op_id, Guid? ip_id, decimal custid, string tenant_code,
-            string entryId, decimal? drugCode, decimal? quantity, decimal? rate, decimal? amount)
-        {
-            var row = new UnbilledChargeRow
-            {
-                unbilledid = Guid.NewGuid().ToString(),
-                entrytype = "PRESCRIPTION",
-                entryid = entryId,
-                chargedate = DateTime.UtcNow,
-                custid = custid,
-                opvisitid = op_id,
-                ip_id = ip_id,
-                tcode = drugCode.HasValue ? (int?)drugCode.Value : null,
-                quantity = (double?)quantity,
-                rate = (double?)rate,
-                amount = (double?)amount,
-                discount = 0,
-                charityamount = 0,
-                billedstatus = false,
-                tenant_code = tenant_code
-            };
-            await db.InsertAsync(row, tx);
-        }
+        }        
     }
 }

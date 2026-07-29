@@ -2678,7 +2678,7 @@ namespace medico_backend.InventoryClass
 
             return list;
         }
-              public async Task<string> InsertSales(sales_request request)
+        public async Task<string> InsertSales(sales_request request)
         {
             using (var conn = new NpgsqlConnection(con))
             {
@@ -2970,7 +2970,7 @@ WHERE stockcode=@stockcode;";
                 }
             }
         }
-              public async Task<IEnumerable<sales_request>> GetSales()
+        public async Task<IEnumerable<sales_request>> GetSales()
         {
             using (var conn = new NpgsqlConnection(con))
             {
@@ -3408,7 +3408,7 @@ ORDER BY salesdetailcode;";
                 throw new Exception("Purchase return failed: " + ex.Message);
             }
         }
-                public async Task<long> InsertSalesReturn(sales_return_request request)
+        public async Task<long> InsertSalesReturn(sales_return_request request)
         {
             using IDbConnection db = new NpgsqlConnection(con);
             db.Open();
@@ -3560,8 +3560,8 @@ RETURNING salesreturncode;",
                 throw new Exception("Sales Return Failed : " + ex.Message);
             }
         }
-              public async Task<IEnumerable<sales_return_lookup_result>> GetSalesReturnLookup(
-     long itemcode, string? batchno, string tenantcode)
+        public async Task<IEnumerable<sales_return_lookup_result>> GetSalesReturnLookup(
+long itemcode, string? batchno, string tenantcode)
         {
             using IDbConnection db = new NpgsqlConnection(con);
 
@@ -3602,6 +3602,133 @@ ORDER BY sd.salesdetailcode DESC;";
                     tenantcode
                 });
         }
+
+        // ─── PHARMACY QUEUE (prescription → pharmacy dispensing) ───────────────────────
+
+        public async Task<string> ReceivePrescription(ReceivePrescriptionRequest req, string tenant_code)
+        {
+            if (req.items == null || !req.items.Any())
+                return "Success|Inserted:0";
+
+            try
+            {
+                using IDbConnection db = new NpgsqlConnection(con);
+                db.Open();
+                using var tx = db.BeginTransaction();
+
+                int inserted = 0;
+
+                foreach (var item in req.items)
+                {
+                    var match = await db.QueryFirstOrDefaultAsync<dynamic>(
+                        @"SELECT itemcode, itemname FROM item_master
+                  WHERE deleted = false AND tenantcode = @tenant_code
+                  AND itemname ILIKE @drug_name
+                  LIMIT 1",
+                        new { tenant_code, drug_name = item.drug_name }, tx);
+
+                    if (match == null)
+                    {
+                        match = await db.QueryFirstOrDefaultAsync<dynamic>(
+                            @"SELECT itemcode, itemname FROM item_master
+                      WHERE deleted = false AND tenantcode = @tenant_code
+                      AND itemname ILIKE @pattern
+                      LIMIT 1",
+                            new { tenant_code, pattern = $"%{item.drug_name}%" }, tx);
+                    }
+
+                    var row = new PharmacyPrescriptionQueueRow
+                    {
+                        pr_det_id = string.IsNullOrWhiteSpace(item.pr_det_id) ? null : Guid.Parse(item.pr_det_id),
+                        pr_code = req.pr_code,
+                        sheet_id = string.IsNullOrWhiteSpace(req.sheet_id) ? null : Guid.Parse(req.sheet_id),
+                        op_id = string.IsNullOrWhiteSpace(req.op_id) ? null : Guid.Parse(req.op_id),
+                        ip_id = string.IsNullOrWhiteSpace(req.ip_id) ? null : Guid.Parse(req.ip_id),
+                        custid = req.custid,
+                        drug_name = item.drug_name,
+                        matched_itemcode = match != null ? (long?)match.itemcode : null,
+                        matched_itemname = match != null ? (string)match.itemname : null,
+                        qty = item.qty,
+                        morning = item.morning,
+                        afternoon = item.afternoon,
+                        evening = item.evening,
+                        night = item.night,
+                        before_food = item.before_food,
+                        after_food = item.after_food,
+                        days = item.days,
+                        route = item.route,
+                        notes = item.notes,
+                        status = match != null ? "MATCHED" : "PENDING",
+                        tenant_code = tenant_code
+                    };
+
+                    await db.InsertAsync(row, tx);
+                    inserted++;
+                }
+
+                tx.Commit();
+                return $"Success|Inserted:{inserted}";
+            }
+            catch (Exception ex) { return ex.Message; }
+        }
+
+        public async Task<List<PharmacyPrescriptionQueueRow>> GetPharmacyQueue(string tenant_code, string? status = null)
+        {
+            using IDbConnection db = new NpgsqlConnection(con);
+            var rows = await db.QueryAsync<PharmacyPrescriptionQueueRow>(
+                @"SELECT * FROM pharmacy_prescription_queue
+          WHERE tenant_code = @tenant_code
+          AND (@status IS NULL OR status = @status)
+          ORDER BY created_at DESC",
+                new { tenant_code, status });
+            return rows.ToList();
+        }
+
+        // Groups all queue rows for a patient by prescription, so a 2-3 drug prescription
+        // shows as ONE list, not 2-3 separate rows the pharmacist has to piece together.
+        public async Task<List<PharmacyQueueGroup>> GetPharmacyQueueByCustId(
+            decimal custid, string tenant_code, string? status = null)
+        {
+            using IDbConnection db = new NpgsqlConnection(con);
+            var rows = (await db.QueryAsync<PharmacyPrescriptionQueueRow>(
+                @"SELECT * FROM pharmacy_prescription_queue
+          WHERE custid = @custid AND tenant_code = @tenant_code
+          AND (@status IS NULL OR status = @status)
+          ORDER BY created_at DESC",
+                new { custid, tenant_code, status })).ToList();
+
+            return rows
+                .GroupBy(r => new { r.pr_code, r.sheet_id })
+                .Select(g => new PharmacyQueueGroup
+                {
+                    custid = custid,
+                    pr_code = g.Key.pr_code,
+                    sheet_id = g.Key.sheet_id,
+                    op_id = g.First().op_id,
+                    ip_id = g.First().ip_id,
+                    items = g.ToList()
+                })
+                .OrderByDescending(g => g.items.Max(i => i.created_at))
+                .ToList();
+        }
+
+        // Generic status update — covers "buy 2 of 3" partial-dispense workflows too,
+        // since you can flip individual queue rows independently (each drug is its own row).
+        public async Task<string> UpdatePharmacyQueueStatus(Guid queue_id, string status, string tenant_code)
+        {
+            var allowed = new[] { "PENDING", "MATCHED", "DISPENSED", "CANCELLED" };
+            if (!allowed.Contains(status, StringComparer.OrdinalIgnoreCase))
+                return $"Invalid status. Allowed: {string.Join(", ", allowed)}";
+
+            using IDbConnection db = new NpgsqlConnection(con);
+            int rows = await db.ExecuteAsync(
+                @"UPDATE pharmacy_prescription_queue
+          SET status = @status, updated_at = NOW()
+          WHERE queue_id = @queue_id AND tenant_code = @tenant_code",
+                new { status = status.ToUpper(), queue_id, tenant_code });
+
+            return rows > 0 ? "Success" : "Queue item not found";
+        }
     }
-}    
+}
 

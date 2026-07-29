@@ -1,5 +1,7 @@
 ﻿using Amazon.S3.Model;
 using Dapper;
+using medico_backend.InventoryClass;
+using medico_backend.InventoryModel;
 using medico_backend.Model;
 using Npgsql;
 using System.Data;
@@ -11,11 +13,13 @@ namespace medico_backend.Class
     {
         private readonly string _db_conn;
         private readonly UnbilledChargesClass _unbilledCls;
+        private readonly ItemMasterClass _itemMasterCls;   
 
-        public NewOPCaseSheetClass(IConfiguration configuration, UnbilledChargesClass unbilledCls)
+        public NewOPCaseSheetClass(IConfiguration configuration, UnbilledChargesClass unbilledCls, ItemMasterClass itemMasterCls)
         {
             _db_conn = configuration.GetConnectionString("conn")!;
             _unbilledCls = unbilledCls;
+            _itemMasterCls = itemMasterCls;   
         }
 
         // ─────────────────────────────────────────────────────────
@@ -353,20 +357,6 @@ namespace medico_backend.Class
                     new { pr_code = prCode, req.topremarks, req.bottonremarks, tenant_code }, tx);
             }
 
-            // Clear stale unbilled PRESCRIPTION rows for this visit BEFORE deleting
-            // op_prescription_detail (only pending/unbilled ones — already-billed
-            // rows are untouched since they belong to a bill already generated)
-            await db.ExecuteAsync(
-                @"DELETE FROM unbilledcharges
-          WHERE entrytype = 'PRESCRIPTION'
-          AND (
-                (@op_id IS NOT NULL AND opvisitid = @op_id)
-             OR (@ip_id IS NOT NULL AND ip_id = CAST(@ip_id AS uuid))
-              )
-          AND tenant_code = @tenant_code
-          AND (billedstatus = false OR billedstatus IS NULL)",
-                new { op_id, ip_id, tenant_code }, tx);
-
             // Delete + re-insert detail lines
             await db.ExecuteAsync(
                 "DELETE FROM op_prescription_detail WHERE pr_id = @pr_id",
@@ -421,13 +411,7 @@ namespace medico_backend.Class
                         tenant_code
                     }, tx);
 
-                // Push into unbilledcharges so it shows up on the billing screen
-                await _unbilledCls.AddPrescriptionChargeRow(
-                    db, tx, op_id,
-                    string.IsNullOrWhiteSpace(ip_id) ? (Guid?)null : Guid.Parse(ip_id),
-                    custid, tenant_code,
-                    prDetId.ToString(), item.drug_code, item.qty, item.rate,
-                    (item.rate ?? 0) * (item.qty ?? 0));
+               
             }
 
             return prCode;
@@ -588,7 +572,69 @@ namespace medico_backend.Class
                       AND    isdeleted     = false",
                     new { req.sheet_id, req.is_consulted, tenant_code });
 
-                return rows > 0 ? "Success" : "Case sheet not found";
+                if (rows == 0) return "Case sheet not found";
+
+                // ── Push prescription to pharmacy (best-effort; won't undo finalize) ──
+                var prMst = await db.QueryFirstOrDefaultAsync<OpPrescriptionMasterModel>(
+                    @"SELECT pr_id, pr_code, sheet_id, op_id, ip_id, custid, dcode,
+                     visit_date::timestamp AS visit_date,
+                     pr_date, topremarks, bottonremarks,
+                     is_dispensed, tenant_code, isdeleted, created_at, updated_at
+              FROM   op_prescription_master
+              WHERE  sheet_id    = CAST(@sheet_id AS uuid)
+              AND    tenant_code = @tenant_code
+              AND    isdeleted   = false
+              ORDER  BY created_at DESC
+              LIMIT  1",
+                    new { req.sheet_id, tenant_code });
+
+                if (prMst != null)
+                {
+                    var items = (await db.QueryAsync<OpPrescriptionDetailModel>(
+                        @"SELECT * FROM op_prescription_detail
+                  WHERE  pr_id     = @pr_id
+                  AND    isdeleted = false
+                  ORDER  BY sno",
+                        new { pr_id = prMst.pr_id })).ToList();
+
+                    if (items.Any())
+                    {
+                        var pharmacyReq = new ReceivePrescriptionRequest
+                        {
+                            custid = prMst.custid,
+                            op_id = prMst.op_id?.ToString(),
+                            ip_id = prMst.ip_id?.ToString(),
+                            sheet_id = prMst.sheet_id?.ToString(),
+                            pr_code = prMst.pr_code,
+                            items = items.Select(i => new PrescriptionQueueItem
+                            {
+                                pr_det_id = i.pr_det_id.ToString(),
+                                drug_name = i.drug_name,
+                                qty = i.qty ?? 0,
+                                morning = i.morning,
+                                afternoon = i.afternoon,
+                                evening = i.evening,
+                                night = i.night,
+                                before_food = i.before_food,
+                                after_food = i.after_food,
+                                days = i.days,
+                                route = i.route,
+                                notes = i.notes
+                            }).ToList()
+                        };
+
+                        try
+                        {
+                            await _itemMasterCls.ReceivePrescription(pharmacyReq, tenant_code);
+                        }
+                        catch
+                        {
+                            // Finalize already succeeded — don't block the doctor on a pharmacy hiccup.
+                        }
+                    }
+                }
+
+                return "Success";
             }
             catch (Exception ex) { return ex.Message; }
         }
