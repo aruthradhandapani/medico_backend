@@ -169,17 +169,6 @@ builder.Services.AddScoped<AppointmentPreBookingClass>();
 builder.Services.AddScoped<AppointmentPreBookingController>();
 builder.Services.AddScoped<DoctorGroupMasterClass>();
 builder.Services.AddScoped<DoctorGroupMasterController>();
-<<<<<<< HEAD
-builder.Services.AddScoped<LabResultClass>();
-builder.Services.AddScoped<LabResultController>();
-builder.Services.AddScoped<LabSettingClass>();
-builder.Services.AddScoped<LabSettingController>();
-builder.Services.AddScoped<LabSampleCollectionClass>();
-builder.Services.AddScoped<LabSampleCollectionController>();
-=======
-builder.Services.AddScoped<DashboardClass>();
-builder.Services.AddScoped<DashboardController>(); 
->>>>>>> 4f64b2bbdf09e9a189bd5073bf8c5346c4b55699
 
 builder.Services.AddSingleton<IAmazonS3>(sp =>
 {
