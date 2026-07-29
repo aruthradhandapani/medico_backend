@@ -1,5 +1,7 @@
 ﻿using Amazon.S3.Model;
 using Dapper;
+using medico_backend.InventoryClass;
+using medico_backend.InventoryModel;
 using medico_backend.Model;
 using Npgsql;
 using System.Data;
@@ -11,11 +13,13 @@ namespace medico_backend.Class
     {
         private readonly string _db_conn;
         private readonly UnbilledChargesClass _unbilledCls;
+        private readonly ItemMasterClass _itemMasterCls;   
 
-        public NewOPCaseSheetClass(IConfiguration configuration, UnbilledChargesClass unbilledCls)
+        public NewOPCaseSheetClass(IConfiguration configuration, UnbilledChargesClass unbilledCls, ItemMasterClass itemMasterCls)
         {
             _db_conn = configuration.GetConnectionString("conn")!;
             _unbilledCls = unbilledCls;
+            _itemMasterCls = itemMasterCls;   
         }
 
         // ─────────────────────────────────────────────────────────
@@ -298,19 +302,16 @@ namespace medico_backend.Class
             }
         }
 
-        // ─────────────────────────────────────────────────────────
-        // SAVE PRESCRIPTION
-        // ─────────────────────────────────────────────────────────
         private async Task<string> SavePrescription(
-            IDbConnection db,
-            IDbTransaction tx,
-            CaseSheetPrescriptionRequest req,
-            Guid sheetId,
-            string? op_id,
-            string? ip_id,
-            decimal custid,
-            int dcode,
-            string tenant_code)
+    IDbConnection db,
+    IDbTransaction tx,
+    CaseSheetPrescriptionRequest req,
+    Guid sheetId,
+    string? op_id,
+    string? ip_id,
+    decimal custid,
+    int dcode,
+    string tenant_code)
         {
             bool isNew = string.IsNullOrWhiteSpace(req.pr_code);
             string prCode = isNew
@@ -324,23 +325,23 @@ namespace medico_backend.Class
                 prId = Guid.NewGuid();
                 await db.ExecuteAsync(
                     @"INSERT INTO op_prescription_master
-                      (pr_id, pr_code, sheet_id, op_id, ip_id, custid, dcode, visit_date,
-                       pr_date, topremarks, bottonremarks,
-                       is_dispensed, tenant_code, isdeleted, created_at, updated_at)
-                      VALUES
-                      (@pr_id, @pr_code, @sheet_id, CAST(@op_id AS uuid), CAST(@ip_id AS uuid),
-                       @custid, @dcode, NOW()::date,
-                       NOW(), @topremarks, @bottonremarks,
-                       false, @tenant_code, false, NOW(), NOW())",
+              (pr_id, pr_code, sheet_id, op_id, ip_id, custid, dcode, visit_date,
+               pr_date, topremarks, bottonremarks,
+               is_dispensed, tenant_code, isdeleted, created_at, updated_at)
+              VALUES
+              (@pr_id, @pr_code, @sheet_id, CAST(@op_id AS uuid), CAST(@ip_id AS uuid),
+               @custid, @dcode, NOW()::date,
+               NOW(), @topremarks, @bottonremarks,
+               false, @tenant_code, false, NOW(), NOW())",
                     new { pr_id = prId, pr_code = prCode, sheet_id = sheetId, op_id, ip_id, custid, dcode, req.topremarks, req.bottonremarks, tenant_code }, tx);
             }
             else
             {
                 var mst = await db.QueryFirstOrDefaultAsync(
                     @"SELECT pr_id FROM op_prescription_master
-                      WHERE  pr_code     = @pr_code
-                      AND    tenant_code = @tenant_code
-                      AND    isdeleted   = false",
+              WHERE  pr_code     = @pr_code
+              AND    tenant_code = @tenant_code
+              AND    isdeleted   = false",
                     new { pr_code = prCode, tenant_code }, tx);
 
                 if (mst == null) throw new Exception("Prescription not found for update");
@@ -348,12 +349,11 @@ namespace medico_backend.Class
 
                 await db.ExecuteAsync(
                     @"UPDATE op_prescription_master
-                      SET    topremarks    = @topremarks,
-                             bottonremarks = @bottonremarks,
-                             updated_at    = NOW()
-                      WHERE  pr_code       = @pr_code
-                      AND    tenant_code   = @tenant_code
-                      AND    isdeleted     = false",
+              SET    topremarks    = @topremarks,
+                     bottonremarks = @bottonremarks,
+                     updated_at    = NOW()
+              WHERE  pr_code       = @pr_code
+              AND    tenant_code   = @tenant_code",
                     new { pr_code = prCode, req.topremarks, req.bottonremarks, tenant_code }, tx);
             }
 
@@ -368,23 +368,26 @@ namespace medico_backend.Class
                     ? null
                     : Guid.Parse(item.diag_id);
 
+                Guid prDetId = Guid.NewGuid();   // generated here so we can link unbilledcharges
+
                 await db.ExecuteAsync(
                     @"INSERT INTO op_prescription_detail
-                      (pr_det_id, pr_id, pr_code, diag_id, sno,
-                       drug_name, drug_code, generic_name, drug_category,
-                       morning, afternoon, evening, night,
-                       before_food, after_food, days, qty, route,
-                       rate, mrp, is_billed, notes,
-                       tenant_code, isdeleted, created_at)
-                      VALUES
-                      (gen_random_uuid(), @pr_id, @pr_code, @diag_id, @sno,
-                       @drug_name, @drug_code, @generic_name, @drug_category,
-                       @morning, @afternoon, @evening, @night,
-                       @before_food, @after_food, @days, @qty, @route,
-                       @rate, @mrp, false, @notes,
-                       @tenant_code, false, NOW())",
+              (pr_det_id, pr_id, pr_code, diag_id, sno,
+               drug_name, drug_code, generic_name, drug_category,
+               morning, afternoon, evening, night,
+               before_food, after_food, days, qty, route,
+               rate, mrp, is_billed, notes,
+               tenant_code, isdeleted, created_at)
+              VALUES
+              (@pr_det_id, @pr_id, @pr_code, @diag_id, @sno,
+               @drug_name, @drug_code, @generic_name, @drug_category,
+               @morning, @afternoon, @evening, @night,
+               @before_food, @after_food, @days, @qty, @route,
+               @rate, @mrp, false, @notes,
+               @tenant_code, false, NOW())",
                     new
                     {
+                        pr_det_id = prDetId,
                         pr_id = prId,
                         pr_code = prCode,
                         diag_id = diagId,
@@ -407,6 +410,8 @@ namespace medico_backend.Class
                         item.notes,
                         tenant_code
                     }, tx);
+
+               
             }
 
             return prCode;
@@ -567,7 +572,69 @@ namespace medico_backend.Class
                       AND    isdeleted     = false",
                     new { req.sheet_id, req.is_consulted, tenant_code });
 
-                return rows > 0 ? "Success" : "Case sheet not found";
+                if (rows == 0) return "Case sheet not found";
+
+                // ── Push prescription to pharmacy (best-effort; won't undo finalize) ──
+                var prMst = await db.QueryFirstOrDefaultAsync<OpPrescriptionMasterModel>(
+                    @"SELECT pr_id, pr_code, sheet_id, op_id, ip_id, custid, dcode,
+                     visit_date::timestamp AS visit_date,
+                     pr_date, topremarks, bottonremarks,
+                     is_dispensed, tenant_code, isdeleted, created_at, updated_at
+              FROM   op_prescription_master
+              WHERE  sheet_id    = CAST(@sheet_id AS uuid)
+              AND    tenant_code = @tenant_code
+              AND    isdeleted   = false
+              ORDER  BY created_at DESC
+              LIMIT  1",
+                    new { req.sheet_id, tenant_code });
+
+                if (prMst != null)
+                {
+                    var items = (await db.QueryAsync<OpPrescriptionDetailModel>(
+                        @"SELECT * FROM op_prescription_detail
+                  WHERE  pr_id     = @pr_id
+                  AND    isdeleted = false
+                  ORDER  BY sno",
+                        new { pr_id = prMst.pr_id })).ToList();
+
+                    if (items.Any())
+                    {
+                        var pharmacyReq = new ReceivePrescriptionRequest
+                        {
+                            custid = prMst.custid,
+                            op_id = prMst.op_id?.ToString(),
+                            ip_id = prMst.ip_id?.ToString(),
+                            sheet_id = prMst.sheet_id?.ToString(),
+                            pr_code = prMst.pr_code,
+                            items = items.Select(i => new PrescriptionQueueItem
+                            {
+                                pr_det_id = i.pr_det_id.ToString(),
+                                drug_name = i.drug_name,
+                                qty = i.qty ?? 0,
+                                morning = i.morning,
+                                afternoon = i.afternoon,
+                                evening = i.evening,
+                                night = i.night,
+                                before_food = i.before_food,
+                                after_food = i.after_food,
+                                days = i.days,
+                                route = i.route,
+                                notes = i.notes
+                            }).ToList()
+                        };
+
+                        try
+                        {
+                            await _itemMasterCls.ReceivePrescription(pharmacyReq, tenant_code);
+                        }
+                        catch
+                        {
+                            // Finalize already succeeded — don't block the doctor on a pharmacy hiccup.
+                        }
+                    }
+                }
+
+                return "Success";
             }
             catch (Exception ex) { return ex.Message; }
         }
@@ -918,39 +985,62 @@ namespace medico_backend.Class
         }
 
         // ─────────────────────────────────────────────────────────
-        // GET PATIENT HISTORY (all visits case sheets)
+        // GET PATIENT HISTORY (all visits case sheets) — custid based
+        // One row per visit (op_id, or ip_id when op_id is null). Child data
+        // (symptoms/diagnosis/prescription/investigation) is looked up by the
+        // VISIT (op_id/ip_id), not the exact sheet_id — because duplicate
+        // op_case_sheet rows for the same visit can each hold a different
+        // piece of the data (e.g. prescription on one sheet, investigation
+        // on another). Matching by visit instead of sheet_id ensures nothing
+        // gets silently dropped.
         // ─────────────────────────────────────────────────────────
         public async Task<List<CaseSheetViewModel>> GetPatientHistory(
             decimal custid, string tenant_code, int pageSize = 10, int pageNo = 1)
         {
             using IDbConnection db = new NpgsqlConnection(_db_conn);
 
-            var sheets = (await db.QueryAsync<OpCaseSheetModel>(
-    @"SELECT sheet_id, op_id, ip_id, custid, dcode,
-             visit_date::timestamp AS visit_date,
-             chief_complaint, symptoms, examination,
-             advise, notes,
-             followup_date::timestamp AS followup_date,
-             followup_notes, is_consulted, sheet_status,
-             tenant_code, isdeleted, created_at, updated_at
-      FROM   op_case_sheet
-      WHERE  custid      = @custid
-      AND    tenant_code = @tenant_code
-      AND    isdeleted   = false
-      ORDER  BY visit_date DESC
-      LIMIT  @pageSize OFFSET @offset",
-    new { custid, tenant_code, pageSize, offset = (pageNo - 1) * pageSize }))
-    .ToList();
+            string sheetsSql = @"
+        SELECT * FROM (
+            SELECT DISTINCT ON (COALESCE(s.op_id::text, s.ip_id::text))
+                s.sheet_id, s.op_id, s.ip_id, s.custid, s.dcode,
+                s.visit_date::timestamp AS visit_date,
+                s.chief_complaint, s.symptoms, s.examination,
+                s.advise, s.notes,
+                s.followup_date::timestamp AS followup_date,
+                s.followup_notes, s.is_consulted, s.sheet_status,
+                s.tenant_code, s.isdeleted, s.created_at, s.updated_at,
+                c.name AS patient_name,
+                c.mobile,
+                d.name AS doctor_name
+            FROM   op_case_sheet s
+            LEFT JOIN customerdb.customer_master c ON c.custid = s.custid
+            LEFT JOIN doctor_master d ON d.dcode = s.dcode AND d.tenant_code = s.tenant_code
+            WHERE  s.custid      = @custid
+            AND    s.tenant_code = @tenant_code
+            AND    s.isdeleted   = false
+            ORDER  BY COALESCE(s.op_id::text, s.ip_id::text), s.updated_at DESC
+        ) dedup
+        ORDER BY visit_date DESC
+        LIMIT  @pageSize OFFSET @offset";
+
+            var sheets = (await db.QueryAsync(sheetsSql,
+                new { custid, tenant_code, pageSize, offset = (pageNo - 1) * pageSize })).ToList();
 
             var result = new List<CaseSheetViewModel>();
 
             foreach (var s in sheets)
             {
+                Guid sheetId = (Guid)s.sheet_id;
+                string? opId = s.op_id?.ToString();
+                string? ipId = s.ip_id?.ToString();
+                bool hasOp = !string.IsNullOrWhiteSpace(opId);
+                bool hasIp = !string.IsNullOrWhiteSpace(ipId);
+
                 var vm = new CaseSheetViewModel
                 {
-                    sheet_id = s.sheet_id.ToString(),
-                    op_id = s.op_id?.ToString(),
-                    ip_id = s.ip_id?.ToString(),
+                    sheet_id = sheetId.ToString(),
+                    op_id = opId,
+                    ip_id = ipId,
                     custid = s.custid,
                     dcode = s.dcode,
                     visit_date = s.visit_date,
@@ -965,39 +1055,50 @@ namespace medico_backend.Class
                     sheet_status = s.sheet_status
                 };
 
-                // Symptoms
+                // Symptoms — matched by visit (op_id/ip_id), not just this one sheet_id,
+                // so symptoms saved under a sibling duplicate sheet still show up.
                 vm.symptom_list = (await db.QueryAsync<OpCaseSheetSymptomModel>(
-                    @"SELECT * FROM op_case_sheet_symptoms
-                      WHERE  sheet_id = @sheet_id
-                      ORDER  BY sno",
-                    new { sheet_id = s.sheet_id })).ToList();
+                    @"SELECT sym.* FROM op_case_sheet_symptoms sym
+              JOIN   op_case_sheet cs ON cs.sheet_id = sym.sheet_id
+              WHERE  cs.tenant_code = @tenant_code
+              AND    cs.isdeleted   = false
+              AND    ((@op_id IS NOT NULL AND cs.op_id = CAST(@op_id AS uuid))
+                      OR (@ip_id IS NOT NULL AND cs.ip_id = CAST(@ip_id AS uuid)))
+              ORDER  BY sym.sno",
+                    new { op_id = hasOp ? opId : null, ip_id = hasIp ? ipId : null, tenant_code })).ToList();
 
-                // Diagnosis — FIXED: was referencing undefined "sheet", now uses "s"
+                // Diagnosis — same visit-based match
                 vm.diagnosis_list = (await db.QueryAsync<OpCaseSheetDiagnosisModel>(
-    @"SELECT diag_id, sheet_id, op_id, ip_id, custid, dcode,
-             visit_date::timestamp AS visit_date,
-             sno, icd_code, icd_description, diagnosis_text,
-             diagnosis_type, condition_type, severity, status,
-             tenant_code, isdeleted, created_at
-      FROM   op_case_sheet_diagnosis
-      WHERE  sheet_id  = @sheet_id
-      AND    isdeleted = false
-      ORDER  BY sno",
-    new { sheet_id = s.sheet_id })).ToList();
+                    @"SELECT diag.diag_id, diag.sheet_id, diag.op_id, diag.ip_id, diag.custid, diag.dcode,
+                     diag.visit_date::timestamp AS visit_date,
+                     diag.sno, diag.icd_code, diag.icd_description, diag.diagnosis_text,
+                     diag.diagnosis_type, diag.condition_type, diag.severity, diag.status,
+                     diag.tenant_code, diag.isdeleted, diag.created_at
+              FROM   op_case_sheet_diagnosis diag
+              JOIN   op_case_sheet cs ON cs.sheet_id = diag.sheet_id
+              WHERE  diag.isdeleted  = false
+              AND    cs.tenant_code  = @tenant_code
+              AND    cs.isdeleted    = false
+              AND    ((@op_id IS NOT NULL AND cs.op_id = CAST(@op_id AS uuid))
+                      OR (@ip_id IS NOT NULL AND cs.ip_id = CAST(@ip_id AS uuid)))
+              ORDER  BY diag.sno",
+                    new { op_id = hasOp ? opId : null, ip_id = hasIp ? ipId : null, tenant_code })).ToList();
 
-                // Prescription
+                // Prescription — matched by visit directly against op_prescription_master
+                // (which already carries op_id/ip_id), same pattern as GetPrescription()
                 var prMst = await db.QueryFirstOrDefaultAsync<OpPrescriptionMasterModel>(
                     @"SELECT pr_id, pr_code, sheet_id, op_id, ip_id, custid, dcode,
                      visit_date::timestamp AS visit_date,
                      pr_date, topremarks, bottonremarks,
                      is_dispensed, tenant_code, isdeleted, created_at, updated_at
               FROM   op_prescription_master
-              WHERE  sheet_id    = @sheet_id
+              WHERE  ((@op_id IS NOT NULL AND op_id = CAST(@op_id AS uuid))
+                      OR (@ip_id IS NOT NULL AND ip_id = CAST(@ip_id AS uuid)))
               AND    tenant_code = @tenant_code
               AND    isdeleted   = false
               ORDER  BY created_at DESC
               LIMIT  1",
-                    new { sheet_id = s.sheet_id, tenant_code });
+                    new { op_id = hasOp ? opId : null, ip_id = hasIp ? ipId : null, tenant_code });
 
                 if (prMst != null)
                 {
@@ -1020,19 +1121,20 @@ namespace medico_backend.Class
                     };
                 }
 
-                // Investigation
+                // Investigation — matched by visit directly against op_investigation_master
                 var invMst = await db.QueryFirstOrDefaultAsync<OpInvestigationMasterModel>(
                     @"SELECT inv_id, inv_code, sheet_id, op_id, ip_id, custid, dcode,
                      visit_date::timestamp AS visit_date,
                      inv_date, notes, is_urgent, status,
                      tenant_code, isdeleted, created_at, updated_at
               FROM   op_investigation_master
-              WHERE  sheet_id    = @sheet_id
+              WHERE  ((@op_id IS NOT NULL AND op_id = CAST(@op_id AS uuid))
+                      OR (@ip_id IS NOT NULL AND ip_id = CAST(@ip_id AS uuid)))
               AND    tenant_code = @tenant_code
               AND    isdeleted   = false
               ORDER  BY created_at DESC
               LIMIT  1",
-                    new { sheet_id = s.sheet_id, tenant_code });
+                    new { op_id = hasOp ? opId : null, ip_id = hasIp ? ipId : null, tenant_code });
 
                 if (invMst != null)
                 {

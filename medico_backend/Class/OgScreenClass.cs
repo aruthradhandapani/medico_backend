@@ -266,6 +266,7 @@ END AS vitals_status,
                             AND o.dcode = v.dcode
                             AND o.og_token_no = v.token_no
                             AND o.deleted = false
+                            AND o.created_at::date = v.entered_date::date
         WHERE v.tenant_code = @tenant_code
         AND {DoctorFilter}
         AND v.deleted = false
@@ -579,6 +580,7 @@ LEFT JOIN og_queue o ON o.tenant_code = v.tenant_code
                     AND o.dcode = v.dcode
                     AND o.og_token_no = v.token_no
                     AND o.deleted = false
+                    AND o.created_at::date = v.entered_date::date
 WHERE v.tenant_code = @tenant_code
 AND {PendingLabScanFilter}
 AND v.deleted = false
@@ -618,6 +620,7 @@ LEFT JOIN og_queue o ON o.tenant_code = v.tenant_code
                     AND o.dcode = v.dcode
                     AND o.og_token_no = v.token_no
                     AND o.deleted = false
+                    AND o.created_at::date = v.entered_date::date
 WHERE v.tenant_code = @tenant_code
 AND {DoctorFilter}
 AND v.deleted = false

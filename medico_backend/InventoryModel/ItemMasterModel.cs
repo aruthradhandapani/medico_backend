@@ -850,47 +850,130 @@ public long? customercode { get; set; }
        public long? usercode { get; set; }
 
        public string? tenantcode { get; set; }
-   }
-  
-   public class sales_return_master
-   {
-       
-       public long salesreturncode { get; set; }
+    }
 
-       public long salesdetailcode { get; set; }
+    public class sales_return_master
+    {
 
-       public long salescode { get; set; }
+        public long salesreturncode { get; set; }
 
-       public long itemcode { get; set; }
+        public long salesdetailcode { get; set; }
 
-       public long? customercode { get; set; }
+        public long salescode { get; set; }
 
-       public string? batchno { get; set; }
+        public long itemcode { get; set; }
 
-       public decimal returnqty { get; set; }
+        public long? customercode { get; set; }
 
-       public decimal packsize { get; set; }
+        public string? batchno { get; set; }
 
-       public decimal totalqty { get; set; }
+        public decimal returnqty { get; set; }
 
-       public decimal rate { get; set; }
+        public decimal packsize { get; set; }
 
-       public decimal amount { get; set; }
+        public decimal totalqty { get; set; }
 
-       public long? warehousecode { get; set; }
+        public decimal rate { get; set; }
 
-       public string? remarks { get; set; }
+        public decimal amount { get; set; }
 
-       public bool isactive { get; set; }
+        public long? warehousecode { get; set; }
 
-       public bool deleted { get; set; }
+        public string? remarks { get; set; }
 
-       public DateTime createddate { get; set; }
+        public bool isactive { get; set; }
 
-       public long? usercode { get; set; }
+        public bool deleted { get; set; }
 
-       public string? tenantcode { get; set; }
-   }
+        public DateTime createddate { get; set; }
+
+        public long? usercode { get; set; }
+
+        public string? tenantcode { get; set; }
+    }
+    // ─── PHARMACY QUEUE ──────────────────────────────────────────────────────────
+    [Table("pharmacy_prescription_queue")]
+    public class PharmacyPrescriptionQueueRow
+    {
+        [ExplicitKey] public Guid queue_id { get; set; } = Guid.NewGuid();
+        public Guid? pr_det_id { get; set; }
+        public string? pr_code { get; set; }
+        public Guid? sheet_id { get; set; }
+        public Guid? op_id { get; set; }
+        public Guid? ip_id { get; set; }
+        public decimal custid { get; set; }
+
+        public string drug_name { get; set; } = string.Empty;
+        public long? matched_itemcode { get; set; }
+        public string? matched_itemname { get; set; }
+
+        public decimal? qty { get; set; }
+        public string? morning { get; set; }
+        public string? afternoon { get; set; }
+        public string? evening { get; set; }
+        public string? night { get; set; }
+        public bool before_food { get; set; }
+        public bool after_food { get; set; }
+        public int? days { get; set; }
+        public string? route { get; set; }
+        public string? notes { get; set; }
+
+        public string status { get; set; } = "PENDING";
+        public string? tenant_code { get; set; }
+        public DateTime created_at { get; set; } = DateTime.UtcNow;
+        public DateTime updated_at { get; set; } = DateTime.UtcNow;
+    }
+
+    public class ReceivePrescriptionRequest
+    {
+        public decimal custid { get; set; }
+        public string? op_id { get; set; }
+        public string? ip_id { get; set; }
+        public string? sheet_id { get; set; }
+        public string? pr_code { get; set; }
+        public List<PrescriptionQueueItem> items { get; set; } = new();
+    }
+
+    public class PrescriptionQueueItem
+    {
+        public string? pr_det_id { get; set; }
+        public string drug_name { get; set; } = string.Empty;
+        public decimal qty { get; set; }
+        public string? morning { get; set; }
+        public string? afternoon { get; set; }
+        public string? evening { get; set; }
+        public string? night { get; set; }
+        public bool before_food { get; set; }
+        public bool after_food { get; set; }
+        public int? days { get; set; }
+        public string? route { get; set; }
+        public string? notes { get; set; }
+    }
+    public class MatchQueueItemRequest
+    {
+        public Guid queue_id { get; set; }
+        public long itemcode { get; set; }
+    }
+
+    public class DispenseQueueItemRequest
+    {
+        public Guid queue_id { get; set; }
+    }
+    public class PharmacyQueueGroup
+    {
+        public decimal custid { get; set; }
+        public string? pr_code { get; set; }
+        public Guid? sheet_id { get; set; }
+        public Guid? op_id { get; set; }
+        public Guid? ip_id { get; set; }
+        public List<PharmacyPrescriptionQueueRow> items { get; set; } = new();
+    }
+
+    public class UpdateQueueStatusRequest
+    {
+        public Guid queue_id { get; set; }
+        public string status { get; set; } = string.Empty;   // PENDING / MATCHED / DISPENSED / CANCELLED
+    }
 }
 
 

@@ -1360,28 +1360,7 @@ namespace medico_backend.InventoryController
          Data = data
      });
  }
- [HttpDelete("deletesales")]
- public async Task<IActionResult> DeleteSales(long salescode)
- {
-     try
-     {
-         var result = await itemclass.DeleteSales(salescode);
 
-         return Ok(new
-         {
-             Status = "Success",
-             Message = result
-         });
-     }
-     catch (Exception ex)
-     {
-         return BadRequest(new
-         {
-             Status = "Error",
-             Message = ex.Message
-         });
-     }
- }
   [HttpPost("upsertwarehouse")]
  public async Task<IActionResult> Upsert([FromBody] warehouse_master warehouse)
  {
@@ -1542,38 +1521,115 @@ public async Task<IActionResult> GetList()
              Status = "Failed",
              Message = ex.Message
          });
-     }
- }
- [HttpGet("getsalesreturn")]
- public async Task<IActionResult> GetSalesReturnLookup(long itemcode, string? batchno = null)
- {
-     try
-     {
-         var tenantcode = GetTenantCode();
+            }
+        }
+        [HttpGet("getsalesreturn")]
+        public async Task<IActionResult> GetSalesReturnLookup(long itemcode, string? batchno = null)
+        {
+            try
+            {
+                var tenantcode = GetTenantCode();
 
-         if (string.IsNullOrWhiteSpace(tenantcode))
-             return MissingTenantCode();
+                if (string.IsNullOrWhiteSpace(tenantcode))
+                    return MissingTenantCode();
 
-         var result = await itemclass.GetSalesReturnLookup(
-             itemcode,
-             batchno,
-             tenantcode);
+                var result = await itemclass.GetSalesReturnLookup(
+                    itemcode,
+                    batchno,
+                    tenantcode);
 
-         return Ok(new
-         {
-             Status = "Success",
-             Data = result
-         });
-     }
-     catch (Exception ex)
-     {
-         return BadRequest(new
-         {
-             Status = "Failed",
-             Message = ex.Message
-         });
-     }
- }
+                return Ok(new
+                {
+                    Status = "Success",
+                    Data = result
+                });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new
+                {
+                    Status = "Failed",
+                    Message = ex.Message
+                });
+            }
+        }
+        // ─── PHARMACY QUEUE ─────────────────────────────────────────────────────────
+
+        [HttpPost("receive-prescription")]
+        public async Task<IActionResult> ReceivePrescription([FromBody] ReceivePrescriptionRequest req)
+        {
+            try
+            {
+                var tenantcode = GetTenantCode();
+                if (string.IsNullOrEmpty(tenantcode)) return MissingTenantCode();
+                if (req.items == null || !req.items.Any())
+                    return BadRequest(new { Status = "Failed", Message = "items is required" });
+
+                var result = await itemclass.ReceivePrescription(req, tenantcode);
+                return result.StartsWith("Success")
+                    ? Ok(new { Status = "Success", Message = result })
+                    : BadRequest(new { Status = "Failed", Message = result });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { Status = "Failed", Message = ex.Message });
+            }
+        }
+
+        [HttpGet("pharmacy-queue")]
+        public async Task<IActionResult> GetPharmacyQueue(string? status = null)
+        {
+            try
+            {
+                var tenantcode = GetTenantCode();
+                if (string.IsNullOrEmpty(tenantcode)) return MissingTenantCode();
+
+                var result = await itemclass.GetPharmacyQueue(tenantcode, status);
+                return Ok(new { Status = "Success", Data = result });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { Status = "Failed", Message = ex.Message });
+            }
+        }
+
+        
+        [HttpGet("pharmacy-queue/by-custid")]
+        public async Task<IActionResult> GetPharmacyQueueByCustId(decimal custid, string? status = null)
+        {
+            try
+            {
+                var tenantcode = GetTenantCode();
+                if (string.IsNullOrEmpty(tenantcode)) return MissingTenantCode();
+                if (custid <= 0) return BadRequest(new { Status = "Failed", Message = "custid is required" });
+
+                var result = await itemclass.GetPharmacyQueueByCustId(custid, tenantcode, status);
+                return Ok(new { Status = "Success", Data = result });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { Status = "Failed", Message = ex.Message });
+            }
+        }
+
+        [HttpPost("pharmacy-queue/update-status")]
+        public async Task<IActionResult> UpdatePharmacyQueueStatus([FromBody] UpdateQueueStatusRequest req)
+        {
+            try
+            {
+                var tenantcode = GetTenantCode();
+                if (string.IsNullOrEmpty(tenantcode)) return MissingTenantCode();
+
+                var result = await itemclass.UpdatePharmacyQueueStatus(req.queue_id, req.status, tenantcode);
+                return result == "Success"
+                    ? Ok(new { Status = "Success", Message = result })
+                    : BadRequest(new { Status = "Failed", Message = result });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { Status = "Failed", Message = ex.Message });
+            }
+        }
     }
 }
     

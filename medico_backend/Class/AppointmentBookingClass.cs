@@ -413,25 +413,38 @@ VALUES
         // ─────────────────────────────────────────
         // GET ALL BOOKINGS
         // ─────────────────────────────────────────
-        public async Task<List<AppointmentBookingModel>> GetAll(string tenant_code)
+        // Same shape as AppointmentBookingModel plus joined patient display fields.
+        public class AppointmentBookingListModel : AppointmentBookingModel
+        {
+            public string? patient_name { get; set; }
+            public string? mobile { get; set; }
+
+            public bool? isvip { get; set; }
+        }
+        public async Task<List<AppointmentBookingListModel>> GetAll(string tenant_code)
         {
             using IDbConnection db = new NpgsqlConnection(_db_conn);
 
-            string sql = @"SELECT booking_id,booking_no, custid, dcode,
-                                  slot_detail_id, slot_master_id,
-                                  appointment_date, slot_start_time, slot_end_time,
-                                  token_no, booking_status, booking_type, notes,
-                                  cancel_reason, cancelled_at,
-                                  rescheduled_from, reschedule_reason,
-                                  tenant_code, isdeleted,
-                                  created_at AT TIME ZONE 'UTC' AS created_at,
-                                  updated_at AT TIME ZONE 'UTC' AS updated_at
-                           FROM   appointment_booking
-                           WHERE  isdeleted   = false
-                           AND    tenant_code = @tenant_code
-                           ORDER  BY appointment_date DESC, token_no";
+            string sql = @"SELECT
+                        b.booking_id, b.booking_no, b.custid, b.dcode,
+                        b.slot_detail_id, b.slot_master_id,
+                        b.appointment_date, b.slot_start_time, b.slot_end_time,
+                        b.token_no, b.booking_status, b.booking_type, b.notes,
+                        b.cancel_reason, b.cancelled_at,
+                        b.rescheduled_from, b.reschedule_reason,
+                        b.tenant_code, b.isdeleted,
+                        b.created_at AT TIME ZONE 'UTC' AS created_at,
+                        b.updated_at AT TIME ZONE 'UTC' AS updated_at,
+                        c.name AS patient_name,
+                        c.mobile,
+                        c.isvip
+                   FROM   appointment_booking b
+                   LEFT JOIN customerdb.customer_master c ON c.custid = b.custid
+                   WHERE  b.isdeleted   = false
+                   AND    b.tenant_code = @tenant_code
+                   ORDER  BY b.appointment_date DESC, b.token_no";
 
-            var res = await db.QueryAsync<AppointmentBookingModel>(sql, new { tenant_code });
+            var res = await db.QueryAsync<AppointmentBookingListModel>(sql, new { tenant_code });
             return res.ToList();
         }
 

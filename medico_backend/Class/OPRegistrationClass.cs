@@ -303,22 +303,29 @@ namespace medico_backend.Class
         // ─────────────────────────────────────────
         // GET ALL OP LIST (with optional filters)
         // ─────────────────────────────────────────
-        public async Task<List<OpRegistrationModel>> GetAllOpList(
-            string tenant_code, int? dcode = null, DateOnly? from_date = null,
-            DateOnly? to_date = null, string? visit_status = null)
+        public async Task<List<OpRegistrationListModel>> GetAllOpList(
+    string tenant_code, int? dcode = null, DateOnly? from_date = null,
+    DateOnly? to_date = null, string? visit_status = null)
         {
             using IDbConnection db = new NpgsqlConnection(_db_conn);
 
-            string sql = @"SELECT * FROM op_registration
-                   WHERE isdeleted = false
-                   AND tenant_code = @tenant_code
-                   AND (@dcode IS NULL OR dcode = @dcode)
-                   AND (@from_date IS NULL OR visit_date >= @from_date)
-                   AND (@to_date IS NULL OR visit_date <= @to_date)
-                   AND (@visit_status IS NULL OR visit_status = @visit_status)
-                   ORDER BY visit_date DESC, queue_no, token_no";
+            string sql = @"
+        SELECT
+            o.*,
+            c.name AS patient_name,
+            c.mobile,
+            c.isvip
+        FROM op_registration o
+        LEFT JOIN customerdb.customer_master c ON c.custid = o.custid
+        WHERE o.isdeleted = false
+        AND o.tenant_code = @tenant_code
+        AND (@dcode IS NULL OR o.dcode = @dcode)
+        AND (@from_date IS NULL OR o.visit_date >= @from_date)
+        AND (@to_date IS NULL OR o.visit_date <= @to_date)
+        AND (@visit_status IS NULL OR o.visit_status = @visit_status)
+        ORDER BY o.visit_date DESC, o.queue_no, o.token_no";
 
-            var res = await db.QueryAsync<OpRegistrationModel>(sql, new
+            var res = await db.QueryAsync<OpRegistrationListModel>(sql, new
             {
                 tenant_code,
                 dcode,
@@ -328,6 +335,16 @@ namespace medico_backend.Class
             });
 
             return res.ToList();
+        }
+
+        // Used only by GetAllOpList — same shape as OpRegistrationModel
+        // plus the joined patient display fields.
+        public class OpRegistrationListModel : OpRegistrationModel
+        {
+            public string? patient_name { get; set; }
+            public string? mobile { get; set; }
+
+            public bool? isvip { get; set; }
         }
 
         // ─────────────────────────────────────────

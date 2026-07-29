@@ -404,6 +404,7 @@ namespace Medico_Backend.Class
                     v.vitalentryid,
                     v.tenant_code,
                     v.token_no,
+                    c.isvip,
                     v.custcode,
                     c.name AS patient_name,
                     v.dcode,
@@ -428,7 +429,10 @@ namespace Medico_Backend.Class
                     v.created_at,
                     v.updated_at
                 FROM vitals_entry v
-                LEFT JOIN customer_master c ON c.custcode = v.custcode
+                LEFT JOIN customerdb.customer_registration_master r
+    ON r.custcode = v.custcode AND r.tenant_code = v.tenant_code
+LEFT JOIN customerdb.customer_master c
+    ON c.custid = r.custid
                 LEFT JOIN doctor_master d ON d.dcode = v.dcode AND d.tenant_code = v.tenant_code
                 WHERE v.tenant_code = @tenant_code
                 AND v.deleted = false
