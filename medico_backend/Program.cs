@@ -169,6 +169,12 @@ builder.Services.AddScoped<AppointmentPreBookingClass>();
 builder.Services.AddScoped<AppointmentPreBookingController>();
 builder.Services.AddScoped<DoctorGroupMasterClass>();
 builder.Services.AddScoped<DoctorGroupMasterController>();
+builder.Services.AddScoped<LabResultClass>();
+builder.Services.AddScoped<LabResultController>();
+builder.Services.AddScoped<LabSettingClass>();
+builder.Services.AddScoped<LabSettingController>();
+builder.Services.AddScoped<LabSampleCollectionClass>();
+builder.Services.AddScoped<LabSampleCollectionController>();
 
 builder.Services.AddSingleton<IAmazonS3>(sp =>
 {

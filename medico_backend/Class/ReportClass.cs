@@ -2667,6 +2667,8 @@ namespace medico_backend.Class
                 ToNormalValue = r.ToNormalValue,
                 ConclusionForHigher = r.ConclusionForHigher,
                 ConclusionForLower = r.ConclusionForLower,
+                ConclusionForFixedText = r.ConclusionForFixedText,
+                PrintFixedTextConclusionInReport = r.PrintFixedTextConclusionInReport,
                 ShowAgedBased = r.ShowAgedBased,
                 ShowAlertOnHigherLower = r.ShowAlertOnHigherLower,
                 FooterMessage = r.FooterMessage,
@@ -2781,7 +2783,7 @@ SELECT
     NULL::text                                                          AS CustomerImage,
     NULL::text                                                          AS SignatureImage,
 
-    COALESCE(lrm_res.resultguid, '')                                    AS ResultGUID,
+    COALESCE(lrm_res.resultguid::text, '')                              AS ResultGUID,
     COALESCE(lrdd.valuetype,     '')                                    AS ValueType,
     COALESCE(lrd.tcode::int,      0)                                    AS TCode,
     lrm_res.resultdatetime                                              AS ResultDateTime,
@@ -2826,6 +2828,8 @@ SELECT
 
     COALESCE(lrp.conclusionforhigher,    '')                            AS ConclusionForHigher,
     COALESCE(lrp.conclusionforlower,     '')                            AS ConclusionForLower,
+    COALESCE(lrp.conclusionforfixedtext, '')                            AS ConclusionForFixedText,
+    COALESCE(lrp.printfixedtextconclusioninreport, false)               AS PrintFixedTextConclusionInReport,
     COALESCE(lrp.showagedbased,        false)                           AS ShowAgedBased,
     COALESCE(lrp.showalertonhigherlower,false)                          AS ShowAlertOnHigherLower,
     COALESCE(lrp.footermessage,          '')                            AS FooterMessage,
@@ -2833,8 +2837,12 @@ SELECT
 
     COALESCE(lrp.decimalvalue,            0)                            AS DecimalPlaces,
     COALESCE(rtm_master.name, rtm.name, '')                             AS ReportingMethod,
-    COALESCE(lrdd.testresultid,
-        '00000000-0000-0000-0000-000000000000'::uuid)                   AS TestResultID,
+    COALESCE(
+        CASE WHEN lrdd.testresultid::text ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+             THEN lrdd.testresultid::text::uuid
+        END,
+        '00000000-0000-0000-0000-000000000000'::uuid
+    )                                                                   AS TestResultID,
 
     COALESCE(lrm.requestsnoprint, '')                                   AS RequestSnoPrint,
     COALESCE(lrp.printresultonly, false)                                AS PrintResultOnly,
@@ -2903,7 +2911,7 @@ LEFT JOIN doctor_master dm
 
 -- lab_request_details — investigation rows only (ttid = 1)
 LEFT JOIN lab_request_details lrd
-       ON lrd.requestguid = lrm.requestguid
+       ON lrd.requestguid::text = lrm.requestguid::text
       AND lrd.tenant_code = lrm.tenant_code
       AND (lrd.ttid = 1 OR lrd.ttid IS NULL)
 
@@ -3145,19 +3153,19 @@ LEFT JOIN report_method rtm_master
 
 -- Specimen collection
 LEFT JOIN LATERAL (
-    SELECT collectedtime
-    FROM   lab_request_specimencollection
-    WHERE  requestguid = lrm.requestguid
-      AND  scode       = tm.scode
-      AND  tenant_code = lrm.tenant_code
-      AND  COALESCE(isdeleted, false) = false
-    ORDER  BY collectedtime DESC
+    SELECT sc_col.collectedtime
+    FROM   lab_request_specimencollection sc_col
+    WHERE  sc_col.requestguid::text = lrm.requestguid::text
+      AND  sc_col.scode       = tm.scode
+      AND  COALESCE(sc_col.isdeleted, false) = false
+    ORDER  BY sc_col.collectedtime DESC
     LIMIT  1
 ) sc ON true
 
 -- area_master
 LEFT JOIN area_master ar
        ON ar.areacode     = lrm.areacode
+      AND (ar.tenant_code = lrm.tenant_code OR ar.tenant_code IS NULL)
 
 -- Authorizer user
 LEFT JOIN LATERAL (
@@ -3167,7 +3175,7 @@ LEFT JOIN LATERAL (
     LIMIT 1
 ) au ON true
 
-WHERE lrm.requestguid = @requestguid
+WHERE lrm.requestguid::text = @requestguid::text
   AND lrm.tenant_code = @tenant_code
   AND COALESCE(lrm.deleted, false) = false
 
@@ -3177,7 +3185,7 @@ ORDER BY COALESCE(gm.orderno, 9999),
          COALESCE(lrdd.testsno, 0)";
 
                 var rawRows = (await db.QueryAsync<RawReportRow>(
-                    resultSql, new { requestguid = requestguid.ToString(), tenant_code }
+                    resultSql, new { requestguid = requestguid, tenant_code }
                 )).ToList();
 
                 if (rawRows.Count == 0) return null;
@@ -3201,7 +3209,7 @@ LEFT JOIN mastertenant.user_master au1
        ON au1.user_code = lrd.resultauthorizedby
 LEFT JOIN mastertenant.user_master au2
        ON au2.user_code = lrd.resultauthorizedby2
-WHERE lrd.requestguid = @requestguid
+WHERE lrd.requestguid::text = @requestguid::text
   AND lrd.tenant_code = @tenant_code
   AND (lrd.ttid = 1 OR lrd.ttid IS NULL)";
 

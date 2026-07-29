@@ -1,8 +1,8 @@
 {
   "version": 2,
-  "dgSpecHash": "xUEZMwJb+RI=",
+  "dgSpecHash": "hgpQcwv7dns=",
   "success": true,
-  "projectFilePath": "D:\\Desktop_Wallpaper\\medico_backend\\medico_backend\\medico_backend.csproj",
+  "projectFilePath": "D:\\medico_backend\\medico_backend\\medico_backend.csproj",
   "expectedPackageFiles": [
     "C:\\Users\\elang\\.nuget\\packages\\awssdk.core\\4.0.6.1\\awssdk.core.4.0.6.1.nupkg.sha512",
     "C:\\Users\\elang\\.nuget\\packages\\awssdk.extensions.netcore.setup\\4.0.3.36\\awssdk.extensions.netcore.setup.4.0.3.36.nupkg.sha512",

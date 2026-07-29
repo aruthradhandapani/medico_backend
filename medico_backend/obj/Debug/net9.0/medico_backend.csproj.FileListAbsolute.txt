@@ -102,7 +102,6 @@ D:\medico_backend\medico_backend\obj\Debug\net9.0\staticwebassets.build.json.cac
 D:\medico_backend\medico_backend\obj\Debug\net9.0\staticwebassets.development.json
 D:\medico_backend\medico_backend\obj\Debug\net9.0\staticwebassets.build.endpoints.json
 D:\medico_backend\medico_backend\obj\Debug\net9.0\swae.build.ex.cache
-D:\medico_backend\medico_backend\obj\Debug\net9.0\staticwebassets.upToDateCheck.txt
 D:\medico_backend\medico_backend\obj\Debug\net9.0\medico_b.16A3A85A.Up2Date
 D:\medico_backend\medico_backend\obj\Debug\net9.0\medico_backend.dll
 D:\medico_backend\medico_backend\obj\Debug\net9.0\refint\medico_backend.dll
@@ -220,3 +219,4 @@ D:\Desktop_Wallpaper\medico_backend\medico_backend\obj\Debug\net9.0\refint\medic
 D:\Desktop_Wallpaper\medico_backend\medico_backend\obj\Debug\net9.0\medico_backend.pdb
 D:\Desktop_Wallpaper\medico_backend\medico_backend\obj\Debug\net9.0\medico_backend.genruntimeconfig.cache
 D:\Desktop_Wallpaper\medico_backend\medico_backend\obj\Debug\net9.0\ref\medico_backend.dll
+D:\medico_backend\medico_backend\obj\Debug\net9.0\staticwebassets.upToDateCheck.txt

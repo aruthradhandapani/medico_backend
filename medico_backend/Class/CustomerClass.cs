@@ -220,5 +220,28 @@ namespace Medico_Backend.Class
             var res = await db.QueryAsync<CustomerMasterModel>(sql, new { tenant_code });
             return res.ToList();
         }
+
+        public async Task<CustomerMasterModel?> GetCustomerByCustCode(string custcode, string tenant_code)
+        {
+            try
+            {
+                using IDbConnection db = new NpgsqlConnection(db_conn);
+                const string sql = @"
+            SELECT cm.*, crm.custcode AS tenantcustcode
+            FROM customerdb.customer_master cm
+            LEFT JOIN customerdb.customer_registration_master crm
+                ON crm.custid = cm.custid AND crm.tenant_code = @tenant_code
+            WHERE crm.custcode = @custcode 
+              AND cm.deleted = false
+            LIMIT 1";
+
+                return await db.QueryFirstOrDefaultAsync<CustomerMasterModel>(sql, new { custcode, tenant_code });
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("GetCustomerByCustCode ERROR: " + ex.Message);
+                return null;
+            }
+        }
     }
 }

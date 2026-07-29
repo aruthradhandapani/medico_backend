@@ -7149,11 +7149,11 @@
   "project": {
     "version": "1.0.0",
     "restore": {
-      "projectUniqueName": "D:\\Desktop_Wallpaper\\medico_backend\\medico_backend\\medico_backend.csproj",
+      "projectUniqueName": "D:\\medico_backend\\medico_backend\\medico_backend.csproj",
       "projectName": "medico_backend",
-      "projectPath": "D:\\Desktop_Wallpaper\\medico_backend\\medico_backend\\medico_backend.csproj",
+      "projectPath": "D:\\medico_backend\\medico_backend\\medico_backend.csproj",
       "packagesPath": "C:\\Users\\elang\\.nuget\\packages\\",
-      "outputPath": "D:\\Desktop_Wallpaper\\medico_backend\\medico_backend\\obj\\",
+      "outputPath": "D:\\medico_backend\\medico_backend\\obj\\",
       "projectStyle": "PackageReference",
       "fallbackFolders": [
         "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"

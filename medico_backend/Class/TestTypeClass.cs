@@ -131,7 +131,7 @@ namespace Medico_Backend.Class
                 SELECT *
                 FROM test_type_master
                 WHERE deleted = false
-                AND tenant_code = @tenant_code
+                AND (tenant_code = @tenant_code OR tenant_code IS NULL OR tenant_code = '0') 
                 ORDER BY ttid";
 
             var result = await db.QueryAsync<TestTypeMasterModel>(sql, new { tenant_code });

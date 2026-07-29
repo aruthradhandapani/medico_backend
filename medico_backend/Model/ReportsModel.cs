@@ -548,6 +548,8 @@ namespace medico_backend.Model
 
         public string ConclusionForHigher { get; set; }
         public string ConclusionForLower { get; set; }
+        public string? ConclusionForFixedText { get; set; } = "";
+        public bool PrintFixedTextConclusionInReport { get; set; }
 
         public bool ShowAgedBased { get; set; }
         public bool ShowAlertOnHigherLower { get; set; }
@@ -897,6 +899,8 @@ namespace medico_backend.Model
         public double ToNormalValue { get; set; }
         public string ConclusionForHigher { get; set; } = "";
         public string ConclusionForLower { get; set; } = "";
+        public string ConclusionForFixedText { get; set; } = "";
+        public bool PrintFixedTextConclusionInReport { get; set; }
         public bool ShowAgedBased { get; set; }
         public bool ShowAlertOnHigherLower { get; set; }
         public string FooterMessage { get; set; } = "";
