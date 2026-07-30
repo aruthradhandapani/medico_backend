@@ -13,7 +13,6 @@ namespace medico_backend.Services
 
         public S3ImageService(IAmazonS3 s3, IConfiguration config, ILogger<S3ImageService> logger)
         {
-            _s3 = s3;
             _config = config;
             _logger = logger;
 
@@ -24,26 +23,49 @@ namespace medico_backend.Services
                 UseHttp = false
             };
 
+            // Build the S3 client from config rather than discarding the injected one.
             _s3 = new AmazonS3Client(
                 _config["S3:AccessKey"],
                 _config["S3:SecretKey"],
                 s3Config);
         }
 
-        private string GetBucket() => _config["S3:BucketName"] ?? "medico"; // was "labcare"
+        private string GetBucket() => _config["S3:BucketName"] ?? "medico";
+
+        // The public-facing host clients should use to actually fetch objects
+        // (this must be the SAME host used when presigning, or the signature won't match).
+        private string GetPublicEndpoint() => _config["S3:PublicEndpoint"] ?? "s3.seyotechnologies.com";
+
+        // The internal host/port MinIO is actually listening on (used only for presigning setup
+        // if your public endpoint isn't directly reachable from this process).
+        private string GetMinioEndpoint() => _config["S3:MinioEndpoint"] ?? "s3.seyotechnologies.com";
 
         /// <summary>
         /// Builds the S3 key based on entity type.
-        /// LabCare/{tenantCode}/customers/{entityId}/{prefix}_{filename}
-        /// LabCare/{tenantCode}/users/{entityId}/{prefix}_{filename}
+        /// medico/{tenantCode}/customers/{entityId}/{prefix}_{filename}
+        /// medico/{tenantCode}/users/{entityId}/{prefix}_{filename}
         /// </summary>
         public string BuildKey(string tenantCode, string entityType, long entityId, string prefix, string fileName)
         {
             return $"medico/{tenantCode}/{entityType}/{entityId}/{prefix}_{fileName}";
         }
 
+        private static string GuessContentType(string keyOrFileName)
+        {
+            return Path.GetExtension(keyOrFileName).ToLowerInvariant() switch
+            {
+                ".jpg" or ".jpeg" => "image/jpeg",
+                ".png" => "image/png",
+                ".webp" => "image/webp",
+                ".gif" => "image/gif",
+                ".bmp" => "image/bmp",
+                ".svg" => "image/svg+xml",
+                _ => "application/octet-stream"
+            };
+        }
+
         /// <summary>
-        /// Uploads a file to S3 and returns the object key.
+        /// Uploads a file to S3 and returns the object key (NOT a URL).
         /// entityType: "customers" or "users"
         /// prefix: "customer", "signature", "avatar", etc.
         /// </summary>
@@ -64,11 +86,15 @@ namespace medico_backend.Services
                 BucketName = GetBucket(),
                 Key = key,
                 InputStream = stream,
-                ContentType = file.ContentType
+                ContentType = string.IsNullOrEmpty(file.ContentType)
+                    ? GuessContentType(file.FileName)
+                    : file.ContentType
             });
 
-            _logger.LogInformation("S3 Upload [{EntityType}:{EntityId}] → {Key}", entityType, entityId, key);
-            key = key.Replace("http://127.0.0.1:9000", "https://s3.seyotechnologies.com");
+            _logger.LogInformation("S3 Upload [{EntityType}:{EntityId}] -> {Key}", entityType, entityId, key);
+
+            // Return the raw key. Do NOT bake a host into it — presigned URLs are generated
+            // on demand in DownloadAsync, and mixing hosts here breaks signature verification.
             return key;
         }
 
@@ -85,7 +111,7 @@ namespace medico_backend.Services
                     BucketName = GetBucket(),
                     Key = key
                 });
-                _logger.LogInformation("S3 Deleted → {Key}", key);
+                _logger.LogInformation("S3 Deleted -> {Key}", key);
             }
             catch (AmazonS3Exception ex)
             {
@@ -113,61 +139,47 @@ namespace medico_backend.Services
         }
 
         /// <summary>
-        /// Downloads a file from S3 and returns it as a byte array with metadata.
+        /// Downloads a file by generating a presigned GET URL and fetching the bytes.
+        /// IMPORTANT: the client used to presign must use the SAME host that will be used
+        /// to actually fetch the object, or SigV4 verification will fail (403).
         /// </summary>
         public async Task<(byte[] Data, string ContentType, string FileName)?> DownloadAsync(string key)
         {
-            //try
-            //{
-
-            //    var config = new AmazonS3Config
-            //    {
-            //        ServiceURL = _config["S3:ServiceUrl"],
-            //        ForcePathStyle = true,
-            //        UseHttp = false // because you're using HTTPS
-            //    };
-
-            //    _s3 = new AmazonS3Client(
-            //        _config["S3:AccessKey"],
-            //        _config["S3:SecretKey"],
-            //        config)?? new AmazonS3Client();
-
-
-            //    using var response = await _s3.GetObjectAsync(request);
-            //    using var ms = new MemoryStream();
-            //    await response.ResponseStream.CopyToAsync(ms);
-            //    return (ms.ToArray(), response.Headers.ContentType, Path.GetFileName(key));
-            //}
-            try
-            {
-               
-            }
-            catch (AmazonS3Exception ex) when (ex.StatusCode == System.Net.HttpStatusCode.NotFound)
-            {
-                return null;
-            }
+            if (string.IsNullOrEmpty(key)) return null;
 
             try
             {
+                var endpoint = GetMinioEndpoint();
+
                 var minio = new MinioClient()
-     .WithEndpoint("127.0.0.1:9000")
-     .WithCredentials("minioadmin", "minioadmin")
-     .Build();
+                    .WithEndpoint(endpoint)
+                    .WithSSL() // remove this line if your MinIO endpoint is plain HTTP internally
+                    .WithCredentials(_config["S3:AccessKey"], _config["S3:SecretKey"])
+                    .Build();
 
                 var url = await minio.PresignedGetObjectAsync(
                     new PresignedGetObjectArgs()
-                        .WithBucket("medico")
-                        .WithObject($"{key}")
+                        .WithBucket(GetBucket())
+                        .WithObject(key)
                         .WithExpiry(3600));
 
-                url = url.Replace("http://127.0.0.1:9000", "https://s3.seyotechnologies.com");
+                // Only rewrite the host here if GetMinioEndpoint() and GetPublicEndpoint() are
+                // genuinely the same physical server reachable under two names/ports AND your
+                // MinIO/proxy setup validates signatures against the public host regardless of
+                // which host signed it (e.g. a reverse proxy that terminates TLS but preserves
+                // the original signed headers). If they are different hosts, DO NOT do this —
+                // presign directly against GetPublicEndpoint() instead.
+                if (!string.Equals(endpoint, GetPublicEndpoint(), StringComparison.OrdinalIgnoreCase))
+                {
+                    url = url.Replace(endpoint, GetPublicEndpoint());
+                }
 
-                return (ImageUrlToBase64Async(url).Result,"image/png", Path.GetFileName(key));
-
+                var bytes = await ImageUrlToBase64Async(url);
+                return (bytes, GuessContentType(key), Path.GetFileName(key));
             }
             catch (Exception ex)
             {
-                Console.Write(ex.Message.ToString());
+                _logger.LogWarning(ex, "S3 download failed for {Key}", key);
                 return null;
             }
         }
@@ -175,15 +187,12 @@ namespace medico_backend.Services
         public async Task<byte[]> ImageUrlToBase64Async(string imageUrl)
         {
             using var httpClient = new HttpClient();
-
-            byte[] imageBytes = await httpClient.GetByteArrayAsync(imageUrl);
-
-            return imageBytes;
+            return await httpClient.GetByteArrayAsync(imageUrl);
         }
 
         /// <summary>
         /// Lists all files under a specific entity folder.
-        /// e.g. LabCare/{tenantCode}/customers/{custId}/
+        /// e.g. medico/{tenantCode}/customers/{custId}/
         /// </summary>
         public async Task<List<S3FileInfo>> ListAsync(string tenantCode, string entityType, long entityId)
         {
@@ -195,12 +204,12 @@ namespace medico_backend.Services
                 Prefix = prefix
             });
 
-            return (response.S3Objects ?? []).Select(obj => new S3FileInfo
+            return (response.S3Objects ?? new List<S3Object>()).Select(obj => new S3FileInfo
             {
                 Key = obj.Key,
                 FileName = Path.GetFileName(obj.Key),
-                Size = obj.Size ?? 0,                        // long? → long
-                LastModified = obj.LastModified ?? DateTime.UtcNow   // DateTime? → DateTime
+                Size = obj.Size ?? 0,
+                LastModified = obj.LastModified ?? DateTime.UtcNow
             }).ToList();
         }
     }
