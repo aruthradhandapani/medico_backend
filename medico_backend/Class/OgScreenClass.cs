@@ -565,7 +565,8 @@ SELECT
     d.room_no AS room_no,
     COALESCE(o.arrival_time, v.arrival_time) AS arrival_time,
     COALESCE(o.og_token_no, v.token_no) AS token_no,
-    o.status,
+    v.status as vital_status,
+    o.status as queue_status,
     COALESCE(o.og_token_no, v.token_no)::int AS token_sort
 FROM vitals_entry v
 LEFT JOIN customerdb.customer_registration_master r
@@ -605,7 +606,8 @@ SELECT
     d.room_no AS room_no,
     COALESCE(o.arrival_time, v.arrival_time) AS arrival_time,
     COALESCE(o.og_token_no, v.token_no) AS token_no,
-    o.status,
+    v.status as vital_status,
+    o.status as queue_status,
     COALESCE(o.og_token_no, v.token_no)::int AS token_sort
 FROM vitals_entry v
 LEFT JOIN customerdb.customer_registration_master r

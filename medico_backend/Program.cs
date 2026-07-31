@@ -171,7 +171,8 @@ builder.Services.AddScoped<DoctorGroupMasterClass>();
 builder.Services.AddScoped<DoctorGroupMasterController>();
 builder.Services.AddScoped<DashboardClass>();
 builder.Services.AddScoped<DashboardController>();
-
+builder.Services.AddScoped<DoctorCurrentStatusClass>();
+builder.Services.AddScoped<DoctorCurrentStatusController>();
 builder.Services.AddSingleton<IAmazonS3>(sp =>
 {
     var config = sp.GetRequiredService<IConfiguration>();
