@@ -18,10 +18,6 @@ namespace Medico_Backend.Model
 
         public DateTime? expected_return_time { get; set; }
 
-        public bool is_available_for_booking { get; set; } = true;
-
-        public bool is_queue_paused { get; set; } = false;
-
         public long? updated_by { get; set; }
 
         public DateTime created_at { get; set; }

@@ -33,8 +33,6 @@ namespace Medico_Backend.Class
                         status,
                         remarks,
                         expected_return_time,
-                        is_available_for_booking,
-                        is_queue_paused,
                         updated_by
                     )
                     VALUES
@@ -44,19 +42,15 @@ namespace Medico_Backend.Class
                         @status,
                         @remarks,
                         @expected_return_time,
-                        @is_available_for_booking,
-                        @is_queue_paused,
                         @updated_by
                     )
                     ON CONFLICT (dcode, tenant_code)
                     DO UPDATE SET
-                        status                    = EXCLUDED.status,
-                        remarks                   = EXCLUDED.remarks,
-                        expected_return_time      = EXCLUDED.expected_return_time,
-                        is_available_for_booking  = EXCLUDED.is_available_for_booking,
-                        is_queue_paused           = EXCLUDED.is_queue_paused,
-                        updated_by                = EXCLUDED.updated_by,
-                        updated_at                = CURRENT_TIMESTAMP";
+                        status                = EXCLUDED.status,
+                        remarks               = EXCLUDED.remarks,
+                        expected_return_time  = EXCLUDED.expected_return_time,
+                        updated_by            = EXCLUDED.updated_by,
+                        updated_at            = CURRENT_TIMESTAMP";
 
                 await db.ExecuteAsync(sql, data);
                 return "Success";
@@ -67,9 +61,6 @@ namespace Medico_Backend.Class
             }
         }
 
-        // ─────────────────────────────────────────
-        // UPDATE (by dcode + tenant_code)
-        // ─────────────────────────────────────────
         // ─────────────────────────────────────────
         // UPDATE (by status_id)
         // ─────────────────────────────────────────
@@ -82,16 +73,14 @@ namespace Medico_Backend.Class
                 data.tenant_code = tenant_code;
 
                 string sql = @"
-            UPDATE doctor_current_status
-            SET
-                status                    = @status,
-                remarks                   = @remarks,
-                expected_return_time      = @expected_return_time,
-                is_available_for_booking  = @is_available_for_booking,
-                is_queue_paused           = @is_queue_paused,
-                updated_by                = @updated_by
-            WHERE status_id = @status_id
-            AND tenant_code = @tenant_code";
+                    UPDATE doctor_current_status
+                    SET
+                        status                = @status,
+                        remarks               = @remarks,
+                        expected_return_time  = @expected_return_time,
+                        updated_by            = @updated_by
+                    WHERE status_id = @status_id
+                    AND tenant_code = @tenant_code";
 
                 var rows = await db.ExecuteAsync(sql, data);
                 return rows > 0 ? "Success" : "Record not found";
@@ -112,9 +101,9 @@ namespace Medico_Backend.Class
                 using IDbConnection db = new NpgsqlConnection(db_conn);
 
                 string sql = @"
-            DELETE FROM doctor_current_status
-            WHERE status_id = @status_id
-            AND tenant_code = @tenant_code";
+                    DELETE FROM doctor_current_status
+                    WHERE status_id = @status_id
+                    AND tenant_code = @tenant_code";
 
                 var rows = await db.ExecuteAsync(sql, new { status_id, tenant_code });
                 return rows > 0 ? "Success" : "Record not found";
