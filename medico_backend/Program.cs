@@ -173,6 +173,13 @@ builder.Services.AddScoped<DashboardClass>();
 builder.Services.AddScoped<DashboardController>();
 builder.Services.AddScoped<DoctorCurrentStatusClass>();
 builder.Services.AddScoped<DoctorCurrentStatusController>();
+builder.Services.AddScoped<DischargeSummaryClass>();
+builder.Services.AddScoped<DischargeSummaryController>();
+builder.Services.AddScoped<LabSettingClass>();
+builder.Services.AddScoped<LabSettingController>();
+builder.Services.AddScoped<LabResultClass>();
+builder.Services.AddScoped<LabResultController>();
+
 builder.Services.AddSingleton<IAmazonS3>(sp =>
 {
     var config = sp.GetRequiredService<IConfiguration>();
