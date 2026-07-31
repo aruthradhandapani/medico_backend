@@ -957,6 +957,7 @@ namespace medico_backend.Model
         public bool IsLetterhead { get; set; } = false;
         public byte[]? HeaderImage { get; set; }
         public byte[]? FooterImage { get; set; }
+        public bool show_header_footer_image { get; set; } = true;
         public string? TenantId { get; set; }
     }
 

@@ -1,4 +1,4 @@
-﻿using Amazon.S3;
+using Amazon.S3;
 using Amazon.S3.Model;
 using Minio;
 using Minio.DataModel.Args;
@@ -115,59 +115,74 @@ namespace medico_backend.Services
         /// <summary>
         /// Downloads a file from S3 and returns it as a byte array with metadata.
         /// </summary>
+        private static string CleanKey(string? key)
+        {
+            if (string.IsNullOrWhiteSpace(key)) return "";
+            key = key.Trim();
+            if (key.StartsWith("http://", StringComparison.OrdinalIgnoreCase) || key.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+            {
+                if (Uri.TryCreate(key, UriKind.Absolute, out var uri))
+                {
+                    key = uri.AbsolutePath.TrimStart('/');
+                }
+            }
+            return key.TrimStart('/');
+        }
+
         public async Task<(byte[] Data, string ContentType, string FileName)?> DownloadAsync(string key)
         {
-            //try
-            //{
-
-            //    var config = new AmazonS3Config
-            //    {
-            //        ServiceURL = _config["S3:ServiceUrl"],
-            //        ForcePathStyle = true,
-            //        UseHttp = false // because you're using HTTPS
-            //    };
-
-            //    _s3 = new AmazonS3Client(
-            //        _config["S3:AccessKey"],
-            //        _config["S3:SecretKey"],
-            //        config)?? new AmazonS3Client();
-
-
-            //    using var response = await _s3.GetObjectAsync(request);
-            //    using var ms = new MemoryStream();
-            //    await response.ResponseStream.CopyToAsync(ms);
-            //    return (ms.ToArray(), response.Headers.ContentType, Path.GetFileName(key));
-            //}
-            try
-            {
-               
-            }
-            catch (AmazonS3Exception ex) when (ex.StatusCode == System.Net.HttpStatusCode.NotFound)
-            {
-                return null;
-            }
+            if (string.IsNullOrWhiteSpace(key)) return null;
 
             try
             {
+                var rawKey = CleanKey(key);
+                if (string.IsNullOrWhiteSpace(rawKey)) return null;
+
                 var minio = new MinioClient()
-     .WithEndpoint("127.0.0.1:9000")
-     .WithCredentials("minioadmin", "minioadmin")
-     .Build();
+                    .WithEndpoint("127.0.0.1:9000")
+                    .WithCredentials("minioadmin", "minioadmin")
+                    .Build();
 
-                var url = await minio.PresignedGetObjectAsync(
-                    new PresignedGetObjectArgs()
-                        .WithBucket("medico")
-                        .WithObject($"{key}")
-                        .WithExpiry(3600));
+                List<string> candidates = new();
+                candidates.Add(rawKey);
 
-                url = url.Replace("http://127.0.0.1:9000", "https://s3.seyotechnologies.com");
+                if (rawKey.StartsWith("medico/", StringComparison.OrdinalIgnoreCase))
+                {
+                    candidates.Add(rawKey.Substring(7));
+                }
+                else
+                {
+                    candidates.Add("medico/" + rawKey);
+                }
 
-                return (ImageUrlToBase64Async(url).Result,"image/png", Path.GetFileName(key));
+                foreach (var tryKey in candidates.Distinct())
+                {
+                    try
+                    {
+                        var url = await minio.PresignedGetObjectAsync(
+                            new PresignedGetObjectArgs()
+                                .WithBucket("medico")
+                                .WithObject(tryKey)
+                                .WithExpiry(3600));
 
+                        url = url.Replace("http://127.0.0.1:9000", "https://s3.seyotechnologies.com");
+
+                        byte[] data = await ImageUrlToBase64Async(url);
+                        if (data != null && data.Length > 0)
+                        {
+                            return (data, "image/png", Path.GetFileName(tryKey));
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"MinIO Download tryKey '{tryKey}' failed: {ex.Message}");
+                    }
+                }
+                return null;
             }
             catch (Exception ex)
             {
-                Console.Write(ex.Message.ToString());
+                Console.WriteLine("S3 DownloadAsync ERROR: " + ex.Message);
                 return null;
             }
         }

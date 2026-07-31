@@ -2603,6 +2603,25 @@ namespace medico_backend.Class
             => string.IsNullOrWhiteSpace(path) ? null
                : cache.TryGetValue(path, out var b) ? b : null;
 
+        private static DateTime? ToLocalReportTime(DateTime? dt, DateTime baseRef)
+        {
+            if (!dt.HasValue || dt.Value == DateTime.MinValue) return dt;
+            DateTime val = dt.Value;
+            if (val.Kind == DateTimeKind.Utc)
+            {
+                return val.ToLocalTime();
+            }
+            if (baseRef != DateTime.MinValue && val < baseRef.AddMinutes(-30))
+            {
+                try
+                {
+                    return TimeZoneInfo.ConvertTimeFromUtc(DateTime.SpecifyKind(val, DateTimeKind.Utc), TimeZoneInfo.Local);
+                }
+                catch { }
+            }
+            return val;
+        }
+
         private static RoutineReportModel MapRow(
             RawReportRow r, Dictionary<string, byte[]> cache) => new()
             {
@@ -2611,8 +2630,8 @@ namespace medico_backend.Class
                 RequestBarCode = string.IsNullOrWhiteSpace(r.RequestBarCode)
                     ? GenerateBlankPng()
                     : GenerateBarcodePng(r.RequestBarCode),
-                RequestDateTime = r.RequestDateTime,
-                RequestedDateTime = r.RequestedDateTime,
+                RequestDateTime = ToLocalReportTime(r.RequestDateTime, DateTime.MinValue) ?? r.RequestDateTime,
+                RequestedDateTime = ToLocalReportTime(r.RequestedDateTime, DateTime.MinValue) ?? r.RequestedDateTime,
                 Name = r.Name,
                 Gender = r.Gender,
                 DateofBirth = r.DateofBirth,
@@ -2647,7 +2666,7 @@ namespace medico_backend.Class
                 ResultGUID = r.ResultGUID,
                 ValueType = r.ValueType,
                 TCode = r.TCode,
-                ResultDateTime = r.ResultDateTime,
+                ResultDateTime = ToLocalReportTime(r.ResultDateTime, r.RequestDateTime),
                 ResultType = r.ResultType,
                 PrintInSeparatePage = r.PrintInSeparatePage,
                 TestOrderNo = r.TestOrderNo,
@@ -2656,7 +2675,7 @@ namespace medico_backend.Class
                 HospitalID = r.HospitalID,
                 Email = r.Email,
                 AlteredBHCode = r.AlteredBHCode,
-                CollectedDateTime = r.CollectedDateTime,
+                CollectedDateTime = ToLocalReportTime(r.CollectedDateTime, r.RequestDateTime),
                 OnlineCode = r.OnlineCode,
                 ResultValueType = r.ResultValueType,
                 DefaultValue = r.DefaultValue,
@@ -3716,7 +3735,7 @@ WHERE lrd.requestguid::text = @requestguid::text
                         c.name AS PatientName, c.gender, c.mobile AS MobileNo,
                         CONCAT_WS(', ', NULLIF(c.street, ''), NULLIF(c.city, ''), NULLIF(c.state, ''), NULLIF(c.zipcode, '')) AS Address,
                         c.ageyears, c.agemonths, c.agedays,
-                        c.custcode AS PatientId,
+                        COALESCE(NULLIF(c.custcode::text, ''), NULLIF(c.bhcustcode::text, ''), NULLIF(c.customermanualcode::text, ''), c.custid::text, '') AS PatientId,
                         opr.op_no AS VisitNo,
                         opr.visit_date::timestamp AS VisitDate,
                         dm.doctorfullname AS DoctorName,
@@ -3741,6 +3760,11 @@ WHERE lrd.requestguid::text = @requestguid::text
 
                 if (casesheet == null)
                     throw new Exception("Casesheet not found");
+
+                if (string.IsNullOrWhiteSpace(casesheet.PatientId) && casesheet.custid > 0)
+                {
+                    casesheet.PatientId = casesheet.custid.ToString();
+                }
 
                 casesheet.ReportHeader = "OUT PATIENT CASE SHEET";
                 casesheet.Age = $"{casesheet.ageyears} Y / {casesheet.agemonths} M / {casesheet.agedays} D";
@@ -3874,11 +3898,53 @@ WHERE lrd.requestguid::text = @requestguid::text
 
                 byte[] logoImage = null;
 
+                var lsConfig = await db.QueryFirstOrDefaultAsync<LabSettingModel.lab_settings>(
+                    @"SELECT * FROM lab_settings WHERE tenant_code = @tenant_code AND COALESCE(deleted, false) = false ORDER BY bh_code LIMIT 1",
+                    new { tenant_code });
+
+                if (lsConfig == null || (string.IsNullOrWhiteSpace(lsConfig.header_path) && string.IsNullOrWhiteSpace(lsConfig.header_image_path) && string.IsNullOrWhiteSpace(lsConfig.footer_path) && string.IsNullOrWhiteSpace(lsConfig.footer_image_path)))
+                {
+                    var fallbackLs = await db.QueryFirstOrDefaultAsync<LabSettingModel.lab_settings>(
+                        @"SELECT * FROM lab_settings 
+                          WHERE tenant_code = @tenant_code AND COALESCE(deleted, false) = false 
+                            AND (header_path IS NOT NULL OR header_image_path IS NOT NULL OR footer_path IS NOT NULL OR footer_image_path IS NOT NULL) 
+                          LIMIT 1",
+                        new { tenant_code });
+                    if (fallbackLs != null) lsConfig = fallbackLs;
+                }
+
+                string? hKey = !string.IsNullOrWhiteSpace(lsConfig?.header_path) ? lsConfig.header_path : lsConfig?.header_image_path;
+                string? fKey = !string.IsNullOrWhiteSpace(lsConfig?.footer_path) ? lsConfig.footer_path : lsConfig?.footer_image_path;
+
+                bool showHeaderFooter = lsConfig?.show_op_casesheet_header_footer_image ?? lsConfig?.show_casesheet_header_footer_image ?? lsConfig?.show_report_header_footer_image ?? true;
+                if (!string.IsNullOrWhiteSpace(hKey) || !string.IsNullOrWhiteSpace(fKey))
+                {
+                    if (!lsConfig.show_op_casesheet_header_footer_image.HasValue) showHeaderFooter = true;
+                }
+
+                byte[]? headerImage = null;
+                byte[]? footerImage = null;
+
+                if (showHeaderFooter && lsConfig != null)
+                {
+                    if (!string.IsNullOrWhiteSpace(hKey))
+                    {
+                        try { var hRes = await _s3Service.DownloadAsync(hKey); if (hRes.HasValue) headerImage = hRes.Value.Data; } catch { }
+                    }
+                    if (!string.IsNullOrWhiteSpace(fKey))
+                    {
+                        try { var fRes = await _s3Service.DownloadAsync(fKey); if (fRes.HasValue) footerImage = fRes.Value.Data; } catch { }
+                    }
+                }
+
                 var payload = new CasesheetReportRequest
                 {
                     CasesheetData = casesheet,
                     LogoImage = logoImage,
                     IsLetterhead = isletterhead ?? false,
+                    HeaderImage = headerImage,
+                    FooterImage = footerImage,
+                    show_header_footer_image = showHeaderFooter,
                     TenantId = tenant_code
                 };
 
@@ -3912,8 +3978,8 @@ WHERE lrd.requestguid::text = @requestguid::text
                         c.name AS PatientName, c.gender, c.mobile AS MobileNo,
                         CONCAT_WS(', ', NULLIF(c.street, ''), NULLIF(c.city, ''), NULLIF(c.state, ''), NULLIF(c.zipcode, '')) AS Address,
                         c.ageyears, c.agemonths, c.agedays,
-                        c.custcode AS PatientId,
-                        COALESCE(ipm.patcode, c.custcode) AS VisitNo,
+                        COALESCE(NULLIF(c.custcode::text, ''), NULLIF(c.bhcustcode::text, ''), NULLIF(c.customermanualcode::text, ''), c.custid::text, '') AS PatientId,
+                        COALESCE(ipm.patcode, c.custcode::text, c.custid::text) AS VisitNo,
                         COALESCE(ipm.regdate, cs.visit_date)::timestamp AS VisitDate,
                         ipm.bedcode::text AS BedNo,
                         dm.doctorfullname AS DoctorName,
@@ -3938,6 +4004,11 @@ WHERE lrd.requestguid::text = @requestguid::text
 
                 if (casesheet == null)
                     throw new Exception("Casesheet not found");
+
+                if (string.IsNullOrWhiteSpace(casesheet.PatientId) && casesheet.custid > 0)
+                {
+                    casesheet.PatientId = casesheet.custid.ToString();
+                }
 
                 casesheet.ReportHeader = "IN PATIENT CASE SHEET";
                 casesheet.Age = $"{casesheet.ageyears} Y / {casesheet.agemonths} M / {casesheet.agedays} D";
@@ -4071,11 +4142,53 @@ WHERE lrd.requestguid::text = @requestguid::text
 
                 byte[] logoImage = null;
 
+                var lsConfig = await db.QueryFirstOrDefaultAsync<LabSettingModel.lab_settings>(
+                    @"SELECT * FROM lab_settings WHERE tenant_code = @tenant_code AND COALESCE(deleted, false) = false ORDER BY bh_code LIMIT 1",
+                    new { tenant_code });
+
+                if (lsConfig == null || (string.IsNullOrWhiteSpace(lsConfig.header_path) && string.IsNullOrWhiteSpace(lsConfig.header_image_path) && string.IsNullOrWhiteSpace(lsConfig.footer_path) && string.IsNullOrWhiteSpace(lsConfig.footer_image_path)))
+                {
+                    var fallbackLs = await db.QueryFirstOrDefaultAsync<LabSettingModel.lab_settings>(
+                        @"SELECT * FROM lab_settings 
+                          WHERE tenant_code = @tenant_code AND COALESCE(deleted, false) = false 
+                            AND (header_path IS NOT NULL OR header_image_path IS NOT NULL OR footer_path IS NOT NULL OR footer_image_path IS NOT NULL) 
+                          LIMIT 1",
+                        new { tenant_code });
+                    if (fallbackLs != null) lsConfig = fallbackLs;
+                }
+
+                string? hKey = !string.IsNullOrWhiteSpace(lsConfig?.header_path) ? lsConfig.header_path : lsConfig?.header_image_path;
+                string? fKey = !string.IsNullOrWhiteSpace(lsConfig?.footer_path) ? lsConfig.footer_path : lsConfig?.footer_image_path;
+
+                bool showHeaderFooter = lsConfig?.show_ip_casesheet_header_footer_image ?? lsConfig?.show_casesheet_header_footer_image ?? lsConfig?.show_report_header_footer_image ?? true;
+                if (!string.IsNullOrWhiteSpace(hKey) || !string.IsNullOrWhiteSpace(fKey))
+                {
+                    if (!lsConfig.show_ip_casesheet_header_footer_image.HasValue) showHeaderFooter = true;
+                }
+
+                byte[]? headerImage = null;
+                byte[]? footerImage = null;
+
+                if (showHeaderFooter && lsConfig != null)
+                {
+                    if (!string.IsNullOrWhiteSpace(hKey))
+                    {
+                        try { var hRes = await _s3Service.DownloadAsync(hKey); if (hRes.HasValue) headerImage = hRes.Value.Data; } catch { }
+                    }
+                    if (!string.IsNullOrWhiteSpace(fKey))
+                    {
+                        try { var fRes = await _s3Service.DownloadAsync(fKey); if (fRes.HasValue) footerImage = fRes.Value.Data; } catch { }
+                    }
+                }
+
                 var payload = new CasesheetReportRequest
                 {
                     CasesheetData = casesheet,
                     LogoImage = logoImage,
                     IsLetterhead = isletterhead ?? false,
+                    HeaderImage = headerImage,
+                    FooterImage = footerImage,
+                    show_header_footer_image = showHeaderFooter,
                     TenantId = tenant_code
                 };
 

@@ -11,10 +11,12 @@ namespace medico_backend.Controllers
     public class ReportController : ControllerBase
     {
         private readonly ReportClass _reportClass;
+        private readonly DischargeSummaryClass _dsClass;
 
-        public ReportController(ReportClass reportClass)
+        public ReportController(ReportClass reportClass, DischargeSummaryClass dsClass)
         {
             _reportClass = reportClass;
+            _dsClass = dsClass;
         }
 
         private string T => Request.Headers["tenant_code"].ToString();
@@ -192,6 +194,14 @@ namespace medico_backend.Controllers
             return Ok(res);
         }
 
+        [HttpGet("getdischargesummary")]
+        public async Task<IActionResult> GetDischargeSummary([FromQuery] Guid pds_id, [FromQuery] bool? isletterhead = false)
+        {
+            if (string.IsNullOrWhiteSpace(T))
+                return BadRequest(new { success = false, message = "tenant_code header required" });
 
+            var res = await _dsClass.GetDischargeSummaryReportPdfAsync(pds_id, T, isletterhead);
+            return Ok(res);
+        }
     }
 }

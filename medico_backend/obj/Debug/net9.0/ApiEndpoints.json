@@ -2088,6 +2088,365 @@
     "ReturnTypes": []
   },
   {
+    "ContainingType": "Medico_Backend.Controllers.DashboardController",
+    "Method": "DoctorWise",
+    "RelativePath": "api/dashboard/doctor-wise",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "from",
+        "Type": "System.Nullable\u00601[[System.DateTime, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
+        "IsRequired": false
+      },
+      {
+        "Name": "to",
+        "Type": "System.Nullable\u00601[[System.DateTime, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
+        "IsRequired": false
+      },
+      {
+        "Name": "top",
+        "Type": "System.Nullable\u00601[[System.Int32, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
+        "IsRequired": false
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "Medico_Backend.Controllers.DashboardController",
+    "Method": "Full",
+    "RelativePath": "api/dashboard/full",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "trendDays",
+        "Type": "System.Int32",
+        "IsRequired": false
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "Medico_Backend.Controllers.DashboardController",
+    "Method": "GroupWise",
+    "RelativePath": "api/dashboard/group-wise",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "from",
+        "Type": "System.Nullable\u00601[[System.DateTime, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
+        "IsRequired": false
+      },
+      {
+        "Name": "to",
+        "Type": "System.Nullable\u00601[[System.DateTime, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
+        "IsRequired": false
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "Medico_Backend.Controllers.DashboardController",
+    "Method": "HourlyDistribution",
+    "RelativePath": "api/dashboard/hourly-distribution",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "date",
+        "Type": "System.Nullable\u00601[[System.DateTime, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
+        "IsRequired": false
+      },
+      {
+        "Name": "dcode",
+        "Type": "System.Nullable\u00601[[System.Int32, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
+        "IsRequired": false
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "Medico_Backend.Controllers.DashboardController",
+    "Method": "InvestigationBreakdownTrend",
+    "RelativePath": "api/dashboard/investigation-breakdown-trend",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "from",
+        "Type": "System.Nullable\u00601[[System.DateTime, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
+        "IsRequired": false
+      },
+      {
+        "Name": "to",
+        "Type": "System.Nullable\u00601[[System.DateTime, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
+        "IsRequired": false
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "Medico_Backend.Controllers.DashboardController",
+    "Method": "PastDaysTrend",
+    "RelativePath": "api/dashboard/past-days-trend",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "days",
+        "Type": "System.Int32",
+        "IsRequired": false
+      },
+      {
+        "Name": "dcode",
+        "Type": "System.Nullable\u00601[[System.Int32, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
+        "IsRequired": false
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "Medico_Backend.Controllers.DashboardController",
+    "Method": "PastDaysTrendByDoctor",
+    "RelativePath": "api/dashboard/past-days-trend-by-doctor",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "days",
+        "Type": "System.Int32",
+        "IsRequired": false
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "Medico_Backend.Controllers.DashboardController",
+    "Method": "StatusFunnel",
+    "RelativePath": "api/dashboard/status-funnel",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "date",
+        "Type": "System.Nullable\u00601[[System.DateTime, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
+        "IsRequired": false
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "Medico_Backend.Controllers.DashboardController",
+    "Method": "TodaySnapshot",
+    "RelativePath": "api/dashboard/today-snapshot",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "date",
+        "Type": "System.Nullable\u00601[[System.DateTime, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
+        "IsRequired": false
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "Medico_Backend.Controllers.DashboardController",
+    "Method": "TurnaroundTime",
+    "RelativePath": "api/dashboard/turnaround-time",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "from",
+        "Type": "System.Nullable\u00601[[System.DateTime, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
+        "IsRequired": false
+      },
+      {
+        "Name": "to",
+        "Type": "System.Nullable\u00601[[System.DateTime, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
+        "IsRequired": false
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "medico_backend.Controllers.DischargeSummaryController",
+    "Method": "GetCategories",
+    "RelativePath": "api/DischargeSummary/categories",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "medico_backend.Controllers.DischargeSummaryController",
+    "Method": "SaveCategory",
+    "RelativePath": "api/DischargeSummary/category",
+    "HttpMethod": "POST",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "dto",
+        "Type": "medico_backend.Model.DischargeSummaryModel\u002BSaveCategoryDto",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "medico_backend.Controllers.DischargeSummaryController",
+    "Method": "DeleteCategory",
+    "RelativePath": "api/DischargeSummary/category/{id}",
+    "HttpMethod": "DELETE",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "id",
+        "Type": "System.Guid",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "medico_backend.Controllers.DischargeSummaryController",
+    "Method": "GetPatientDischargeSummary",
+    "RelativePath": "api/DischargeSummary/patient",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "patcode_or_pdsid",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "code",
+        "Type": "System.String",
+        "IsRequired": false
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "medico_backend.Controllers.DischargeSummaryController",
+    "Method": "GetPatientDischargeSummary",
+    "RelativePath": "api/DischargeSummary/patient/{patcode_or_pdsid}",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "patcode_or_pdsid",
+        "Type": "System.String",
+        "IsRequired": true
+      },
+      {
+        "Name": "code",
+        "Type": "System.String",
+        "IsRequired": false
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "medico_backend.Controllers.DischargeSummaryController",
+    "Method": "AuthorizePatientDischargeSummary",
+    "RelativePath": "api/DischargeSummary/patient/authorize",
+    "HttpMethod": "POST",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "dto",
+        "Type": "medico_backend.Model.DischargeSummaryModel\u002BAuthorizeDischargeSummaryDto",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "medico_backend.Controllers.DischargeSummaryController",
+    "Method": "SavePatientDischargeSummary",
+    "RelativePath": "api/DischargeSummary/patient/save",
+    "HttpMethod": "POST",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "dto",
+        "Type": "medico_backend.Model.DischargeSummaryModel\u002BSavePatientDischargeSummaryDto",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "medico_backend.Controllers.DischargeSummaryController",
+    "Method": "SaveTemplate",
+    "RelativePath": "api/DischargeSummary/template",
+    "HttpMethod": "POST",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "dto",
+        "Type": "medico_backend.Model.DischargeSummaryModel\u002BSaveTemplateDto",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "medico_backend.Controllers.DischargeSummaryController",
+    "Method": "DeleteTemplate",
+    "RelativePath": "api/DischargeSummary/template/{id}",
+    "HttpMethod": "DELETE",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "id",
+        "Type": "System.Guid",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "medico_backend.Controllers.DischargeSummaryController",
+    "Method": "GetTemplates",
+    "RelativePath": "api/DischargeSummary/templates",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "category_id",
+        "Type": "System.Nullable\u00601[[System.Guid, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
+        "IsRequired": false
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
     "ContainingType": "Medico_Backend.Controllers.DoctorAppointmentSlotController",
     "Method": "GetAllDetails",
     "RelativePath": "api/DoctorAppointmentSlot/details/get",
@@ -5138,22 +5497,6 @@
   },
   {
     "ContainingType": "medico_backend.InventoryController.ItemMasterController",
-    "Method": "DeleteSales",
-    "RelativePath": "api/ItemMaster/deletesales",
-    "HttpMethod": "DELETE",
-    "IsController": true,
-    "Order": 0,
-    "Parameters": [
-      {
-        "Name": "salescode",
-        "Type": "System.Int64",
-        "IsRequired": false
-      }
-    ],
-    "ReturnTypes": []
-  },
-  {
-    "ContainingType": "medico_backend.InventoryController.ItemMasterController",
     "Method": "DeleteStock",
     "RelativePath": "api/ItemMaster/deletestock",
     "HttpMethod": "GET",
@@ -5755,6 +6098,75 @@
       {
         "Name": "model",
         "Type": "medico_backend.InventoryModel.uom_master",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "medico_backend.InventoryController.ItemMasterController",
+    "Method": "GetPharmacyQueue",
+    "RelativePath": "api/ItemMaster/pharmacy-queue",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "status",
+        "Type": "System.String",
+        "IsRequired": false
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "medico_backend.InventoryController.ItemMasterController",
+    "Method": "GetPharmacyQueueByCustId",
+    "RelativePath": "api/ItemMaster/pharmacy-queue/by-custid",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "custid",
+        "Type": "System.Decimal",
+        "IsRequired": false
+      },
+      {
+        "Name": "status",
+        "Type": "System.String",
+        "IsRequired": false
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "medico_backend.InventoryController.ItemMasterController",
+    "Method": "UpdatePharmacyQueueStatus",
+    "RelativePath": "api/ItemMaster/pharmacy-queue/update-status",
+    "HttpMethod": "POST",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "req",
+        "Type": "medico_backend.InventoryModel.UpdateQueueStatusRequest",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "medico_backend.InventoryController.ItemMasterController",
+    "Method": "ReceivePrescription",
+    "RelativePath": "api/ItemMaster/receive-prescription",
+    "HttpMethod": "POST",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "req",
+        "Type": "medico_backend.InventoryModel.ReceivePrescriptionRequest",
         "IsRequired": true
       }
     ],
@@ -6614,6 +7026,26 @@
       },
       {
         "Name": "show_receipt_header_footer_image",
+        "Type": "System.Nullable\u00601[[System.Boolean, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
+        "IsRequired": false
+      },
+      {
+        "Name": "show_op_casesheet_header_footer_image",
+        "Type": "System.Nullable\u00601[[System.Boolean, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
+        "IsRequired": false
+      },
+      {
+        "Name": "show_ip_casesheet_header_footer_image",
+        "Type": "System.Nullable\u00601[[System.Boolean, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
+        "IsRequired": false
+      },
+      {
+        "Name": "show_casesheet_header_footer_image",
+        "Type": "System.Nullable\u00601[[System.Boolean, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
+        "IsRequired": false
+      },
+      {
+        "Name": "show_dischargesummary_header_footer_image",
         "Type": "System.Nullable\u00601[[System.Boolean, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
         "IsRequired": false
       },
@@ -7526,6 +7958,26 @@
       },
       {
         "Name": "show_receipt_header_footer_image",
+        "Type": "System.Nullable\u00601[[System.Boolean, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
+        "IsRequired": false
+      },
+      {
+        "Name": "show_op_casesheet_header_footer_image",
+        "Type": "System.Nullable\u00601[[System.Boolean, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
+        "IsRequired": false
+      },
+      {
+        "Name": "show_ip_casesheet_header_footer_image",
+        "Type": "System.Nullable\u00601[[System.Boolean, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
+        "IsRequired": false
+      },
+      {
+        "Name": "show_casesheet_header_footer_image",
+        "Type": "System.Nullable\u00601[[System.Boolean, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
+        "IsRequired": false
+      },
+      {
+        "Name": "show_dischargesummary_header_footer_image",
         "Type": "System.Nullable\u00601[[System.Boolean, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
         "IsRequired": false
       },
@@ -9659,6 +10111,27 @@
     "Parameters": [
       {
         "Name": "requestguid",
+        "Type": "System.Guid",
+        "IsRequired": false
+      },
+      {
+        "Name": "isletterhead",
+        "Type": "System.Nullable\u00601[[System.Boolean, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
+        "IsRequired": false
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "medico_backend.Controllers.ReportController",
+    "Method": "GetDischargeSummary",
+    "RelativePath": "api/Report/getdischargesummary",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "pds_id",
         "Type": "System.Guid",
         "IsRequired": false
       },
@@ -12428,6 +12901,27 @@
       {
         "Name": "ip_id",
         "Type": "System.String",
+        "IsRequired": false
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "medico_backend.Controllers.UnbilledChargesController",
+    "Method": "GetAll",
+    "RelativePath": "api/UnbilledCharges/get-all",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "op_id",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "ip_id",
+        "Type": "System.Nullable\u00601[[System.Guid, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
         "IsRequired": false
       }
     ],

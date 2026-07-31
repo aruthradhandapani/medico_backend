@@ -1,4 +1,4 @@
-﻿using Dapper;
+using Dapper;
 using Dapper.Contrib.Extensions;
 using Npgsql;
 using System.Data;
@@ -19,12 +19,46 @@ namespace medico_backend.Class
 
         private IDbConnection Connection() => new NpgsqlConnection(db_conn);
 
+        private async Task EnsureColumnsCreatedAsync(IDbConnection db)
+        {
+            try
+            {
+                string sql = @"
+                    ALTER TABLE lab_settings ADD COLUMN IF NOT EXISTS show_bill_header_footer_image BOOLEAN DEFAULT true;
+                    ALTER TABLE lab_settings ADD COLUMN IF NOT EXISTS show_report_header_footer_image BOOLEAN DEFAULT true;
+                    ALTER TABLE lab_settings ADD COLUMN IF NOT EXISTS show_culture_header_footer_image BOOLEAN DEFAULT true;
+                    ALTER TABLE lab_settings ADD COLUMN IF NOT EXISTS show_receipt_header_footer_image BOOLEAN DEFAULT true;
+                    ALTER TABLE lab_settings ADD COLUMN IF NOT EXISTS show_op_casesheet_header_footer_image BOOLEAN DEFAULT true;
+                    ALTER TABLE lab_settings ADD COLUMN IF NOT EXISTS show_ip_casesheet_header_footer_image BOOLEAN DEFAULT true;
+                    ALTER TABLE lab_settings ADD COLUMN IF NOT EXISTS show_casesheet_header_footer_image BOOLEAN DEFAULT true;
+                    ALTER TABLE lab_settings ADD COLUMN IF NOT EXISTS show_dischargesummary_header_footer_image BOOLEAN DEFAULT true;
+                    ALTER TABLE lab_settings ADD COLUMN IF NOT EXISTS use_labsetting_signatures BOOLEAN DEFAULT true;
+                    ALTER TABLE lab_settings ADD COLUMN IF NOT EXISTS use_labsetting_culture_signatures BOOLEAN DEFAULT true;
+                    ALTER TABLE lab_settings ADD COLUMN IF NOT EXISTS report_qr BOOLEAN DEFAULT true;
+                    ALTER TABLE lab_settings ADD COLUMN IF NOT EXISTS iscan_margin_top DOUBLE PRECISION DEFAULT 0;
+                    ALTER TABLE lab_settings ADD COLUMN IF NOT EXISTS iscan_margin_bottom DOUBLE PRECISION DEFAULT 0;
+                    ALTER TABLE lab_settings ADD COLUMN IF NOT EXISTS iscan_margin_left DOUBLE PRECISION DEFAULT 0;
+                    ALTER TABLE lab_settings ADD COLUMN IF NOT EXISTS iscan_margin_right DOUBLE PRECISION DEFAULT 0;
+                    ALTER TABLE lab_settings ADD COLUMN IF NOT EXISTS culture_margin_top DOUBLE PRECISION DEFAULT 0;
+                    ALTER TABLE lab_settings ADD COLUMN IF NOT EXISTS culture_margin_bottom DOUBLE PRECISION DEFAULT 0;
+                    ALTER TABLE lab_settings ADD COLUMN IF NOT EXISTS culture_margin_left DOUBLE PRECISION DEFAULT 0;
+                    ALTER TABLE lab_settings ADD COLUMN IF NOT EXISTS culture_margin_right DOUBLE PRECISION DEFAULT 0;
+                ";
+                await db.ExecuteAsync(sql);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[LabSettingClass] EnsureColumnsCreatedAsync warning: {ex.Message}");
+            }
+        }
+
         // ─── Get (single/filtered by bh_code) ──────────────────────────
         public async Task<IList<lab_settings>> GetLab_Settings(int? bh_code, string tenant_code)
         {
             try
             {
                 using IDbConnection db = Connection();
+                await EnsureColumnsCreatedAsync(db);
                 string query = "SELECT * FROM lab_settings WHERE tenant_code = @tenant_code AND deleted = false";
                 if (bh_code.HasValue)
                     query += " AND bh_code = @bh_code";
@@ -51,6 +85,7 @@ namespace medico_backend.Class
             try
             {
                 using IDbConnection db = Connection();
+                await EnsureColumnsCreatedAsync(db);
                 const string query = @"
                     SELECT * FROM lab_settings 
                     WHERE tenant_code = @tenant_code AND deleted = false
@@ -71,6 +106,7 @@ namespace medico_backend.Class
             try
             {
                 using IDbConnection db = Connection();
+                await EnsureColumnsCreatedAsync(db);
 
                 model.lsid = model.lsid == Guid.Empty ? Guid.NewGuid() : model.lsid;
                 model.tenant_code = tenant_code;
@@ -93,16 +129,37 @@ namespace medico_backend.Class
             try
             {
                 using IDbConnection db = Connection();
+                await EnsureColumnsCreatedAsync(db);
 
-                var existing = await db.QueryFirstOrDefaultAsync<lab_settings>(
-                    "SELECT * FROM lab_settings WHERE lsid = @lsid AND deleted = false",
-                    new { model.lsid });
+                lab_settings? existing = null;
+                if (model.lsid != Guid.Empty)
+                {
+                    existing = await db.QueryFirstOrDefaultAsync<lab_settings>(
+                        "SELECT * FROM lab_settings WHERE lsid = @lsid AND deleted = false",
+                        new { model.lsid });
+                }
 
                 if (existing == null)
-                    return (false, "Lab setting not found.");
+                {
+                    string bhQuery = "SELECT * FROM lab_settings WHERE tenant_code = @tenant_code AND deleted = false";
+                    if (model.bh_code.HasValue)
+                        bhQuery += " AND bh_code = @bh_code";
+                    else
+                        bhQuery += " AND (bh_code = 0 OR bh_code IS NULL)";
+
+                    existing = await db.QueryFirstOrDefaultAsync<lab_settings>(bhQuery, new { tenant_code, bh_code = model.bh_code });
+                }
+
+                if (existing == null)
+                {
+                    var (newLsid, insertErr) = await Insert(model, tenant_code);
+                    return (newLsid != Guid.Empty, insertErr);
+                }
+
                 if (existing.tenant_code != tenant_code)
                     return (false, "Access denied. Record belongs to a different tenant.");
 
+                model.lsid = existing.lsid;
                 model.tenant_code = tenant_code;
                 model.deleted = false;
 
@@ -122,6 +179,7 @@ namespace medico_backend.Class
             try
             {
                 using IDbConnection db = Connection();
+                await EnsureColumnsCreatedAsync(db);
                 const string sql = "SELECT * FROM lab_settings WHERE lsid = @lsid AND tenant_code = @tenant_code AND deleted = false";
                 return await db.QueryFirstOrDefaultAsync<lab_settings>(sql, new { lsid, tenant_code });
             }
@@ -151,9 +209,7 @@ namespace medico_backend.Class
                 string sql = @"
                     UPDATE lab_settings
                     SET header_path = COALESCE(@headerPath, header_path),
-                        header_image_path = COALESCE(@headerPath, header_image_path),
                         footer_path = COALESCE(@footerPath, footer_path),
-                        footer_image_path = COALESCE(@footerPath, footer_image_path),
                         auth1_signature_path = COALESCE(@auth1SigPath, auth1_signature_path),
                         auth2_signature_path = COALESCE(@auth2SigPath, auth2_signature_path),
                         auth3_signature_path = COALESCE(@auth3SigPath, auth3_signature_path),

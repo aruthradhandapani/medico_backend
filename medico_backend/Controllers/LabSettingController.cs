@@ -1,4 +1,4 @@
-﻿using medico_backend.Class;
+using medico_backend.Class;
 using medico_backend.Services;
 using Microsoft.AspNetCore.Mvc;
 using static LabSettingModel;
@@ -20,22 +20,34 @@ namespace medico_backend.Controllers
             _s3Service = s3Service;
         }
 
+        private string GetTenantCode()
+        {
+            var tenantCode = Request.Headers["tenant_code"].ToString();
+            if (string.IsNullOrWhiteSpace(tenantCode))
+            {
+                var user = HttpContext.User;
+                tenantCode = user?.FindFirst("tenant_code")?.Value ?? user?.FindFirst("TenantCode")?.Value ?? "";
+            }
+            if (string.IsNullOrWhiteSpace(tenantCode))
+            {
+                tenantCode = "0010";
+            }
+            return tenantCode;
+        }
+
         // ─── Get (filtered by bh_code) ─────────────────────────────────
         [HttpGet("get")]
         public async Task<IActionResult> Get([FromQuery] int? bh_code)
         {
             try
             {
-                var tenant_code = Request.Headers["tenant_code"].ToString();
-                if (string.IsNullOrEmpty(tenant_code))
-                    return BadRequest(new { message = "Tenant code is required" });
-
+                var tenant_code = GetTenantCode();
                 var result = await _labSettingClass.GetLab_Settings(bh_code, tenant_code);
-                return Ok(result);
+                return Ok(result ?? new List<lab_settings>());
             }
             catch (Exception ex)
             {
-                return StatusCode(500, new { message = ex.Message });
+                return StatusCode(500, new { message = ex.Message, detail = ex.ToString() });
             }
         }
 
@@ -45,16 +57,13 @@ namespace medico_backend.Controllers
         {
             try
             {
-                var tenant_code = Request.Headers["tenant_code"].ToString();
-                if (string.IsNullOrEmpty(tenant_code))
-                    return BadRequest(new { message = "Tenant code is required" });
-
+                var tenant_code = GetTenantCode();
                 var result = await _labSettingClass.GetAll(tenant_code);
-                return Ok(result);
+                return Ok(result ?? new List<lab_settings>());
             }
             catch (Exception ex)
             {
-                return StatusCode(500, new { message = ex.Message });
+                return StatusCode(500, new { message = ex.Message, detail = ex.ToString() });
             }
         }
 
@@ -73,9 +82,7 @@ namespace medico_backend.Controllers
         {
             try
             {
-                var tenant_code = Request.Headers["tenant_code"].ToString();
-                if (string.IsNullOrEmpty(tenant_code))
-                    return BadRequest(new { message = "Tenant code is required" });
+                var tenant_code = GetTenantCode();
 
                 var (lsid, error) = await _labSettingClass.Insert(model, tenant_code);
                 if (lsid == Guid.Empty)
@@ -130,9 +137,7 @@ namespace medico_backend.Controllers
         {
             try
             {
-                var tenant_code = Request.Headers["tenant_code"].ToString();
-                if (string.IsNullOrEmpty(tenant_code))
-                    return BadRequest(new { message = "Tenant code is required" });
+                var tenant_code = GetTenantCode();
 
                 // 1. Load existing record BEFORE modifying DB so we have the real old MinIO keys
                 lab_settings? existing = null;
@@ -193,9 +198,7 @@ namespace medico_backend.Controllers
         {
             try
             {
-                var tenant_code = Request.Headers["tenant_code"].ToString();
-                if (string.IsNullOrEmpty(tenant_code))
-                    return BadRequest(new { message = "Tenant code is required" });
+                var tenant_code = GetTenantCode();
 
                 if (lsid == Guid.Empty)
                     return BadRequest(new { message = "Valid lsid is required" });

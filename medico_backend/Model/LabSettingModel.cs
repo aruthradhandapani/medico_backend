@@ -1,4 +1,4 @@
-﻿using Dapper.Contrib.Extensions;
+using Dapper.Contrib.Extensions;
 
 public class LabSettingModel
 {
@@ -66,6 +66,10 @@ public class LabSettingModel
         public bool? show_report_header_footer_image { get; set; } = true;
         public bool? show_culture_header_footer_image { get; set; } = true;
         public bool? show_receipt_header_footer_image { get; set; } = true;
+        public bool? show_op_casesheet_header_footer_image { get; set; } = true;
+        public bool? show_ip_casesheet_header_footer_image { get; set; } = true;
+        public bool? show_casesheet_header_footer_image { get; set; } = true;
+        public bool? show_dischargesummary_header_footer_image { get; set; } = true;
 
         // Signature Mode Selection (True = Fixed LabSettings Signatures, False = Dynamic Test Result Saved & Authorized Users)
         public bool? use_labsetting_signatures { get; set; } = true;
@@ -176,10 +180,14 @@ public class LabSettingModel
 
         // ✅ Header image file path (for report/bill header)
         public string? header_path { get; set; }
+        [Write(false)]
+        [Computed]
         public string? header_image_path { get => header_path; set => header_path = value; }
 
         // ✅ Footer image file path (for report/bill footer)
         public string? footer_path { get; set; }
+        [Write(false)]
+        [Computed]
         public string? footer_image_path { get => footer_path; set => footer_path = value; }
 
         public string? tenant_code { get; set; }
