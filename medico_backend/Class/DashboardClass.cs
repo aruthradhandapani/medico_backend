@@ -25,6 +25,14 @@ namespace Medico_Backend.Class
         {
             db_conn = configuration.GetConnectionString("conn");
         }
+        private const string DoctorSlotFilter = @"
+    (
+        v.in1 ILIKE 'doctor' OR
+        v.in2 ILIKE 'doctor' OR
+        v.in3 ILIKE 'doctor' OR
+        v.in4 ILIKE 'doctor' OR
+        v.in5 ILIKE 'doctor'
+    )";
 
         // ─────────────────────────────────────────────────────────────
         // 1. TODAY'S SNAPSHOT
@@ -94,26 +102,34 @@ namespace Medico_Backend.Class
             var from = (fromDate ?? DateTime.UtcNow.AddDays(-6)).Date;
             var to = (toDate ?? DateTime.UtcNow).Date;
 
-            string sql = @"
-                SELECT
-                    v.dcode,
-                    d.name AS doctor_name,
-                    d.group_id,
-                    g.group_name,
-                    COUNT(*) AS token_count,
-                    COUNT(*) FILTER (WHERE v.entered_date::date = CURRENT_DATE) AS today_count,
-                    ROUND(COUNT(*)::numeric / GREATEST((@to::date - @from::date) + 1, 1), 2) AS avg_per_day
-                FROM vitals_entry v
-                LEFT JOIN doctor_master d ON d.dcode = v.dcode AND d.tenant_code = v.tenant_code
-                LEFT JOIN doctor_group_master g ON g.group_id = d.group_id AND g.tenant_code = d.tenant_code AND g.is_deleted = false
-                WHERE v.tenant_code = @tenant_code
-                AND v.entered_date::date BETWEEN @from AND @to
-                AND v.deleted = false
-                AND v.status != 'dummy'
-                AND v.custcode != 'RESERVED'
-                GROUP BY v.dcode, d.name, d.group_id, g.group_name
-                ORDER BY token_count DESC
-                LIMIT @topN";
+            string sql = $@"
+        SELECT
+            v.dcode,
+            d.name AS doctor_name,
+            d.group_id,
+            g.group_name,
+            COUNT(DISTINCT v.vitalentryid) AS token_count,
+            COUNT(DISTINCT v.vitalentryid) FILTER (WHERE v.entered_date::date = CURRENT_DATE) AS today_count,
+            COUNT(DISTINCT v.vitalentryid) FILTER (WHERE COALESCE(o.status, 'waiting') <> 'completed') AS pending_count,
+            COUNT(DISTINCT v.vitalentryid) FILTER (WHERE o.status = 'completed') AS completed_count,
+            ROUND(COUNT(DISTINCT v.vitalentryid)::numeric / GREATEST((@to::date - @from::date) + 1, 1), 2) AS avg_per_day
+        FROM vitals_entry v
+        LEFT JOIN doctor_master d ON d.dcode = v.dcode AND d.tenant_code = v.tenant_code
+        LEFT JOIN doctor_group_master g ON g.group_id = d.group_id AND g.tenant_code = d.tenant_code AND g.is_deleted = false
+        LEFT JOIN og_queue o ON o.tenant_code = v.tenant_code
+                            AND o.custcode = v.custcode
+                            AND o.dcode = v.dcode
+                            AND o.og_token_no = v.token_no
+                            AND o.deleted = false
+        WHERE v.tenant_code = @tenant_code
+        AND v.entered_date::date BETWEEN @from AND @to
+        AND v.deleted = false
+        AND v.status != 'dummy'
+        AND v.custcode != 'RESERVED'
+        AND {DoctorSlotFilter}
+        GROUP BY v.dcode, d.name, d.group_id, g.group_name
+        ORDER BY token_count DESC
+        LIMIT @topN";
 
             return await db.QueryAsync(sql, new { tenant_code, from, to, topN = topN ?? 1000 });
         }

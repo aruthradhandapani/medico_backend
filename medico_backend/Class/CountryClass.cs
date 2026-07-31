@@ -57,6 +57,9 @@ namespace Medico_Backend.Class
         // ─────────────────────────────────────────
         // UPDATE
         // ─────────────────────────────────────────
+        // ─────────────────────────────────────────
+        // UPDATE
+        // ─────────────────────────────────────────
         public async Task<string> Update(CountryMasterModel data, string tenant_code)
         {
             try
@@ -66,9 +69,23 @@ namespace Medico_Backend.Class
                 data.tenant_code = tenant_code;
                 data.ibsdate = DateTime.UtcNow;
 
-                var result = await db.UpdateAsync(data);
+                string sql = @"
+            UPDATE country_master
+            SET
+                countryname  = @countryname,
+                shortname    = @shortname,
+                orderno      = @orderno,
+                description  = @description,
+                deleted      = @deleted,
+                usercode     = @usercode,
+                computercode = @computercode,
+                ibsdate      = @ibsdate
+            WHERE countrycode = @countrycode
+            AND tenant_code = @tenant_code";
 
-                return result ? "Success" : "No Data Found";
+                var rows = await db.ExecuteAsync(sql, data);
+
+                return rows > 0 ? "Success" : "No Data Found";
             }
             catch (Exception ex)
             {

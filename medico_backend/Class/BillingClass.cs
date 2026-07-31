@@ -615,18 +615,54 @@ namespace medico_backend.Class
                 if (req.amount <= 0 || req.amount > (pendingResidual + 0.01))
                     return ($"Payment amount conflict. Pending amount balance remaining: {pendingResidual}", null);
 
+                // ── Resolve the cash/card/upi split ──────────────────────────────
+                double pmc1Amt = req.pmc1_amount ?? 0;
+                double pmc2Amt = req.pmc2_amount ?? 0;
+                double pmc3Amt = req.pmc3_amount ?? 0;
+                double splitTotal = pmc1Amt + pmc2Amt + pmc3Amt;
+
+                string effectiveCollectionType;
+
+                if (splitTotal > 0.01)
+                {
+                    // Caller sent a split (cash/card/upi mix) — it MUST add up to req.amount
+                    if (Math.Abs(splitTotal - req.amount) > 0.01)
+                        return ($"Payment split mismatch: pmc1+pmc2+pmc3 ({splitTotal}) does not equal amount ({req.amount}).", null);
+
+                    int modesUsed = (pmc1Amt > 0.01 ? 1 : 0) + (pmc2Amt > 0.01 ? 1 : 0) + (pmc3Amt > 0.01 ? 1 : 0);
+                    effectiveCollectionType = modesUsed > 1 ? "MIXED" : req.collection_type;
+                }
+                else
+                {
+                    // No split given — fall back to single-mode collection_type and
+                    // auto-populate the matching pmc bucket so pmc1/2/3 stay in sync
+                    // with paidamount even for simple single-mode payments.
+                    effectiveCollectionType = req.collection_type;
+                    switch (req.collection_type?.ToUpperInvariant())
+                    {
+                        case "CASH": pmc1Amt = req.amount; break;
+                        case "CARD": pmc2Amt = req.amount; break;
+                        case "UPI": pmc3Amt = req.amount; break;
+                        default: pmc1Amt = req.amount; break; // unspecified -> treat as cash bucket
+                    }
+                }
+
+                int pmc1Flag = pmc1Amt > 0.01 ? 1 : 0;
+                int pmc2Flag = pmc2Amt > 0.01 ? 1 : 0;
+                int pmc3Flag = pmc3Amt > 0.01 ? 1 : 0;
+
                 masterBill.paidamount = existingSettled + req.amount;
                 masterBill.paidviareceipt = (masterBill.paidviareceipt ?? 0) + req.amount;
-                masterBill.pmc1 = (masterBill.pmc1 ?? 0) + (req.pmc1 ?? 0);
-                masterBill.pmc2 = (masterBill.pmc2 ?? 0) + (req.pmc2 ?? 0);
-                masterBill.pmc3 = (masterBill.pmc3 ?? 0) + (req.pmc3 ?? 0);
-                masterBill.pmc1_amount = (masterBill.pmc1_amount ?? 0) + (req.pmc1_amount ?? 0);
-                masterBill.pmc2_amount = (masterBill.pmc2_amount ?? 0) + (req.pmc2_amount ?? 0);
-                masterBill.pmc3_amount = (masterBill.pmc3_amount ?? 0) + (req.pmc3_amount ?? 0);
+                masterBill.pmc1 = (masterBill.pmc1 ?? 0) + pmc1Flag;
+                masterBill.pmc2 = (masterBill.pmc2 ?? 0) + pmc2Flag;
+                masterBill.pmc3 = (masterBill.pmc3 ?? 0) + pmc3Flag;
+                masterBill.pmc1_amount = (masterBill.pmc1_amount ?? 0) + pmc1Amt;
+                masterBill.pmc2_amount = (masterBill.pmc2_amount ?? 0) + pmc2Amt;
+                masterBill.pmc3_amount = (masterBill.pmc3_amount ?? 0) + pmc3Amt;
 
                 await db.UpdateAsync(masterBill, tx);
 
-                await GenerateReceiptLog(db, tx, masterBill, req.amount, req.collection_type, tenantCode);
+                await GenerateReceiptLog(db, tx, masterBill, req.amount, effectiveCollectionType, tenantCode);
 
                 tx.Commit();
                 var response = await FetchBillRecordByGuid(req.requestguid, tenantCode);
@@ -639,7 +675,6 @@ namespace medico_backend.Class
                 return ($"Ledger posting error context: {ex.Message}", null);
             }
         }
-
         // ════════════════════════════════════════════════════════════════════════
         //  4. BILL CANCELLATION
         // ════════════════════════════════════════════════════════════════════════
@@ -877,7 +912,12 @@ namespace medico_backend.Class
            (COALESCE(m.discountamount,0) + COALESCE(m.specialdiscount,0)) as discount_amount,
            m.totalamount as net_amount, m.paidamount as paid_amount, 
            m.enteredbhcode, m.cntcode,
-           m.opvisitid, m.dateofbirth, m.dcode
+           m.opvisitid, m.dateofbirth, m.dcode,
+           CASE 
+             WHEN m.ip_id IS NOT NULL THEN 'IP' 
+             WHEN m.opvisitid IS NOT NULL THEN 'OP' 
+             ELSE 'LAB' 
+           END as type
     FROM lab_request_master m
     {queryConditions}
     ORDER BY m.requestdatetime DESC 

@@ -478,6 +478,9 @@ namespace medico_backend.Model
         public string? opvisitid { get; set; }
         public string? dateofbirth { get; set; }
         public int? dcode { get; set; }
+
+        public string? type { get; set; }   // "IP" | "OP" | "LAB" — NEW
+
     }
 
     public class HmsUnbilledChargesResponse
