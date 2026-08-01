@@ -179,6 +179,8 @@ builder.Services.AddScoped<LabSettingClass>();
 builder.Services.AddScoped<LabSettingController>();
 builder.Services.AddScoped<LabResultClass>();
 builder.Services.AddScoped<LabResultController>();
+builder.Services.AddScoped<OpChargeSlabClass>();
+builder.Services.AddScoped<OpChargeSlabController>();
 
 builder.Services.AddSingleton<IAmazonS3>(sp =>
 {

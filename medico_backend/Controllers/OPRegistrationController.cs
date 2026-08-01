@@ -141,5 +141,14 @@ namespace medico_backend.Controllers
             var data = await cls.GetAllCustomersWithOp(tenant);
             return Ok(data);
         }
+        // POST api/OpRegistration/dressing
+        // Separate token sequence from regular consultation walk-ins
+        [HttpPost("dressing")]
+        public async Task<IActionResult> DressingRegistration([FromBody] DressingRegistrationRequest req)
+        {
+            var tenant = Request.Headers["tenant_code"].ToString();
+            var res = await cls.DressingRegistration(req, tenant);
+            return Ok(res);
+        }
     }
 }

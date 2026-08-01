@@ -152,7 +152,7 @@ namespace medico_backend.Class
                 // or accept it as an optional field on OpRegistrationModel.
                 // Placeholder below uses a fixed rate; replace with your actual lookup.
                 // ── 5. Auto-add consultation fee to unbilledcharges ─────
-                var (feeTcode, feeRate, feeAmount) = await GetDoctorConsultationFee(db, data.dcode, data.tenant_code!);
+                var (feeTcode, feeRate, feeAmount) = await GetDoctorConsultationFee(db, data.dcode, data.tenant_code!, data.custid);
 
                 await _unbilledCls.AddConsultationCharge(new AddUnbilledConsultationRequest
                 {
@@ -472,7 +472,93 @@ namespace medico_backend.Class
 
                 if (assignedDcode == 0)
                     return "Either dcode or duty_dcode is required";
+                bool slotRequired = await db.ExecuteScalarAsync<bool?>(
+    @"SELECT is_slot_required FROM lab_settings
+      WHERE tenant_code = @tenant_code AND deleted = false
+      ORDER BY (bh_code IS NULL) LIMIT 1",
+    new { tenant_code }) ?? true;
 
+                if (!slotRequired)
+                {
+                    // NO-SLOT MODE — just the doctor, no slot validation/quota at all
+                    int noSlotToken = await db.ExecuteScalarAsync<int>(
+                        @"SELECT COALESCE(MAX(token_no), 0) + 1
+          FROM op_registration
+          WHERE dcode = @dcode AND tenant_code = @tenant_code AND isdeleted = false
+          AND visit_date = (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata')::date",
+                        new { dcode = assignedDcode, tenant_code });
+
+                    var noSlotData = new OpRegistrationModel
+                    {
+                        op_id = Guid.NewGuid(),
+                        op_no = await GenerateOpNo(db, tenant_code),
+                        custid = req.custid,
+                        dcode = assignedDcode,
+                        department_code = req.department_code,
+                        slot_detail_id = null,
+                        visit_type = string.IsNullOrWhiteSpace(req.visit_type) ? "NEWVISIT" : req.visit_type.ToUpper(),
+                        reg_type = "WALKIN",
+                        visit_date = DateOnly.FromDateTime(DateTime.UtcNow),
+                        token_no = noSlotToken,
+                        queue_no = noSlotToken,
+                        visit_status = "WAITING",
+                        notes = req.notes,
+                        is_direct_walkin = true,
+                        duty_dcode = req.duty_dcode,
+                        tenant_code = tenant_code,
+                        isdeleted = false,
+                        created_at = DateTime.SpecifyKind(DateTime.UtcNow, DateTimeKind.Utc),
+                        updated_at = DateTime.SpecifyKind(DateTime.UtcNow, DateTimeKind.Utc)
+                    };
+
+                    await db.ExecuteAsync(@"
+        INSERT INTO op_registration
+        (op_id, op_no, custid, dcode, department_code, slot_detail_id, visit_type,
+         reg_type, visit_date, token_no, queue_no, visit_status, notes,
+         is_direct_walkin, duty_dcode, tenant_code, isdeleted, created_at, updated_at)
+        VALUES
+        (@op_id, @op_no, @custid, @dcode, @department_code, @slot_detail_id, @visit_type,
+         @reg_type, @visit_date, @token_no, @queue_no, @visit_status, @notes,
+         @is_direct_walkin, @duty_dcode, @tenant_code, @isdeleted, @created_at, @updated_at)",
+                        new
+                        {
+                            noSlotData.op_id,
+                            noSlotData.op_no,
+                            noSlotData.custid,
+                            noSlotData.dcode,
+                            noSlotData.department_code,
+                            noSlotData.slot_detail_id,
+                            noSlotData.visit_type,
+                            noSlotData.reg_type,
+                            visit_date = noSlotData.visit_date.ToDateTime(TimeOnly.MinValue),
+                            noSlotData.token_no,
+                            noSlotData.queue_no,
+                            noSlotData.visit_status,
+                            noSlotData.notes,
+                            noSlotData.is_direct_walkin,
+                            noSlotData.duty_dcode,
+                            noSlotData.tenant_code,
+                            noSlotData.isdeleted,
+                            noSlotData.created_at,
+                            noSlotData.updated_at
+                        });
+
+                    var (noSlotTcode, noSlotRate, noSlotAmount) = await GetDoctorConsultationFee(db, assignedDcode, tenant_code, req.custid);
+
+                    await _unbilledCls.AddConsultationCharge(new AddUnbilledConsultationRequest
+                    {
+                        op_id = noSlotData.op_id.ToString(),
+                        custid = noSlotData.custid,
+                        tcode = noSlotTcode,
+                        rate = noSlotRate,
+                        amount = noSlotAmount,
+                        quantity = 1
+                    }, tenant_code);
+
+                    return $"Success|OpNo:{noSlotData.op_no}|OpId:{noSlotData.op_id}|Token:{noSlotToken}";
+                }
+
+                // slotRequired == true → falls through to the existing slot validation code below, unchanged
                 // Validate slot
                 var slot = await db.QueryFirstOrDefaultAsync<DoctorAppointmentSlotDetailsModel>(
                 @"SELECT *
@@ -627,7 +713,7 @@ namespace medico_backend.Class
                     data.updated_at
                 });
                 // ── Auto-add consultation fee to unbilledcharges ─────
-                var (feeTcode, feeRate, feeAmount) = await GetDoctorConsultationFee(db, assignedDcode, tenant_code);
+                var (feeTcode, feeRate, feeAmount) = await GetDoctorConsultationFee(db, assignedDcode, tenant_code, req.custid);
 
                 await _unbilledCls.AddConsultationCharge(new AddUnbilledConsultationRequest
                 {
@@ -1017,17 +1103,243 @@ AND b.tenant_code = @tenant_code
             return res.ToList();
         }
         private async Task<(int? tcode, double rate, double amount)> GetDoctorConsultationFee(
-     IDbConnection db, int dcode, string tenant_code)
+     IDbConnection db, int dcode, string tenant_code, decimal? custid = null)
         {
             var doctor = await db.QueryFirstOrDefaultAsync<DoctorMasterModel>(
-                @"SELECT tcode, opcharge FROM doctor_master
+                @"SELECT tcode, opcharge, override_flat_opcharge FROM doctor_master
           WHERE dcode = @dcode AND tenant_code = @tenant_code AND deleted = false",
                 new { dcode, tenant_code });
 
-            double fee = doctor?.opcharge ?? 0;
-            int? tcode = doctor?.tcode;   // already int? — no cast needed
+            double flatFee = doctor?.opcharge ?? 0;
+            int? tcode = doctor?.tcode;
 
-            return (tcode, fee, fee);
+            // ✅ NEW — doctor opted out of age-wise split entirely, skip the slab check
+            if (doctor?.override_flat_opcharge == true)
+                return (tcode, flatFee, flatFee);
+
+            bool ageWiseSplit = await db.ExecuteScalarAsync<bool?>(
+                @"SELECT op_age_wise_split FROM lab_settings
+          WHERE tenant_code = @tenant_code AND deleted = false
+          ORDER BY (bh_code IS NULL) LIMIT 1",
+                new { tenant_code }) ?? false;
+
+            if (ageWiseSplit && custid.HasValue)
+            {
+                int? age = await db.ExecuteScalarAsync<int?>(
+                    @"SELECT ageyears FROM customerdb.customer_master WHERE custid = @custid",
+                    new { custid });
+
+                if (age.HasValue)
+                {
+                    double? slabFee = await db.ExecuteScalarAsync<double?>(
+                        @"SELECT opcharge FROM doctor_op_charge_slab
+                  WHERE tenant_code = @tenant_code AND dcode = @dcode
+                  AND deleted = false AND @age BETWEEN min_age AND max_age
+                  ORDER BY min_age LIMIT 1",
+                        new { tenant_code, dcode, age = age.Value });
+
+                    if (slabFee.HasValue)
+                        return (tcode, slabFee.Value, slabFee.Value);
+                }
+            }
+
+            return (tcode, flatFee, flatFee);
+        }
+        public async Task<string> DressingRegistration(DressingRegistrationRequest req, string tenant_code)
+        {
+            try
+            {
+                using IDbConnection db = new NpgsqlConnection(_db_conn);
+
+                if (req.dcode == 0)
+                    return "dcode is required";
+
+                bool slotRequired = await db.ExecuteScalarAsync<bool?>(
+                    @"SELECT is_slot_required FROM lab_settings
+              WHERE tenant_code = @tenant_code AND deleted = false
+              ORDER BY (bh_code IS NULL) LIMIT 1",
+                    new { tenant_code }) ?? true;
+
+                if (!slotRequired)
+                {
+                    // NO-SLOT MODE — token restarts at 1 daily, counted only among dressing rows
+                    int dressingToken = await db.ExecuteScalarAsync<int>(
+                        @"SELECT COALESCE(MAX(token_no), 0) + 1
+                  FROM op_registration
+                  WHERE dcode = @dcode AND tenant_code = @tenant_code AND isdeleted = false
+                  AND is_dressing = true
+                  AND visit_date = (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata')::date",
+                        new { dcode = req.dcode, tenant_code });
+
+                    var noSlotData = new OpRegistrationModel
+                    {
+                        op_id = Guid.NewGuid(),
+                        op_no = await GenerateOpNo(db, tenant_code),
+                        custid = req.custid,
+                        dcode = req.dcode,
+                        department_code = req.department_code,
+                        slot_detail_id = null,
+                        visit_type = "DRESSING",
+                        reg_type = "WALKIN",
+                        visit_date = DateOnly.FromDateTime(DateTime.UtcNow),
+                        token_no = dressingToken,
+                        queue_no = dressingToken,
+                        is_dressing = true,
+                        visit_status = "WAITING",
+                        notes = req.notes,
+                        is_direct_walkin = true,
+                        tenant_code = tenant_code,
+                        isdeleted = false,
+                        created_at = DateTime.SpecifyKind(DateTime.UtcNow, DateTimeKind.Utc),
+                        updated_at = DateTime.SpecifyKind(DateTime.UtcNow, DateTimeKind.Utc)
+                    };
+
+                    await db.ExecuteAsync(@"
+                INSERT INTO op_registration
+                (op_id, op_no, custid, dcode, department_code, slot_detail_id, visit_type,
+                 reg_type, visit_date, token_no, queue_no, is_dressing,
+                 visit_status, notes, is_direct_walkin, tenant_code, isdeleted, created_at, updated_at)
+                VALUES
+                (@op_id, @op_no, @custid, @dcode, @department_code, @slot_detail_id, @visit_type,
+                 @reg_type, @visit_date, @token_no, @queue_no, @is_dressing,
+                 @visit_status, @notes, @is_direct_walkin, @tenant_code, @isdeleted, @created_at, @updated_at)",
+                        new
+                        {
+                            noSlotData.op_id,
+                            noSlotData.op_no,
+                            noSlotData.custid,
+                            noSlotData.dcode,
+                            noSlotData.department_code,
+                            noSlotData.slot_detail_id,
+                            noSlotData.visit_type,
+                            noSlotData.reg_type,
+                            visit_date = noSlotData.visit_date.ToDateTime(TimeOnly.MinValue),
+                            noSlotData.token_no,
+                            noSlotData.queue_no,
+                            noSlotData.is_dressing,
+                            noSlotData.visit_status,
+                            noSlotData.notes,
+                            noSlotData.is_direct_walkin,
+                            noSlotData.tenant_code,
+                            noSlotData.isdeleted,
+                            noSlotData.created_at,
+                            noSlotData.updated_at
+                        });
+
+                    return $"Success|OpNo:{noSlotData.op_no}|OpId:{noSlotData.op_id}|Token:{dressingToken}";
+                }
+
+                // SLOT-REQUIRED MODE — same slot validation as DirectWalkinRegistration
+                var slot = await db.QueryFirstOrDefaultAsync<DoctorAppointmentSlotDetailsModel>(
+                    @"SELECT *
+              FROM doctor_appointment_slot_details
+              WHERE slot_detail_id = @slot_detail_id
+                AND tenant_code = @tenant_code
+                AND isdeleted = false
+                AND is_active = true",
+                    new { req.slot_detail_id, tenant_code });
+
+                if (slot == null)
+                    return "Slot not found";
+
+                if (slot.dcode != req.dcode)
+                    return "Selected slot does not belong to selected doctor";
+
+                if (slot.slot_status == "FULL")
+                    return "Slot is full";
+
+                if (slot.slot_status == "CANCELLED")
+                    return "Slot is cancelled";
+
+                if (slot.slot_status == "CLOSED")
+                    return "Slot is closed";
+
+                if (slot.walkin_count >= slot.max_walkin)
+                    return "Walk-in quota full for this slot";
+
+                if (slot.booked_count >= slot.max_patients)
+                    return "Slot capacity reached";
+
+                int slotToken = slot.booked_count + 1;
+
+                var data = new OpRegistrationModel
+                {
+                    op_id = Guid.NewGuid(),
+                    op_no = await GenerateOpNo(db, tenant_code),
+                    custid = req.custid,
+                    dcode = req.dcode,
+                    department_code = req.department_code,
+                    slot_detail_id = slot.slot_detail_id,
+                    visit_type = "DRESSING",
+                    reg_type = "WALKIN",
+                    visit_date = slot.appointment_date,
+                    token_no = slotToken,
+                    queue_no = slotToken,
+                    is_dressing = true,
+                    visit_status = "WAITING",
+                    notes = req.notes,
+                    is_direct_walkin = true,
+                    tenant_code = tenant_code,
+                    isdeleted = false,
+                    created_at = DateTime.SpecifyKind(DateTime.UtcNow, DateTimeKind.Utc),
+                    updated_at = DateTime.SpecifyKind(DateTime.UtcNow, DateTimeKind.Utc)
+                };
+
+                await db.ExecuteAsync(@"
+            INSERT INTO op_registration
+            (op_id, op_no, custid, dcode, department_code, slot_detail_id, visit_type,
+             reg_type, visit_date, token_no, queue_no, is_dressing,
+             visit_status, notes, is_direct_walkin, tenant_code, isdeleted, created_at, updated_at)
+            VALUES
+            (@op_id, @op_no, @custid, @dcode, @department_code, @slot_detail_id, @visit_type,
+             @reg_type, @visit_date, @token_no, @queue_no, @is_dressing,
+             @visit_status, @notes, @is_direct_walkin, @tenant_code, @isdeleted, @created_at, @updated_at)",
+                    new
+                    {
+                        data.op_id,
+                        data.op_no,
+                        data.custid,
+                        data.dcode,
+                        data.department_code,
+                        data.slot_detail_id,
+                        data.visit_type,
+                        data.reg_type,
+                        visit_date = data.visit_date.ToDateTime(TimeOnly.MinValue),
+                        data.token_no,
+                        data.queue_no,
+                        data.is_dressing,
+                        data.visit_status,
+                        data.notes,
+                        data.is_direct_walkin,
+                        data.tenant_code,
+                        data.isdeleted,
+                        data.created_at,
+                        data.updated_at
+                    });
+
+                await db.ExecuteAsync(@"
+            UPDATE doctor_appointment_slot_details
+            SET booked_count = booked_count + 1,
+                walkin_count = walkin_count + 1,
+                updated_at = now()
+            WHERE slot_detail_id = @slot_detail_id
+              AND tenant_code = @tenant_code",
+                    new { slot_detail_id = slot.slot_detail_id, tenant_code });
+
+                await db.ExecuteAsync(@"
+            UPDATE doctor_appointment_slot_details
+            SET slot_status = 'FULL'
+            WHERE slot_detail_id = @slot_detail_id
+              AND booked_count >= max_patients
+              AND tenant_code = @tenant_code",
+                    new { slot_detail_id = slot.slot_detail_id, tenant_code });
+
+                return $"Success|OpNo:{data.op_no}|OpId:{data.op_id}|Token:{slotToken}";
+            }
+            catch (Exception ex)
+            {
+                return ex.Message;
+            }
         }
     }
 }
