@@ -1166,7 +1166,7 @@ AND b.tenant_code = @tenant_code
                     int dressingToken = await db.ExecuteScalarAsync<int>(
                         @"SELECT COALESCE(MAX(token_no), 0) + 1
                   FROM op_registration
-                  WHERE dcode = @dcode AND tenant_code = @tenant_code AND isdeleted = false
+                  WHERE tenant_code = @tenant_code AND isdeleted = false
                   AND is_dressing = true
                   AND visit_date = (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata')::date",
                         new { dcode = req.dcode, tenant_code });
