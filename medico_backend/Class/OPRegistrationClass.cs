@@ -1111,7 +1111,14 @@ AND b.tenant_code = @tenant_code
                 new { dcode, tenant_code });
 
             double flatFee = doctor?.opcharge ?? 0;
-            int? tcode = doctor?.tcode;
+            // ✅ tcode now comes from test_master's "Consultation Fee" item, not doctor_master
+            int? tcode = await db.ExecuteScalarAsync<int?>(
+                @"SELECT tcode FROM test_master
+          WHERE tenant_code = @tenant_code
+          AND   deleted = false
+          AND   item_name ILIKE 'Consultation%'   -- or whatever the real match condition is
+          LIMIT 1",
+                new { tenant_code });
 
             // ✅ NEW — doctor opted out of age-wise split entirely, skip the slab check
             if (doctor?.override_flat_opcharge == true)
