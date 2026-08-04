@@ -1111,12 +1111,13 @@ AND b.tenant_code = @tenant_code
                 new { dcode, tenant_code });
 
             double flatFee = doctor?.opcharge ?? 0;
-            // ✅ tcode now comes from test_master's "Consultation Fee" item, not doctor_master
+            // ✅ tcode resolved from test_master's Consultation Fee row
             int? tcode = await db.ExecuteScalarAsync<int?>(
                 @"SELECT tcode FROM test_master
           WHERE tenant_code = @tenant_code
-          AND   deleted = false
-          AND   item_name ILIKE 'Consultation%'   -- or whatever the real match condition is
+          AND   deleted     = false
+          AND   name ILIKE 'Consultation%'
+          ORDER BY tcode
           LIMIT 1",
                 new { tenant_code });
 
