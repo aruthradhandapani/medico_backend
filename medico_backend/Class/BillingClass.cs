@@ -1179,7 +1179,7 @@ namespace medico_backend.Class
         }
 
         public async Task<(string status, BillNoMasterResponse? data)> UpdateBillNoConfig(
-     UpdateBillNoMasterRequest req, string tenantCode)
+    UpdateBillNoMasterRequest req, string tenantCode)
         {
             using var db = GetConnection();
             db.Open();
@@ -1187,8 +1187,8 @@ namespace medico_backend.Class
 
             try
             {
-                // ✅ FIX — lock the row (FOR UPDATE) to prevent concurrent updates
-                // from both passing the "isdefault clash" check and committing.
+                // Lock the row so concurrent updates (e.g. two requests both setting
+                // isdefault=true) can't both pass the "clash" check and commit.
                 var existing = await db.QueryFirstOrDefaultAsync<HmsBillNoMaster>(
                     @"SELECT * FROM billno_master 
               WHERE bncode = @bn AND tenant_code = @t
@@ -1198,6 +1198,8 @@ namespace medico_backend.Class
                 if (existing == null) return ("Configuration not found.", null);
                 if (existing.deleted) return ("Cannot update a deleted configuration. Restore it first.", null);
 
+                // ── Partial update: every field below is left untouched unless
+                //    explicitly present in the request. ──────────────────────────
                 if (req.name != null) existing.name = req.name;
                 if (req.shortname != null) existing.shortname = req.shortname.ToUpper();
                 if (req.orderno.HasValue) existing.orderno = req.orderno.Value;
@@ -1207,11 +1209,13 @@ namespace medico_backend.Class
                 if (req.allbranch.HasValue) existing.allbranch = req.allbranch;
                 if (req.allcounter.HasValue) existing.allcounter = req.allcounter;
 
-                // ✅ FIX — if caller is touching ANY restart flag, clear all of them first.
-                // Without this, a stale DB value (e.g. old restartdaily=true that the
-                // caller didn't send) could out-rank the new flag inside
-                // EnforceSingleRestartMode's daily > monthly > FY > CY precedence,
-                // silently discarding the requested change.
+                // ── Restart flags are mutually exclusive by business rule.
+                //    If the caller touches ANY one of them, reset all four to false
+                //    first, then apply whichever ones were actually sent. This stops
+                //    a stale DB value (e.g. old restartdaily=true left untouched)
+                //    from out-ranking the caller's intended flag inside
+                //    EnforceSingleRestartMode's daily > monthly > FY > CY precedence.
+                //    If NONE of the four are sent, all four stay exactly as in the DB. ──
                 bool restartFlagChanging = req.restartfinancialyear.HasValue || req.restartcalendaryear.HasValue
                                          || req.restartmonthly.HasValue || req.restartdaily.HasValue;
 
@@ -1245,7 +1249,7 @@ namespace medico_backend.Class
                   WHERE tenant_code = @t AND deleted = false AND bncode <> @bn
                     AND isreceiptno = @isrcpt AND issampleno = @issample
                     AND isdefault = true
-                  LIMIT 1",
+                  LIMIT 1 FOR UPDATE",
                         new { t = tenantCode, bn = existing.bncode, isrcpt = existing.isreceiptno, issample = existing.issampleno }, tx);
 
                     if (clashing != null)
