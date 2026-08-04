@@ -987,7 +987,6 @@ namespace medico_backend.Class
         // put this in HmsBillingClass, call it right before InsertAsync/UpdateAsync
         private static void EnforceSingleRestartMode(HmsBillNoMaster row)
         {
-            // Precedence order mirrors ShouldResetSequence: daily > monthly > FY > CY
             if (row.restartdaily == true)
             {
                 row.restartmonthly = false;
@@ -1014,32 +1013,32 @@ namespace medico_backend.Class
             }
         }
 
-        // ────────────────────────────────────────────────────────────────────────
-        // EnforceBillNoBusinessRules — the single gate that CreateBillNoConfig /
-        // UpdateBillNoConfig run every row through before saving.
-        //
-        //   • Receipt configs (isreceiptno = true): forced to allbranch=true,
-        //     allcounter=true, bhcode/cntcode cleared, and restartcalendaryear=true
-        //     (all other restart flags cleared) — receipts always number
-        //     globally and reset once a year, no matter what the caller sent.
-        //   • Bill/Sample configs (issampleno = true): left as configured by the
-        //     caller (branch/counter scoped or global), just normalized so only
-        //     ONE restart* flag is active at a time via EnforceSingleRestartMode.
-        // ────────────────────────────────────────────────────────────────────────
+        // ── Enforces restart-flag business rules ─────────────────────────────────
+        // isreceiptno = false → ALWAYS force yearly restart (calendar year), 
+        //                        overriding whatever was entered.
+        // isreceiptno = true  → respect whatever restart flag was configured 
+        //                        (just normalize to a single active one).
+        // issampleno  = true/false → always follow whatever was configured as-is
+        //                        (just normalize to a single active flag, no forcing).
         private static void EnforceBillNoBusinessRules(HmsBillNoMaster row)
-        {
-            if (row.isreceiptno == true)
-            {
-                row.restartcalendaryear = true;
-                row.restartfinancialyear = false;
-                row.restartmonthly = false;
-                row.restartdaily = false;
-            }
-            else
-            {
-                EnforceSingleRestartMode(row);
-            }
-        }
+{
+    if (row.isreceiptno == false)
+    {
+        row.restartcalendaryear = true;
+        row.restartfinancialyear = false;
+        row.restartmonthly = false;
+        row.restartdaily = false;
+    }
+    else if (row.isreceiptno == true)
+    {
+        EnforceSingleRestartMode(row);
+    }
+
+    if (row.issampleno == true)
+    {
+        EnforceSingleRestartMode(row);
+    }
+}
 
         /// <summary>
         /// Decides whether the running sequence should restart, based on which restart* flag
@@ -1579,6 +1578,6 @@ namespace medico_backend.Class
           WHERE c.bhcode = @bhcode AND c.cntcode = @cntcode AND c.todate IS NULL AND c.tenant_code = @tenantCode
           LIMIT 1", new { bhcode, cntcode, tenantCode });
         }
-
+       
     }
 }
