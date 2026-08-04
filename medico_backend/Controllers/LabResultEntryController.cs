@@ -6,7 +6,6 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace medico_backend.Controllers
 {
-    [Authorize]
     [Route("api/[controller]")]
     [ApiController]
     public class LabResultController : ControllerBase
