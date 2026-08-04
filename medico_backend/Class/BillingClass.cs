@@ -819,7 +819,7 @@ namespace medico_backend.Class
                 custid = master.custid,
                 patient_name = master.name,
                 gender = master.gender,
-                dateofbirth = master.dateofbirth,   
+                dateofbirth = master.dateofbirth,
                 mobileno = master.mobileno,
                 ageyears = master.ageyears,
                 dcode = (int?)master.dcode,
@@ -1030,10 +1030,6 @@ namespace medico_backend.Class
         {
             if (row.isreceiptno == true)
             {
-                row.allbranch = true;
-                row.allcounter = true;
-                row.bhcode = null;
-                row.cntcode = null;
                 row.restartcalendaryear = true;
                 row.restartfinancialyear = false;
                 row.restartmonthly = false;
