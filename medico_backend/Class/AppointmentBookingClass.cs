@@ -666,7 +666,21 @@ VALUES
                     AND    sd.slot_master_id = @slot_master_id
                     AND    ab.tenant_code    = @tenant_code
                     AND    ab.isdeleted      = false
-                    AND    ab.booking_status NOT IN ('CANCELLED', 'VISITED', 'RESCHEDULE_PENDING')";
+                    AND    ab.booking_status NOT IN ('CANCELLED', 'VISITED', 'RESCHEDULE_PENDING')
+                    AND    NOT EXISTS (
+                    SELECT 1 FROM op_registration op
+                    LEFT JOIN unbilledcharges uc
+                    ON uc.op_id = op.op_id::text
+                    AND uc.tenant_code = op.tenant_code
+                    WHERE op.booking_id = ab.booking_id
+                    AND   op.tenant_code = ab.tenant_code
+                    AND   op.isdeleted = false
+                    AND   (
+                    op.visit_status = 'COMPLETED'
+                    OR uc.is_billed = true          -- or uc.status = 'PAID' / uc.bill_id IS NOT NULL, whatever the actual paid-flag column is
+                )
+            )";
+
 
                 await db.ExecuteAsync(markPendingSql, new
                 {
