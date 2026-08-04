@@ -1179,7 +1179,7 @@ namespace medico_backend.Class
         }
 
         public async Task<(string status, BillNoMasterResponse? data)> UpdateBillNoConfig(
-            UpdateBillNoMasterRequest req, string tenantCode)
+     UpdateBillNoMasterRequest req, string tenantCode)
         {
             using var db = GetConnection();
             db.Open();
@@ -1187,8 +1187,12 @@ namespace medico_backend.Class
 
             try
             {
+                // ✅ FIX — lock the row (FOR UPDATE) to prevent concurrent updates
+                // from both passing the "isdefault clash" check and committing.
                 var existing = await db.QueryFirstOrDefaultAsync<HmsBillNoMaster>(
-                    "SELECT * FROM billno_master WHERE bncode = @bn AND tenant_code = @t",
+                    @"SELECT * FROM billno_master 
+              WHERE bncode = @bn AND tenant_code = @t
+              FOR UPDATE",
                     new { bn = req.bncode, t = tenantCode }, tx);
 
                 if (existing == null) return ("Configuration not found.", null);
@@ -1202,15 +1206,35 @@ namespace medico_backend.Class
                 if (req.isdefault.HasValue) existing.isdefault = req.isdefault;
                 if (req.allbranch.HasValue) existing.allbranch = req.allbranch;
                 if (req.allcounter.HasValue) existing.allcounter = req.allcounter;
+
+                // ✅ FIX — if caller is touching ANY restart flag, clear all of them first.
+                // Without this, a stale DB value (e.g. old restartdaily=true that the
+                // caller didn't send) could out-rank the new flag inside
+                // EnforceSingleRestartMode's daily > monthly > FY > CY precedence,
+                // silently discarding the requested change.
+                bool restartFlagChanging = req.restartfinancialyear.HasValue || req.restartcalendaryear.HasValue
+                                         || req.restartmonthly.HasValue || req.restartdaily.HasValue;
+
+                if (restartFlagChanging)
+                {
+                    existing.restartfinancialyear = false;
+                    existing.restartcalendaryear = false;
+                    existing.restartmonthly = false;
+                    existing.restartdaily = false;
+                }
+
                 if (req.restartfinancialyear.HasValue) existing.restartfinancialyear = req.restartfinancialyear;
                 if (req.restartcalendaryear.HasValue) existing.restartcalendaryear = req.restartcalendaryear;
                 if (req.restartmonthly.HasValue) existing.restartmonthly = req.restartmonthly;
                 if (req.restartdaily.HasValue) existing.restartdaily = req.restartdaily;
+
                 if (req.issampleno.HasValue) existing.issampleno = req.issampleno;
                 if (req.isreceiptno.HasValue) existing.isreceiptno = req.isreceiptno;
 
                 // Enforces: receipt configs => allbranch+allcounter+restartcalendaryear;
                 // bill/sample configs => single active restart flag as configured.
+                // Also acts as a final safety net if more than one restart flag was
+                // sent true in the same request.
                 EnforceBillNoBusinessRules(existing);
 
                 // Re-check default clash if isdefault is being turned on
@@ -1218,10 +1242,10 @@ namespace medico_backend.Class
                 {
                     var clashing = await db.QueryFirstOrDefaultAsync<HmsBillNoMaster>(
                         @"SELECT * FROM billno_master
-                   WHERE tenant_code = @t AND deleted = false AND bncode <> @bn
-                     AND isreceiptno = @isrcpt AND issampleno = @issample
-                     AND isdefault = true
-                   LIMIT 1",
+                  WHERE tenant_code = @t AND deleted = false AND bncode <> @bn
+                    AND isreceiptno = @isrcpt AND issampleno = @issample
+                    AND isdefault = true
+                  LIMIT 1",
                         new { t = tenantCode, bn = existing.bncode, isrcpt = existing.isreceiptno, issample = existing.issampleno }, tx);
 
                     if (clashing != null)
