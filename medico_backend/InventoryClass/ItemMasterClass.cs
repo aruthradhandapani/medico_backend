@@ -3602,7 +3602,154 @@ ORDER BY sd.salesdetailcode DESC;";
                     tenantcode
                 });
         }
+        public async Task<string> InsertStockAdjustment(stock_adjustment_request request)
+        {
+            using var conn = new NpgsqlConnection(con);
+            await conn.OpenAsync();
 
+            using var tran = conn.BeginTransaction();
+
+            try
+            {
+                // Check Stock Exists
+                string checkStockQuery = @"
+SELECT stockcode, closingstock, unitcost
+FROM stock_master
+WHERE stockcode = @stockcode
+AND tenantcode = @tenantcode
+AND deleted = false;";
+
+                var stock = await conn.QueryFirstOrDefaultAsync<stock_master>(
+                    checkStockQuery,
+                    new
+                    {
+                        stockcode = request.stock.stockcode,
+                        tenantcode = request.stock.tenantcode
+                    },
+                    tran);
+
+                if (stock == null)
+                {
+                    tran.Rollback();
+                    return "Stock record not found.";
+                }
+
+                decimal afterQty = request.adjustmentlog.afterqty;
+
+                decimal stockValue = afterQty * stock.unitcost;
+
+                // Update Stock Master
+                string updateStockQuery = @"
+UPDATE stock_master
+SET
+    closingstock = @closingstock,
+    stockvalue = @stockvalue,
+    modifieddate = CURRENT_TIMESTAMP
+WHERE stockcode = @stockcode;";
+
+                await conn.ExecuteAsync(
+                    updateStockQuery,
+                    new
+                    {
+                        closingstock = afterQty,
+                        stockvalue = stockValue,
+                        stockcode = request.stock.stockcode
+                    },
+                    tran);
+
+                // Insert Adjustment Log
+                string insertLogQuery = @"
+INSERT INTO stock_adjustment_log
+(
+    stockcode,
+    itemcode,
+    warehousecode,
+    branchcode,
+    locationcode,
+    batchno,
+    beforeqty,
+    adjustedqty,
+    afterqty,
+    unitcost,
+    stockvalue,
+    adjustmenttype,
+    adjustmentreason,
+    remarks,
+    adjustmentdate,
+    adjustedby,
+    isactive,
+    deleted,
+    createddate,
+    tenantcode,
+    companycode
+)
+VALUES
+(
+    @stockcode,
+    @itemcode,
+    @warehousecode,
+    @branchcode,
+    @locationcode,
+    @batchno,
+    @beforeqty,
+    @adjustedqty,
+    @afterqty,
+    @unitcost,
+    @stockvalue,
+    @adjustmenttype,
+    @adjustmentreason,
+    @remarks,
+    CURRENT_TIMESTAMP,
+    @adjustedby,
+    @isactive,
+    @deleted,
+    CURRENT_TIMESTAMP,
+    @tenantcode,
+    @companycode
+);";
+
+                await conn.ExecuteAsync(
+                    insertLogQuery,
+                    new
+                    {
+                        stockcode = request.stock.stockcode,
+                        itemcode = request.adjustmentlog.itemcode,
+                        warehousecode = request.adjustmentlog.warehousecode,
+                        branchcode = request.adjustmentlog.branchcode,
+                        locationcode = request.adjustmentlog.locationcode,
+                        batchno = request.adjustmentlog.batchno,
+
+                        beforeqty = request.adjustmentlog.beforeqty,
+                        adjustedqty = request.adjustmentlog.adjustedqty,
+                        afterqty = afterQty,
+
+                        unitcost = stock.unitcost,
+                        stockvalue = stockValue,
+
+                        adjustmenttype = request.adjustmentlog.adjustmenttype,
+                        adjustmentreason = request.adjustmentlog.adjustmentreason,
+                        remarks = request.adjustmentlog.remarks,
+
+                        adjustedby = request.adjustmentlog.adjustedby,
+
+                        isactive = true,
+                        deleted = false,
+
+                        tenantcode = request.stock.tenantcode,
+                        companycode = request.stock.companycode
+                    },
+                    tran);
+
+                tran.Commit();
+
+                return "Stock Adjustment Saved Successfully.";
+            }
+            catch (Exception ex)
+            {
+                tran.Rollback();
+                return $"Error : {ex.Message}";
+            }
+        }
         // ─── PHARMACY QUEUE (prescription → pharmacy dispensing) ───────────────────────
 
         public async Task<string> ReceivePrescription(ReceivePrescriptionRequest req, string tenant_code)
