@@ -279,40 +279,49 @@ public class purchase_detail
         public purchase_master master { get; set; }
         public List<purchase_detail> details { get; set; }
     }
-    public class stock_master
-    {
-        public long stockcode { get; set; }
+   public class stock_master
+{
+    public long stockcode { get; set; }
 
-        public long itemcode { get; set; }
+    public long itemcode { get; set; }
 
-        public long? warehousecode { get; set; }
-        public string? branchcode { get; set; }
-        public string? locationcode { get; set; }
+    public long? warehousecode { get; set; }
+    public string? branchcode { get; set; }
+    public string? locationcode { get; set; }
 
-        public decimal openingstock { get; set; }
-        public decimal purchasedqty { get; set; }
-        public decimal soldqty { get; set; }
-        public decimal damagedqty { get; set; }
-        public decimal returnqty { get; set; }
-        public decimal closingstock { get; set; }
+    public decimal openingstock { get; set; }
+    public decimal purchasedqty { get; set; }
+    public decimal soldqty { get; set; }
+    public decimal damagedqty { get; set; }
+    public decimal returnqty { get; set; }
 
-        public decimal unitcost { get; set; }
-        public decimal stockvalue { get; set; }
+    // New fields for Stock Adjustment
+    public decimal adjustedqty { get; set; }           // Latest adjustment quantity
+    public DateTime? adjusteddate { get; set; }        // Latest adjustment date
+    public long? adjustedby { get; set; }              // User who adjusted
+    public string? adjustmentreason { get; set; }      // Physical Count, Damage, Expiry...
+    public string? adjustmenttype { get; set; }        // Increase / Decrease
 
-        public string? batchno { get; set; }
-        public DateTime? manufacturingdate { get; set; }
-        public DateTime? expirydate { get; set; }
+    public decimal closingstock { get; set; }
 
-        public bool isactive { get; set; }
-        public bool deleted { get; set; }
+    public decimal unitcost { get; set; }
+    public decimal stockvalue { get; set; }
 
-        public DateTime createddate { get; set; }
-        public DateTime? modifieddate { get; set; }
-        public long? usercode { get; set; }
+    public string? batchno { get; set; }
+    public DateTime? manufacturingdate { get; set; }
+    public DateTime? expirydate { get; set; }
 
-        public string? tenantcode { get; set; }
-        public string? companycode { get; set; }
-    }
+    public bool isactive { get; set; }
+    public bool deleted { get; set; }
+
+    public DateTime createddate { get; set; }
+    public DateTime? modifieddate { get; set; }
+
+    public long? usercode { get; set; }
+
+    public string? tenantcode { get; set; }
+    public string? companycode { get; set; }
+}
     public class indent_master
     {
         public long indentcode { get; set; }
