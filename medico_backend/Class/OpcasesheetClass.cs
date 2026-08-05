@@ -1207,5 +1207,96 @@ namespace medico_backend.Class
                 return new List<IcdMasterModel>();
             }
         }
+        public async Task<dynamic> GetAllInvestigations(string tenant_code, string? search = "")
+        {
+            try
+            {
+                using IDbConnection db = new NpgsqlConnection(_db_conn);
+
+                string sql = @"
+        SELECT
+    im.inv_id,
+    im.inv_code,
+    im.inv_date,
+    im.status AS report_status,
+    cs.sheet_status,
+
+    im.custid,
+    cm.name AS patient_name,
+    cm.mobile,
+    crm.custcode,
+
+    im.dcode,
+    dm.name,
+
+    im.op_id,
+    im.ip_id,
+
+    COUNT(id.inv_det_id) AS total_tests
+
+FROM op_investigation_master im
+
+INNER JOIN op_case_sheet cs
+    ON cs.sheet_id = im.sheet_id
+
+INNER JOIN customerdb.customer_master cm
+    ON cm.custid = im.custid
+
+LEFT JOIN customerdb.customer_registration_master crm
+    ON crm.custid = cm.custid
+   AND crm.tenant_code = im.tenant_code
+
+LEFT JOIN doctor_master dm
+    ON dm.dcode = im.dcode
+   AND dm.tenant_code = im.tenant_code
+
+LEFT JOIN op_investigation_detail id
+    ON id.inv_id = im.inv_id
+   AND id.isdeleted = false
+
+WHERE im.tenant_code = @tenant_code
+  AND im.isdeleted = false
+  AND (
+        @search = ''
+        OR cm.name ILIKE @like
+        OR cm.mobile ILIKE @like
+        OR crm.custcode ILIKE @like
+        OR dm.name ILIKE @like
+        OR im.inv_code ILIKE @like
+      )
+
+GROUP BY
+    im.inv_id,
+    im.inv_code,
+    im.inv_date,
+    im.status,
+    cs.sheet_status,
+    im.custid,
+    cm.name,
+    cm.mobile,
+    crm.custcode,
+    im.dcode,
+    dm.name,
+    im.op_id,
+    im.ip_id
+
+ORDER BY im.created_at DESC;";
+
+                return await db.QueryAsync(sql, new
+                {
+                    tenant_code,
+                    search = search ?? "",
+                    like = $"%{search}%"
+                });
+            }
+            catch (Exception ex)
+            {
+                throw new Exception(ex.Message);
+            }
+        }
+
+
+
+
     }
 }

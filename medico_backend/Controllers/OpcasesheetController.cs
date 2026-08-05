@@ -296,6 +296,19 @@ namespace medico_backend.Controllers
 
             return Ok(result);
         }
+        [HttpGet("investigation/all")]
+        public async Task<IActionResult> GetAllInvestigations(
+[FromQuery] string? search = "")
+        {
+            var tenant = Request.Headers["tenant_code"].ToString();
+
+            if (string.IsNullOrWhiteSpace(tenant))
+                return BadRequest("tenant_code header is required");
+
+            var result = await cls.GetAllInvestigations(tenant, search);
+
+            return Ok(result);
+        }
 
     }
 }
