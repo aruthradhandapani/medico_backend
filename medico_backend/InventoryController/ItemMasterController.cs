@@ -1630,6 +1630,33 @@ public async Task<IActionResult> GetList()
                 return BadRequest(new { Status = "Failed", Message = ex.Message });
             }
         }
+          [HttpPost("insertstockadjustment")]
+  public async Task<IActionResult> InsertStockAdjustment([FromBody] stock_adjustment_request request)
+  {
+      try
+      {
+          string tenantcode = HttpContext.Items["TenantCode"]?.ToString() ?? string.Empty;
+
+          request.stock.tenantcode = tenantcode;
+          request.adjustmentlog.tenantcode = tenantcode;
+
+          var result = await itemclass.InsertStockAdjustment(request);
+
+          return Ok(new
+          {
+              status = "Success",
+              message = result
+          });
+      }
+      catch (Exception ex)
+      {
+          return BadRequest(new
+          {
+              status = "Failed",
+              message = ex.Message
+          });
+      }
+  }
     }
 }
     
