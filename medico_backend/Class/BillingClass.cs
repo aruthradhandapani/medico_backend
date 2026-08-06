@@ -47,19 +47,20 @@ namespace medico_backend.Class
             db.Open();
             using var tx = db.BeginTransaction();
 
+            string requestGuid;
+
             try
             {
                 // Verify/Retrieve Active Counter Timing
                 var currentShift = await db.QueryFirstOrDefaultAsync<HmsCounterTiming>(
                     @"SELECT * FROM counter_timing 
-                      WHERE bhcode = @bhcode AND cntcode = @cntcode AND todate IS NULL AND tenant_code = @tenantCode 
-                      LIMIT 1", new { bhcode = req.enteredbhcode, cntcode = req.cntcode, tenantCode }, tx);
+              WHERE bhcode = @bhcode AND cntcode = @cntcode AND todate IS NULL AND tenant_code = @tenantCode 
+              LIMIT 1", new { bhcode = req.enteredbhcode, cntcode = req.cntcode, tenantCode }, tx);
 
                 if (currentShift == null)
                     return ("Selected billing counter shift session is not open.", null);
 
                 // Fetch Sequential Master Record Configurations 
-                // CreateBill
                 var masterBillConfig = await ResolveBillNoConfig(db, tx, tenantCode, req.enteredbhcode, req.cntcode, isReceipt: false);
                 if (masterBillConfig == null)
                     return ("Bill Number sequential configuration master rule not found.", null);
@@ -67,7 +68,7 @@ namespace medico_backend.Class
                 // Generate Bill sequence and barcode numbers
                 var billNumInfo = await GetNextSequenceNumber(db, tx, masterBillConfig.bncode, req.enteredbhcode ?? 0, req.cntcode ?? 0, tenantCode);
 
-                string requestGuid = Guid.NewGuid().ToString();
+                requestGuid = Guid.NewGuid().ToString();
                 double lineGrossTotal = req.items.Sum(x => (x.amount ?? 0));
                 double aggregateDiscount = (req.discountamount ?? 0) + (req.specialdiscount ?? 0) + (req.ourdiscount ?? 0);
                 double calculativeNetAmount = lineGrossTotal - aggregateDiscount;
@@ -107,7 +108,7 @@ namespace medico_backend.Class
                     discountper = req.discountper,
                     discountamount = req.discountamount,
                     specialdiscount = req.specialdiscount,
-                    ourdispercentage = req.ourdispercentage,   // <-- ADD
+                    ourdispercentage = req.ourdispercentage,
                     ourdiscount = req.ourdiscount,
                     totalamount = calculativeNetAmount,
                     paidamount = req.paidamount ?? 0,
@@ -175,10 +176,9 @@ namespace medico_backend.Class
                 }
 
                 // If immediate payment is recorded, log receipts
-                HmsReceiptInserted? activeReceiptInfo = null;
                 if ((req.paidamount ?? 0) > 0)
                 {
-                    activeReceiptInfo = await GenerateReceiptLog(db, tx, masterRecord, req.paidamount ?? 0, req.collection_type, tenantCode);
+                    await GenerateReceiptLog(db, tx, masterRecord, req.paidamount ?? 0, req.collection_type, tenantCode);
                 }
 
                 // If billing from unbilled charges, mark them billed in the same tx
@@ -186,13 +186,13 @@ namespace medico_backend.Class
                 {
                     await db.ExecuteAsync(
                         @"UPDATE unbilledcharges
-                          SET billedstatus   = true,
-                              billno         = @billno,
-                              billid         = @billid,
-                              billeddate     = @now,
-                              billedquantity = quantity,
-                              billedamount   = amount
-                          WHERE unbilledid = ANY(@ids) AND tenant_code = @tenantCode",
+                  SET billedstatus   = true,
+                      billno         = @billno,
+                      billid         = @billid,
+                      billeddate     = @now,
+                      billedquantity = quantity,
+                      billedamount   = amount
+                  WHERE unbilledid = ANY(@ids) AND tenant_code = @tenantCode",
                         new
                         {
                             billno = billNumInfo.snoprint,
@@ -203,15 +203,30 @@ namespace medico_backend.Class
                         }, tx);
                 }
 
+                // ── Everything above is validated and staged. Commit now. ──────────────
                 tx.Commit();
-                var result = await FetchBillRecordByGuid(requestGuid, tenantCode);
-                return ("SUCCESS", result);
             }
             catch (Exception ex)
             {
                 tx.Rollback();
                 _logger.LogError(ex, "Failed to create HMS billing record transaction entry context.");
                 return ($"Internal transaction error: {ex.Message}", null);
+            }
+
+            // ── Transaction has committed successfully at this point. The bill, its ──
+            // items, its sequence number, and any receipt are durably saved no matter
+            // what happens below. A failure here must NEVER be reported as a write
+            // failure, or the caller will believe (and may retry) something that
+            // already succeeded — which is what causes "skipped" sequence numbers.
+            try
+            {
+                var result = await FetchBillRecordByGuid(requestGuid, tenantCode);
+                return ("SUCCESS", result);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Bill {guid} committed successfully but post-commit fetch failed.", requestGuid);
+                return ("SUCCESS_FETCH_FAILED", null);
             }
         }
 
@@ -231,7 +246,7 @@ namespace medico_backend.Class
                 if (existingMaster.isdeleted == true || existingMaster.deleted == true) return ("Modification criteria locked against deleted profiles.", null);
 
                 double lineGrossTotal = req.items.Sum(x => (x.amount ?? 0));
-                double aggregateDiscount = (req.discountamount ?? 0) + (req.specialdiscount ?? 0) + (req.ourdiscount ?? 0);  // add ourdiscount
+                double aggregateDiscount = (req.discountamount ?? 0) + (req.specialdiscount ?? 0) + (req.ourdiscount ?? 0);
                 double calculativeNetAmount = lineGrossTotal - aggregateDiscount;
                 if (calculativeNetAmount < 0) calculativeNetAmount = 0;
 
@@ -257,7 +272,7 @@ namespace medico_backend.Class
                 existingMaster.discountper = req.discountper;
                 existingMaster.discountamount = req.discountamount;
                 existingMaster.specialdiscount = req.specialdiscount;
-                existingMaster.ourdispercentage = req.ourdispercentage;   // <-- ADD
+                existingMaster.ourdispercentage = req.ourdispercentage;
                 existingMaster.ourdiscount = req.ourdiscount;
                 existingMaster.totalamount = calculativeNetAmount;
                 existingMaster.pmc1 = req.pmc1 ?? 0;
@@ -311,8 +326,6 @@ namespace medico_backend.Class
                 }
 
                 tx.Commit();
-                var result = await FetchBillRecordByGuid(requestGuid, tenantCode);
-                return ("SUCCESS", result);
             }
             catch (Exception ex)
             {
@@ -320,79 +333,104 @@ namespace medico_backend.Class
                 _logger.LogError(ex, "Failed executing structural content update over hms billing profile.");
                 return ($"Update action transaction failure: {ex.Message}", null);
             }
+
+            try
+            {
+                var result = await FetchBillRecordByGuid(requestGuid, tenantCode);
+                return ("SUCCESS", result);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Bill {guid} update committed successfully but post-commit fetch failed.", requestGuid);
+                return ("SUCCESS_FETCH_FAILED", null);
+            }
         }
 
-        // ════════════════════════════════════════════════════════════════════════
-        //  2. RECEIPT LOGGING ENGINE
-        // ════════════════════════════════════════════════════════════════════════
-
-        // ────────────────────────────────────────────────────────────────────────
-        // ResolveBillNoConfig — single source of truth for picking which
-        // billno_master row governs a given numbering request.
-        //
-        // Business rules:
-        //   • isReceipt = true  → Receipt numbering is ALWAYS global
-        //     (allbranch = true AND allcounter = true) and is enforced to restart
-        //     yearly at config save-time (see EnforceBillNoBusinessRules). No
-        //     branch/counter fallback chain is needed here because a receipt
-        //     config can never be scoped to a branch/counter in the first place.
-        //   • isReceipt = false → Bill / Sample numbering (issampleno = true).
-        //     Resolution order: exact branch+counter match → branch-only
-        //     (allcounter=true) match → fully global (allbranch=true AND
-        //     allcounter=true) match. Whatever restart* flag (daily / monthly /
-        //     financial year / calendar year) is set on the matched row is
-        //     honoured by GetNextSequenceNumber.
-        // ────────────────────────────────────────────────────────────────────────
         private static async Task<HmsBillNoMaster?> ResolveBillNoConfig(
+     IDbConnection db, IDbTransaction tx, string tenantCode,
+     int? bhcode, int? cntcode, bool isReceipt)
+        {
+            string flagColumn = isReceipt ? "isreceiptno" : "issampleno";
+            HmsBillNoMaster? cfg = null;
+
+            var npgsqlTx = tx as Npgsql.NpgsqlTransaction;
+            const string savepointName = "sp_billno_mapping_probe";
+
+            if (npgsqlTx != null)
+                await npgsqlTx.SaveAsync(savepointName);
+
+            try
+            {
+                cfg = await db.QueryFirstOrDefaultAsync<HmsBillNoMaster>($@"
+            SELECT bm.*
+            FROM billno_master bm
+            INNER JOIN billno_mapping map
+                    ON map.bncode = bm.bncode AND map.tenant_code = bm.tenant_code
+            WHERE bm.tenant_code = @t
+              AND bm.{flagColumn} = true
+              AND bm.deleted  = false
+              AND map.deleted = false
+              AND map.tenant_code = @t
+              AND (map.bhcode  = @bh OR (map.bhcode  IS NULL AND @bh IS NULL))
+              AND (map.cntcode = @cn OR (map.cntcode IS NULL AND @cn IS NULL))
+            ORDER BY
+                CASE
+                    WHEN map.bhcode IS NOT NULL AND map.cntcode IS NOT NULL THEN 1
+                    WHEN map.bhcode IS NOT NULL AND map.cntcode IS NULL     THEN 2
+                    WHEN map.bhcode IS NULL     AND map.cntcode IS NULL     THEN 3
+                    ELSE 4
+                END, bm.orderno
+            LIMIT 1 FOR UPDATE",
+                    new { t = tenantCode, bh = bhcode, cn = cntcode }, tx);
+
+                if (npgsqlTx != null)
+                    await npgsqlTx.ReleaseAsync(savepointName);
+            }
+            catch
+            {
+                // Roll back ONLY to the savepoint — the outer transaction stays alive and usable.
+                if (npgsqlTx != null)
+                    await npgsqlTx.RollbackAsync(savepointName);
+                cfg = null;
+            }
+
+            cfg ??= await ResolveBillNoConfigLegacy(db, tx, tenantCode, bhcode, cntcode, isReceipt);
+            return cfg;
+        }
+
+        private static async Task<HmsBillNoMaster?> ResolveBillNoConfigLegacy(
             IDbConnection db, IDbTransaction tx, string tenantCode,
             int? bhcode, int? cntcode, bool isReceipt)
         {
-            if (isReceipt)
-            {
-                // Receipt numbers are ALWAYS global (allbranch+allcounter) and reset yearly.
-                // Enforced at config-creation/update time — no fallback chain needed.
-                return await db.QueryFirstOrDefaultAsync<HmsBillNoMaster>(
-                    @"SELECT * FROM billno_master
-                      WHERE tenant_code = @t
-                        AND isreceiptno = true
-                        AND deleted = false
-                        AND allbranch = true
-                        AND allcounter = true
-                      ORDER BY isdefault DESC NULLS LAST, entereddate DESC
-                      LIMIT 1 FOR UPDATE",
-                    new { t = tenantCode }, tx);
-            }
-
-            // Bill / Sample numbering (issampleno = true)
+            string flagColumn = isReceipt ? "isreceiptno" : "issampleno";
             HmsBillNoMaster? cfg = null;
 
             if (bhcode.HasValue && cntcode.HasValue)
                 cfg = await db.QueryFirstOrDefaultAsync<HmsBillNoMaster>(
-                    @"SELECT * FROM billno_master
-                      WHERE tenant_code=@t AND issampleno = true AND deleted=false
-                        AND (allbranch IS NULL OR allbranch=false)
-                        AND (allcounter IS NULL OR allcounter=false)
-                        AND bhcode=@bh AND cntcode=@cn
-                      ORDER BY isdefault DESC NULLS LAST, entereddate DESC
-                      LIMIT 1 FOR UPDATE",
+                    $@"SELECT * FROM billno_master
+               WHERE tenant_code=@t AND {flagColumn} = true AND deleted=false
+                 AND (allbranch IS NULL OR allbranch=false)
+                 AND (allcounter IS NULL OR allcounter=false)
+                 AND bhcode=@bh AND cntcode=@cn
+               ORDER BY isdefault DESC NULLS LAST, entereddate DESC
+               LIMIT 1 FOR UPDATE",
                     new { t = tenantCode, bh = bhcode.Value, cn = cntcode.Value }, tx);
 
             if (cfg == null && bhcode.HasValue)
                 cfg = await db.QueryFirstOrDefaultAsync<HmsBillNoMaster>(
-                    @"SELECT * FROM billno_master
-                      WHERE tenant_code=@t AND issampleno = true AND deleted=false
-                        AND (allbranch IS NULL OR allbranch=false) AND allcounter=true AND bhcode=@bh
-                      ORDER BY isdefault DESC NULLS LAST, entereddate DESC
-                      LIMIT 1 FOR UPDATE",
+                    $@"SELECT * FROM billno_master
+               WHERE tenant_code=@t AND {flagColumn} = true AND deleted=false
+                 AND (allbranch IS NULL OR allbranch=false) AND allcounter=true AND bhcode=@bh
+               ORDER BY isdefault DESC NULLS LAST, entereddate DESC
+               LIMIT 1 FOR UPDATE",
                     new { t = tenantCode, bh = bhcode.Value }, tx);
 
-            // allbranch=true AND allcounter=true → the GLOBAL bill/sample numbering config
             cfg ??= await db.QueryFirstOrDefaultAsync<HmsBillNoMaster>(
-                @"SELECT * FROM billno_master
-                  WHERE tenant_code=@t AND issampleno = true AND deleted=false
-                    AND allbranch=true AND allcounter=true
-                  ORDER BY isdefault DESC NULLS LAST, entereddate DESC
-                  LIMIT 1 FOR UPDATE",
+                $@"SELECT * FROM billno_master
+           WHERE tenant_code=@t AND {flagColumn} = true AND deleted=false
+             AND allbranch=true AND allcounter=true
+           ORDER BY isdefault DESC NULLS LAST, entereddate DESC
+           LIMIT 1 FOR UPDATE",
                 new { t = tenantCode }, tx);
 
             return cfg;
@@ -401,9 +439,7 @@ namespace medico_backend.Class
         // ────────────────────────────────────────────────────────────────────────
         // GetNextSequenceNumber — locks (or creates) the billno_sequence row and
         // advances/restarts the running number based on masterConfig's restart*
-        // flag. NULL-safe on bhcode/cntcode so a "shared" sequence (allbranch or
-        // allcounter = true) resolves to a single row instead of fragmenting into
-        // one row per branch/counter.
+        // flag. Standard LIMS period formatting & barcode generation applied.
         // ────────────────────────────────────────────────────────────────────────
         private async Task<HmsNumberResult> GetNextSequenceNumber(
             IDbConnection db, IDbTransaction tx, decimal engineCode,
@@ -416,16 +452,15 @@ namespace medico_backend.Class
             if (masterConfig == null)
                 throw new InvalidOperationException($"Billno master configuration bncode={engineCode} not found.");
 
-            // allbranch=true  -> sequence shared across ALL branches  (bhcode key = NULL)
-            // allcounter=true -> sequence shared across ALL counters  (cntcode key = NULL)
-            // If allbranch=true, branch stops being a distinguishing key, so counter isn't either.
             int? seqBhKey = masterConfig.allbranch == true ? (int?)null : branchReference;
             decimal? seqCntKey = (masterConfig.allbranch == true || masterConfig.allcounter == true)
                 ? (decimal?)null
                 : counterReference;
 
-            // NULL-safe lookup so shared sequences resolve to a single row instead of
-            // silently creating one row per branch/counter.
+            // ── Serialize concurrent callers for this EXACT sequence key ──────────
+            string sequenceLockKey = $"seq|{tenantCode}|{engineCode}|{seqBhKey?.ToString() ?? "ALL"}|{seqCntKey?.ToString() ?? "ALL"}";
+            await db.ExecuteAsync("SELECT pg_advisory_xact_lock(hashtext(@lockKey))", new { lockKey = sequenceLockKey }, tx);
+
             var sequentialRecord = await db.QueryFirstOrDefaultAsync<HmsBillNoSequence>(
                 @"SELECT seq_id, bncode, bhcode, cntcode, orderno,
                  last_used_date::timestamp AS last_used_date,
@@ -468,9 +503,14 @@ namespace medico_backend.Class
                 await db.UpdateAsync(sequentialRecord, tx);
             }
 
-            string compositeShortToken = masterConfig.shortname ?? "INV";
-            string printRepresentation = $"{compositeShortToken}-{DateTime.UtcNow:yyMM}-{targetedProgressiveOrder:D5}";
-            string trackingBarcode = $"{engineCode}{branchReference}{counterReference}{targetedProgressiveOrder}";
+            string sn = masterConfig.shortname ?? tenantCode[..Math.Min(3, tenantCode.Length)].ToUpper();
+            string period = BuildPeriod(masterConfig, today);
+            string prefix = masterConfig.allbranch == true ? sn
+                           : masterConfig.allcounter == true ? $"{sn}{branchReference}"
+                           : $"{sn}{branchReference}-{counterReference}";
+
+            string printRepresentation = $"{prefix}/{targetedProgressiveOrder:D3}/{period}";
+            string trackingBarcode = $"{sn}{branchReference}{counterReference}{today:yyyyMMdd}{targetedProgressiveOrder:D5}";
 
             return new HmsNumberResult
             {
@@ -482,27 +522,162 @@ namespace medico_backend.Class
         }
 
         // ────────────────────────────────────────────────────────────────────────
+        // ────────────────────────────────────────────────────────────────────────
+        // GetOrCreateYearlyReceiptConfig — resolves or creates a yearly restart
+        // receipt configuration for receipt numbers when isreceiptno = false or
+        // when no custom receipt configuration is found.
+        // ────────────────────────────────────────────────────────────────────────
+        private async Task<HmsBillNoMaster> GetOrCreateYearlyReceiptConfig(
+            IDbConnection db, IDbTransaction tx, string tenantCode, int? bhcode, int? cntcode)
+        {
+            // 1. Check if an existing receipt config with yearly restart exists
+            HmsBillNoMaster? cfg = null;
+
+            if (bhcode.HasValue && cntcode.HasValue)
+                cfg = await db.QueryFirstOrDefaultAsync<HmsBillNoMaster>(
+                    @"SELECT * FROM billno_master
+               WHERE tenant_code=@t AND isreceiptno = true AND deleted=false
+                 AND (allbranch IS NULL OR allbranch=false)
+                 AND (allcounter IS NULL OR allcounter=false)
+                 AND bhcode=@bh AND cntcode=@cn
+                 AND (restartcalendaryear = true OR restartfinancialyear = true)
+               ORDER BY isdefault DESC NULLS LAST, entereddate DESC
+               LIMIT 1 FOR UPDATE",
+                    new { t = tenantCode, bh = bhcode.Value, cn = cntcode.Value }, tx);
+
+            if (cfg == null && bhcode.HasValue)
+                cfg = await db.QueryFirstOrDefaultAsync<HmsBillNoMaster>(
+                    @"SELECT * FROM billno_master
+               WHERE tenant_code=@t AND isreceiptno = true AND deleted=false
+                 AND (allbranch IS NULL OR allbranch=false) AND allcounter=true AND bhcode=@bh
+                 AND (restartcalendaryear = true OR restartfinancialyear = true)
+               ORDER BY isdefault DESC NULLS LAST, entereddate DESC
+               LIMIT 1 FOR UPDATE",
+                    new { t = tenantCode, bh = bhcode.Value }, tx);
+
+            cfg ??= await db.QueryFirstOrDefaultAsync<HmsBillNoMaster>(
+                @"SELECT * FROM billno_master
+           WHERE tenant_code=@t AND isreceiptno = true AND deleted=false
+             AND allbranch=true AND allcounter=true
+             AND (restartcalendaryear = true OR restartfinancialyear = true)
+           ORDER BY isdefault DESC NULLS LAST, entereddate DESC
+           LIMIT 1 FOR UPDATE",
+                new { t = tenantCode }, tx);
+
+            if (cfg != null) return cfg;
+
+            // 2. If no yearly receipt config exists, check if ANY global receipt config exists for this tenant
+            cfg = await db.QueryFirstOrDefaultAsync<HmsBillNoMaster>(
+                @"SELECT * FROM billno_master
+           WHERE tenant_code=@t AND isreceiptno = true AND deleted=false
+             AND allbranch=true AND allcounter=true
+           ORDER BY isdefault DESC NULLS LAST, entereddate DESC
+           LIMIT 1 FOR UPDATE",
+                new { t = tenantCode }, tx);
+
+            if (cfg != null) return cfg;
+
+            // 3. Otherwise, create a default global yearly restart receipt config for this tenant
+            string lockKey = $"create_yearly_rcp_cfg|{tenantCode}";
+            await db.ExecuteAsync("SELECT pg_advisory_xact_lock(hashtext(@lockKey))", new { lockKey }, tx);
+
+            cfg = await db.QueryFirstOrDefaultAsync<HmsBillNoMaster>(
+                @"SELECT * FROM billno_master
+           WHERE tenant_code=@t AND isreceiptno = true AND deleted=false
+             AND allbranch=true AND allcounter=true
+           LIMIT 1 FOR UPDATE",
+                new { t = tenantCode }, tx);
+
+            if (cfg != null) return cfg;
+
+            decimal nextCode = await db.ExecuteScalarAsync<decimal>(
+                @"SELECT COALESCE(MAX(bncode), 0) + 1 FROM billno_master WHERE tenant_code = @t",
+                new { t = tenantCode }, tx);
+
+            cfg = new HmsBillNoMaster
+            {
+                bncode = nextCode,
+                orderno = 1,
+                name = "Default Yearly Receipt Series",
+                shortname = "RCP",
+                isdefault = true,
+                allbranch = true,
+                allcounter = true,
+                restartcalendaryear = true,
+                restartfinancialyear = false,
+                restartmonthly = false,
+                restartdaily = false,
+                issampleno = false,
+                isreceiptno = true,
+                deleted = false,
+                tenant_code = tenantCode,
+                usercode = 0,
+                computercode = 0,
+                entereddate = DateTime.UtcNow,
+                ibsdate = DateTime.UtcNow
+            };
+
+            await db.InsertAsync(cfg, tx);
+            return cfg;
+        }
+
+        // ────────────────────────────────────────────────────────────────────────
         // GenerateReceiptLog — creates the receipt_master / receipt_details /
-        // balancecollectionby rows for a payment against a bill. Always pulls
-        // the receipt numbering config via ResolveBillNoConfig(isReceipt: true),
-        // which (per EnforceBillNoBusinessRules) is always global + yearly reset.
-        // Called from CreateBill (immediate payment at creation) and AddPayment
-        // (later balance settlement).
+        // balancecollectionby rows for a payment against a bill.
+        //
+        // Business rules:
+        //   • Receipt Number and Sample Number follow SEPARATE series.
+        //   • isreceiptno = true  → follows configuration (resolves custom receipt
+        //     numbering config if available and advances its sequence).
+        //   • isreceiptno = false → follows separate yearly restart series.
+        //   • issampleno = true   → always follows configuration.
         // ────────────────────────────────────────────────────────────────────────
         private async Task<HmsReceiptInserted> GenerateReceiptLog(
             IDbConnection db, IDbTransaction tx,
             HmsLabRequestMaster master, double amount,
             string collectionType, string tenantCode)
         {
-            var receiptConfig = await ResolveBillNoConfig(
-                db, tx, tenantCode, master.enteredbhcode, (int?)master.cntcode, isReceipt: true);
+            var governingConfig = await db.QueryFirstOrDefaultAsync<HmsBillNoMaster>(
+                "SELECT * FROM billno_master WHERE bncode = @bncode AND tenant_code = @tenantCode",
+                new { bncode = master.bncode, tenantCode }, tx);
 
-            if (receiptConfig == null)
-                throw new InvalidOperationException("Receipt Number sequential configuration master rule not found.");
+            HmsNumberResult receiptNumInfo;
 
-            var receiptNumInfo = await GetNextSequenceNumber(
-                db, tx, receiptConfig.bncode,
-                master.enteredbhcode ?? 0, (int)(master.cntcode ?? 0), tenantCode);
+            if (governingConfig?.isreceiptno == true)
+            {
+                var receiptConfig = await ResolveBillNoConfig(
+                    db, tx, tenantCode, master.enteredbhcode, (int?)master.cntcode, isReceipt: true);
+
+                if (receiptConfig != null)
+                {
+                    receiptNumInfo = await GetNextSequenceNumber(
+                        db, tx, receiptConfig.bncode,
+                        master.enteredbhcode ?? 0, (int)(master.cntcode ?? 0), tenantCode);
+                }
+                else
+                {
+                    _logger.LogInformation(
+                        "Receipt Number config (isreceiptno=true) not found for bncode={bncode}, tenant={tenant}. Using separate yearly restart receipt series.",
+                        master.bncode, tenantCode);
+
+                    var yearlyReceiptConfig = await GetOrCreateYearlyReceiptConfig(
+                        db, tx, tenantCode, master.enteredbhcode, (int?)master.cntcode);
+
+                    receiptNumInfo = await GetNextSequenceNumber(
+                        db, tx, yearlyReceiptConfig.bncode,
+                        master.enteredbhcode ?? 0, (int)(master.cntcode ?? 0), tenantCode);
+                }
+            }
+            else
+            {
+                // isreceiptno = false -> Receipt number follows separate yearly restart series
+                var yearlyReceiptConfig = await GetOrCreateYearlyReceiptConfig(
+                    db, tx, tenantCode, master.enteredbhcode, (int?)master.cntcode);
+
+                receiptNumInfo = await GetNextSequenceNumber(
+                    db, tx, yearlyReceiptConfig.bncode,
+                    master.enteredbhcode ?? 0, (int)(master.cntcode ?? 0), tenantCode);
+            }
 
             string receiptGuid = Guid.NewGuid().ToString();
             var now = DateTime.UtcNow;
@@ -625,7 +800,6 @@ namespace medico_backend.Class
 
                 if (splitTotal > 0.01)
                 {
-                    // Caller sent a split (cash/card/upi mix) — it MUST add up to req.amount
                     if (Math.Abs(splitTotal - req.amount) > 0.01)
                         return ($"Payment split mismatch: pmc1+pmc2+pmc3 ({splitTotal}) does not equal amount ({req.amount}).", null);
 
@@ -634,16 +808,13 @@ namespace medico_backend.Class
                 }
                 else
                 {
-                    // No split given — fall back to single-mode collection_type and
-                    // auto-populate the matching pmc bucket so pmc1/2/3 stay in sync
-                    // with paidamount even for simple single-mode payments.
                     effectiveCollectionType = req.collection_type;
                     switch (req.collection_type?.ToUpperInvariant())
                     {
                         case "CASH": pmc1Amt = req.amount; break;
                         case "CARD": pmc2Amt = req.amount; break;
                         case "UPI": pmc3Amt = req.amount; break;
-                        default: pmc1Amt = req.amount; break; // unspecified -> treat as cash bucket
+                        default: pmc1Amt = req.amount; break;
                     }
                 }
 
@@ -665,14 +836,23 @@ namespace medico_backend.Class
                 await GenerateReceiptLog(db, tx, masterBill, req.amount, effectiveCollectionType, tenantCode);
 
                 tx.Commit();
-                var response = await FetchBillRecordByGuid(req.requestguid, tenantCode);
-                return ("SUCCESS", response);
             }
             catch (Exception ex)
             {
                 tx.Rollback();
                 _logger.LogError(ex, "Error processing incoming ledger collection context over allocation parameters.");
                 return ($"Ledger posting error context: {ex.Message}", null);
+            }
+
+            try
+            {
+                var response = await FetchBillRecordByGuid(req.requestguid, tenantCode);
+                return ("SUCCESS", response);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Payment for bill {guid} committed successfully but post-commit fetch failed.", req.requestguid);
+                return ("SUCCESS_FETCH_FAILED", null);
             }
         }
         // ════════════════════════════════════════════════════════════════════════
@@ -987,6 +1167,7 @@ namespace medico_backend.Class
         // put this in HmsBillingClass, call it right before InsertAsync/UpdateAsync
         private static void EnforceSingleRestartMode(HmsBillNoMaster row)
         {
+            // Precedence order mirrors ShouldResetSequence: daily > monthly > FY > CY
             if (row.restartdaily == true)
             {
                 row.restartmonthly = false;
@@ -1013,32 +1194,17 @@ namespace medico_backend.Class
             }
         }
 
-        // ── Enforces restart-flag business rules ─────────────────────────────────
-        // isreceiptno = false → ALWAYS force yearly restart (calendar year), 
-        //                        overriding whatever was entered.
-        // isreceiptno = true  → respect whatever restart flag was configured 
-        //                        (just normalize to a single active one).
-        // issampleno  = true/false → always follow whatever was configured as-is
-        //                        (just normalize to a single active flag, no forcing).
+        // ────────────────────────────────────────────────────────────────────────
+        // EnforceBillNoBusinessRules — normalizes a billno_master row before save.
+        // Sample-number rows AND receipt-number rows are treated identically here:
+        // the admin's chosen scope (branch/counter/global) and restart method
+        // (daily/monthly/FY/CY) are both respected as configured — we only make
+        // sure a single restart flag is active at a time.
+        // ────────────────────────────────────────────────────────────────────────
         private static void EnforceBillNoBusinessRules(HmsBillNoMaster row)
-{
-    if (row.isreceiptno == false)
-    {
-        row.restartcalendaryear = true;
-        row.restartfinancialyear = false;
-        row.restartmonthly = false;
-        row.restartdaily = false;
-    }
-    else if (row.isreceiptno == true)
-    {
-        EnforceSingleRestartMode(row);
-    }
-
-    if (row.issampleno == true)
-    {
-        EnforceSingleRestartMode(row);
-    }
-}
+        {
+            EnforceSingleRestartMode(row);
+        }
 
         /// <summary>
         /// Decides whether the running sequence should restart, based on which restart* flag
@@ -1069,6 +1235,15 @@ namespace medico_backend.Class
 
         private static int FinancialYearOf(DateTime date)
             => date.Month >= FY_START_MONTH ? date.Year : date.Year - 1;
+
+        private static string BuildPeriod(HmsBillNoMaster cfg, DateTime today)
+        {
+            if (cfg.restartfinancialyear == true)
+            { int fy = FinancialYearOf(today); return $"{fy % 100:D2}-{(fy + 1) % 100:D2}"; }
+            if (cfg.restartdaily == true) return today.ToString("dd/MM/yyyy");
+            if (cfg.restartmonthly == true) return today.ToString("MM/yyyy");
+            return today.Year.ToString();
+        }
 
         private string? ValidateBillRequest(CreateHmsBillRequest requestPayload)
         {
@@ -1174,7 +1349,7 @@ namespace medico_backend.Class
         }
 
         public async Task<(string status, BillNoMasterResponse? data)> UpdateBillNoConfig(
-    UpdateBillNoMasterRequest req, string tenantCode)
+            UpdateBillNoMasterRequest req, string tenantCode)
         {
             using var db = GetConnection();
             db.Open();
@@ -1182,19 +1357,13 @@ namespace medico_backend.Class
 
             try
             {
-                // Lock the row so concurrent updates (e.g. two requests both setting
-                // isdefault=true) can't both pass the "clash" check and commit.
                 var existing = await db.QueryFirstOrDefaultAsync<HmsBillNoMaster>(
-                    @"SELECT * FROM billno_master 
-              WHERE bncode = @bn AND tenant_code = @t
-              FOR UPDATE",
+                    "SELECT * FROM billno_master WHERE bncode = @bn AND tenant_code = @t",
                     new { bn = req.bncode, t = tenantCode }, tx);
 
                 if (existing == null) return ("Configuration not found.", null);
                 if (existing.deleted) return ("Cannot update a deleted configuration. Restore it first.", null);
 
-                // ── Partial update: every field below is left untouched unless
-                //    explicitly present in the request. ──────────────────────────
                 if (req.name != null) existing.name = req.name;
                 if (req.shortname != null) existing.shortname = req.shortname.ToUpper();
                 if (req.orderno.HasValue) existing.orderno = req.orderno.Value;
@@ -1203,37 +1372,15 @@ namespace medico_backend.Class
                 if (req.isdefault.HasValue) existing.isdefault = req.isdefault;
                 if (req.allbranch.HasValue) existing.allbranch = req.allbranch;
                 if (req.allcounter.HasValue) existing.allcounter = req.allcounter;
-
-                // ── Restart flags are mutually exclusive by business rule.
-                //    If the caller touches ANY one of them, reset all four to false
-                //    first, then apply whichever ones were actually sent. This stops
-                //    a stale DB value (e.g. old restartdaily=true left untouched)
-                //    from out-ranking the caller's intended flag inside
-                //    EnforceSingleRestartMode's daily > monthly > FY > CY precedence.
-                //    If NONE of the four are sent, all four stay exactly as in the DB. ──
-                bool restartFlagChanging = req.restartfinancialyear.HasValue || req.restartcalendaryear.HasValue
-                                         || req.restartmonthly.HasValue || req.restartdaily.HasValue;
-
-                if (restartFlagChanging)
-                {
-                    existing.restartfinancialyear = false;
-                    existing.restartcalendaryear = false;
-                    existing.restartmonthly = false;
-                    existing.restartdaily = false;
-                }
-
                 if (req.restartfinancialyear.HasValue) existing.restartfinancialyear = req.restartfinancialyear;
                 if (req.restartcalendaryear.HasValue) existing.restartcalendaryear = req.restartcalendaryear;
                 if (req.restartmonthly.HasValue) existing.restartmonthly = req.restartmonthly;
                 if (req.restartdaily.HasValue) existing.restartdaily = req.restartdaily;
-
                 if (req.issampleno.HasValue) existing.issampleno = req.issampleno;
                 if (req.isreceiptno.HasValue) existing.isreceiptno = req.isreceiptno;
 
                 // Enforces: receipt configs => allbranch+allcounter+restartcalendaryear;
                 // bill/sample configs => single active restart flag as configured.
-                // Also acts as a final safety net if more than one restart flag was
-                // sent true in the same request.
                 EnforceBillNoBusinessRules(existing);
 
                 // Re-check default clash if isdefault is being turned on
@@ -1241,10 +1388,10 @@ namespace medico_backend.Class
                 {
                     var clashing = await db.QueryFirstOrDefaultAsync<HmsBillNoMaster>(
                         @"SELECT * FROM billno_master
-                  WHERE tenant_code = @t AND deleted = false AND bncode <> @bn
-                    AND isreceiptno = @isrcpt AND issampleno = @issample
-                    AND isdefault = true
-                  LIMIT 1 FOR UPDATE",
+                   WHERE tenant_code = @t AND deleted = false AND bncode <> @bn
+                     AND isreceiptno = @isrcpt AND issampleno = @issample
+                     AND isdefault = true
+                   LIMIT 1",
                         new { t = tenantCode, bn = existing.bncode, isrcpt = existing.isreceiptno, issample = existing.issampleno }, tx);
 
                     if (clashing != null)
@@ -1403,7 +1550,7 @@ namespace medico_backend.Class
         // ════════════════════════════════════════════════════════════════════════
 
         public async Task<(string status, UpdateHmsBillResponse? data)> UpdateBillDedicated(
-            UpdateHmsBillRequest req, string tenantCode)
+    UpdateHmsBillRequest req, string tenantCode)
         {
             // ── Validations ───────────────────────────────────────────────────
             if (string.IsNullOrWhiteSpace(req.requestguid))
@@ -1441,12 +1588,11 @@ namespace medico_backend.Class
 
                 // ── Recalculate amounts ───────────────────────────────────────
                 double lineGrossTotal = req.items.Sum(x => x.amount ?? 0);
-                double aggregateDiscount = (req.discountamount ?? 0) + (req.specialdiscount ?? 0) + (req.ourdiscount ?? 0);  // add ourdiscount
+                double aggregateDiscount = (req.discountamount ?? 0) + (req.specialdiscount ?? 0) + (req.ourdiscount ?? 0);
                 double netAmount = Math.Max(lineGrossTotal - aggregateDiscount, 0);
 
                 // ── Apply changes to master ───────────────────────────────────
                 existing.custid = req.custid ?? existing.custid;
-
                 existing.name = req.patient_name ?? existing.name;
                 existing.gender = req.gender ?? existing.gender;
                 existing.dateofbirth = req.dateofbirth ?? existing.dateofbirth;
@@ -1465,7 +1611,7 @@ namespace medico_backend.Class
                 existing.discountper = req.discountper ?? existing.discountper;
                 existing.discountamount = req.discountamount ?? existing.discountamount;
                 existing.specialdiscount = req.specialdiscount ?? existing.specialdiscount;
-                existing.ourdispercentage = req.ourdispercentage ?? existing.ourdispercentage;   // <-- ADD
+                existing.ourdispercentage = req.ourdispercentage ?? existing.ourdispercentage;
                 existing.ourdiscount = req.ourdiscount ?? existing.ourdiscount;
                 existing.pmc1 = req.pmc1 ?? existing.pmc1;
                 existing.pmc2 = req.pmc2 ?? existing.pmc2;
@@ -1526,8 +1672,17 @@ namespace medico_backend.Class
                 }
 
                 tx.Commit();
+            }
+            catch (Exception ex)
+            {
+                tx.Rollback();
+                _logger.LogError(ex, "UpdateBillDedicated failed for requestguid={rg}", req.requestguid);
+                return ($"Transaction error: {ex.Message}", null);
+            }
 
-                // ── Fetch and return updated bill ─────────────────────────────
+            // ── Fetch and return updated bill (commit already succeeded) ──────────
+            try
+            {
                 var updated = await FetchBillRecordByGuid(req.requestguid, tenantCode);
 
                 return ("SUCCESS", new UpdateHmsBillResponse
@@ -1547,9 +1702,9 @@ namespace medico_backend.Class
                     cntcode = updated?.cntcode,
                     gross_amount = updated?.gross_amount,
                     discount_amount = updated?.discount_amount,
-                    general_concession_per = updated?.general_concession_per,          // <-- ADD
-                    general_concession_amount = updated?.general_concession_amount,    // <-- ADD
-                    referral_concession_per = updated?.referral_concession_per,        // <-- ADD
+                    general_concession_per = updated?.general_concession_per,
+                    general_concession_amount = updated?.general_concession_amount,
+                    referral_concession_per = updated?.referral_concession_per,
                     referral_concession_amount = updated?.referral_concession_amount,
                     net_amount = updated?.net_amount,
                     paid_amount = updated?.paid_amount,
@@ -1561,9 +1716,12 @@ namespace medico_backend.Class
             }
             catch (Exception ex)
             {
-                tx.Rollback();
-                _logger.LogError(ex, "UpdateBillDedicated failed for requestguid={rg}", req.requestguid);
-                return ($"Transaction error: {ex.Message}", null);
+                _logger.LogError(ex, "UpdateBillDedicated for {rg} committed successfully but post-commit fetch failed.", req.requestguid);
+                return ("SUCCESS_FETCH_FAILED", new UpdateHmsBillResponse
+                {
+                    requestguid = req.requestguid,
+                    message = "Bill updated successfully, but the response could not be reloaded. Please refresh."
+                });
             }
         }
         public async Task<HmsCounterTimingDto?> GetActiveShiftByBranchCounter(int bhcode, int cntcode, string tenantCode)
@@ -1578,6 +1736,6 @@ namespace medico_backend.Class
           WHERE c.bhcode = @bhcode AND c.cntcode = @cntcode AND c.todate IS NULL AND c.tenant_code = @tenantCode
           LIMIT 1", new { bhcode, cntcode, tenantCode });
         }
-       
+
     }
 }
