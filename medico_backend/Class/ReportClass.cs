@@ -1608,8 +1608,7 @@ namespace medico_backend.Class
                 -- ✅ BillNo: prefer formatted print version, fall back to int::text
                 COALESCE(lrm.requestsno::text)     AS BillNo,
                 lrm.requestsnoprint::text AS RequestSnoPrint,
-                lrm.requestdatetime::timestamp                               AS BillDate,
-
+                (lrm.requestdatetime AT TIME ZONE 'Asia/Kolkata') AS BillDate,
                 COALESCE(lrm.name,    '')                                    AS PatientName,
                 CONCAT(
                     COALESCE(lrm.ageyears,  '0'), ' Y ',
@@ -1625,8 +1624,7 @@ namespace medico_backend.Class
                 COALESCE(lrm.onlinepassword, '')                             AS Password,
 
                 COALESCE(um.name, '')                                        AS CreatedBy,
-                COALESCE(lrm.entereddate, lrm.requestdatetime)::timestamp    AS CreatedTime,
-
+                (COALESCE(lrm.entereddate, lrm.requestdatetime) AT TIME ZONE 'Asia/Kolkata') AS CreatedTime,
                 -- TotalAmount: gross before discount (requestamount)
                 COALESCE(lrm.requestamount, 0)::numeric                      AS TotalAmount,
 

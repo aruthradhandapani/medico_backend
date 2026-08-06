@@ -183,6 +183,8 @@ builder.Services.AddScoped<OpChargeSlabClass>();
 builder.Services.AddScoped<OpChargeSlabController>();
 builder.Services.AddScoped<LabSampleCollectionClass>();
 builder.Services.AddScoped<LabSampleCollectionController>();
+builder.Services.AddScoped<ReportClass>();
+builder.Services.AddScoped<ReportController>();
 
 builder.Services.AddSingleton<IAmazonS3>(sp =>
 {
