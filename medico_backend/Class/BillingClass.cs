@@ -648,7 +648,18 @@ namespace medico_backend.Class
                 var receiptConfig = await ResolveBillNoConfig(
                     db, tx, tenantCode, master.enteredbhcode, (int?)master.cntcode, isReceipt: true);
 
-                if (receiptConfig != null)
+                // ── CRITICAL GUARD ─────────────────────────────────────────────
+                // If the resolved "receipt" config is the SAME physical row that
+                // generated the bill/sample number (master.bncode), using it here
+                // would make the receipt draw its next value from the exact same
+                // billno_sequence row as the bill — i.e. bill=1 then receipt=2,
+                // sharing one counter instead of running as two independent series.
+                // This happens whenever a billno_master row has BOTH
+                // issampleno=true AND isreceiptno=true set (bad config data),
+                // and we must never let that leak into the numbering logic —
+                // so we deliberately refuse to use it and fall back to the
+                // separate yearly-restart receipt series instead.
+                if (receiptConfig != null && receiptConfig.bncode != master.bncode)
                 {
                     receiptNumInfo = await GetNextSequenceNumber(
                         db, tx, receiptConfig.bncode,
@@ -656,9 +667,20 @@ namespace medico_backend.Class
                 }
                 else
                 {
-                    _logger.LogInformation(
-                        "Receipt Number config (isreceiptno=true) not found for bncode={bncode}, tenant={tenant}. Using separate yearly restart receipt series.",
-                        master.bncode, tenantCode);
+                    if (receiptConfig != null && receiptConfig.bncode == master.bncode)
+                    {
+                        _logger.LogWarning(
+                            "Receipt config resolved to the SAME bncode={bncode} as the bill's own config (tenant={tenant}). " +
+                            "Refusing to reuse it for receipt numbering to avoid sharing one sequence between bill and receipt. " +
+                            "Falling back to the separate yearly restart receipt series.",
+                            master.bncode, tenantCode);
+                    }
+                    else
+                    {
+                        _logger.LogInformation(
+                            "Receipt Number config (isreceiptno=true) not found for bncode={bncode}, tenant={tenant}. Using separate yearly restart receipt series.",
+                            master.bncode, tenantCode);
+                    }
 
                     var yearlyReceiptConfig = await GetOrCreateYearlyReceiptConfig(
                         db, tx, tenantCode, master.enteredbhcode, (int?)master.cntcode);
