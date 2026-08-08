@@ -1107,42 +1107,68 @@ AND b.tenant_code = @tenant_code
         {
             var doctor = await db.QueryFirstOrDefaultAsync<DoctorMasterModel>(
                 @"SELECT tcode, opcharge, override_flat_opcharge FROM doctor_master
-          WHERE dcode = @dcode AND tenant_code = @tenant_code AND deleted = false",
+          WHERE dcode = @dcode
+          AND   TRIM(tenant_code) = TRIM(@tenant_code)
+          AND   deleted = false",
                 new { dcode, tenant_code });
 
             double flatFee = doctor?.opcharge ?? 0;
-            // ✅ tcode resolved from test_master's Consultation Fee row
+
             int? tcode = await db.ExecuteScalarAsync<int?>(
                 @"SELECT tcode FROM test_master
-          WHERE tenant_code = @tenant_code
+          WHERE TRIM(tenant_code) = TRIM(@tenant_code)
           AND   deleted     = false
           AND   name ILIKE 'Consultation%'
           ORDER BY tcode
           LIMIT 1",
                 new { tenant_code });
 
-            // ✅ NEW — doctor opted out of age-wise split entirely, skip the slab check
             if (doctor?.override_flat_opcharge == true)
                 return (tcode, flatFee, flatFee);
 
+            // ✅ FIX: don't rely on picking a single arbitrary branch row —
+            // treat split as enabled if ANY active lab_settings row for the
+            // tenant has it on. If you need true per-branch behavior, this
+            // function needs a bh_code parameter passed in from the caller.
             bool ageWiseSplit = await db.ExecuteScalarAsync<bool?>(
-                @"SELECT op_age_wise_split FROM lab_settings
-          WHERE tenant_code = @tenant_code AND deleted = false
-          ORDER BY (bh_code IS NULL) LIMIT 1",
-                new { tenant_code }) ?? false;
+    @"SELECT bool_or(COALESCE(op_age_wise_split, false)) FROM lab_settings
+      WHERE TRIM(tenant_code) = TRIM(@tenant_code) AND deleted = false",
+    new { tenant_code }) ?? false;
 
             if (ageWiseSplit && custid.HasValue)
             {
-                int? age = await db.ExecuteScalarAsync<int?>(
-                    @"SELECT ageyears FROM customerdb.customer_master WHERE custid = @custid",
-                    new { custid });
+                // ✅ FIX: fall back to computing age from dateofbirth when
+                // ageyears isn't populated
+                var cust = await db.QueryFirstOrDefaultAsync(
+                    @"SELECT ageyears, dateofbirth FROM customerdb.customer_master
+              WHERE custid = @custid
+              AND   TRIM(tenant_code) = TRIM(@tenant_code)
+              AND   deleted = false
+              LIMIT 1",
+                    new { custid, tenant_code });
+
+                int? age = null;
+                if (cust != null)
+                {
+                    if (cust.ageyears != null)
+                    {
+                        age = (int)cust.ageyears;
+                    }
+                    else if (cust.dateofbirth != null)
+                    {
+                        DateTime dob = (DateTime)cust.dateofbirth;
+                        int computed = DateTime.UtcNow.Year - dob.Year;
+                        if (dob.Date > DateTime.UtcNow.AddYears(-computed)) computed--;
+                        age = computed;
+                    }
+                }
 
                 if (age.HasValue)
                 {
                     double? slabFee = await db.ExecuteScalarAsync<double?>(
                         @"SELECT opcharge FROM doctor_op_charge_slab
-                  WHERE tenant_code = @tenant_code AND dcode = @dcode
-                  AND deleted = false AND @age BETWEEN min_age AND max_age
+                  WHERE TRIM(tenant_code) = TRIM(@tenant_code) AND dcode = @dcode
+                  AND   deleted = false AND @age BETWEEN min_age AND max_age
                   ORDER BY min_age LIMIT 1",
                         new { tenant_code, dcode, age = age.Value });
 
