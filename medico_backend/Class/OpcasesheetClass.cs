@@ -132,35 +132,36 @@ namespace medico_backend.Class
                 if (isNew)
                 {
                     await db.ExecuteAsync(
-                        @"INSERT INTO op_case_sheet
-                          (sheet_id, op_id, ip_id, custid, dcode, visit_date,
-                           chief_complaint, symptoms, examination,
-                           advise, notes, followup_date, followup_notes,
-                           is_consulted, sheet_status,
-                           tenant_code, isdeleted, created_at, updated_at)
-                          VALUES
-                          (@sheet_id, CAST(@op_id AS uuid), CAST(@ip_id AS uuid), @custid, @dcode, NOW()::date,
-                           @chief_complaint, @symptoms, @examination,
-                           @advise, @notes, @followup_date, @followup_notes,
-                           false, @sheet_status,
-                           @tenant_code, false, NOW(), NOW())",
-                        new
-                        {
-                            sheet_id = sheetId,
-                            op_id = finalOpId,
-                            ip_id = finalIpId,
-                            req.custid,
-                            req.dcode,
-                            req.chief_complaint,
-                            req.symptoms,
-                            req.examination,
-                            req.advise,
-                            req.notes,
-                            req.followup_date,
-                            req.followup_notes,
-                            req.sheet_status,
-                            tenant_code
-                        }, tx);
+    @"INSERT INTO op_case_sheet
+      (sheet_id, op_id, ip_id, custid, dcode, visit_date,
+       chief_complaint, symptoms, examination,
+       advise, notes, followup_date, followup_notes,
+       is_consulted, refer_to_ip, sheet_status,
+       tenant_code, isdeleted, created_at, updated_at)
+      VALUES
+      (@sheet_id, CAST(@op_id AS uuid), CAST(@ip_id AS uuid), @custid, @dcode, NOW()::date,
+       @chief_complaint, @symptoms, @examination,
+       @advise, @notes, @followup_date, @followup_notes,
+       false, @refer_to_ip, @sheet_status,
+       @tenant_code, false, NOW(), NOW())",
+    new
+    {
+        sheet_id = sheetId,
+        op_id = finalOpId,
+        ip_id = finalIpId,
+        req.custid,
+        req.dcode,
+        req.chief_complaint,
+        req.symptoms,
+        req.examination,
+        req.advise,
+        req.notes,
+        req.followup_date,
+        req.followup_notes,
+        req.refer_to_ip,          // <-- new
+        req.sheet_status,
+        tenant_code
+    }, tx);
                 }
                 else
                 {
@@ -174,31 +175,33 @@ namespace medico_backend.Class
                     if (exists == 0) return "Case sheet not found";
 
                     await db.ExecuteAsync(
-                        @"UPDATE op_case_sheet
-                          SET    chief_complaint = @chief_complaint,
-                                 symptoms        = @symptoms,
-                                 examination     = @examination,
-                                 advise          = @advise,
-                                 notes           = @notes,
-                                 followup_date   = @followup_date,
-                                 followup_notes  = @followup_notes,
-                                 sheet_status    = @sheet_status,
-                                 updated_at      = NOW()
-                          WHERE  sheet_id    = @sheet_id
-                          AND    tenant_code = @tenant_code",
-                        new
-                        {
-                            sheet_id = sheetId,
-                            req.chief_complaint,
-                            req.symptoms,
-                            req.examination,
-                            req.advise,
-                            req.notes,
-                            req.followup_date,
-                            req.followup_notes,
-                            req.sheet_status,
-                            tenant_code
-                        }, tx);
+    @"UPDATE op_case_sheet
+      SET    chief_complaint = @chief_complaint,
+             symptoms        = @symptoms,
+             examination     = @examination,
+             advise          = @advise,
+             notes           = @notes,
+             followup_date   = @followup_date,
+             followup_notes  = @followup_notes,
+             sheet_status    = @sheet_status,
+             refer_to_ip     = @refer_to_ip,
+             updated_at      = NOW()
+      WHERE  sheet_id    = @sheet_id
+      AND    tenant_code = @tenant_code",
+    new
+    {
+        sheet_id = sheetId,
+        req.chief_complaint,
+        req.symptoms,
+        req.examination,
+        req.advise,
+        req.notes,
+        req.followup_date,
+        req.followup_notes,
+        req.sheet_status,
+        req.refer_to_ip,          // <-- new
+        tenant_code
+    }, tx);
                 }
 
                 // ── 3. Symptoms list (delete + re-insert) ─────────
@@ -659,7 +662,7 @@ namespace medico_backend.Class
              chief_complaint, symptoms, examination,
              advise, notes,
              followup_date::timestamp AS followup_date,
-             followup_notes, is_consulted, sheet_status,
+             followup_notes, is_consulted, refer_to_ip, sheet_status,
              tenant_code, isdeleted, created_at, updated_at
       FROM   op_case_sheet
       WHERE  ((@op_id IS NOT NULL AND op_id = CAST(@op_id AS uuid))
@@ -688,6 +691,7 @@ namespace medico_backend.Class
                 followup_date = sheet.followup_date,
                 followup_notes = sheet.followup_notes,
                 is_consulted = sheet.is_consulted,
+                refer_to_ip = sheet.refer_to_ip,      // <-- new
                 sheet_status = sheet.sheet_status
             };
 

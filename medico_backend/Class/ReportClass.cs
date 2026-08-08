@@ -1593,7 +1593,7 @@ namespace medico_backend.Class
             }
         }
 
-        public async Task<string> BillPDF(Guid requestguid, string tenant_code, bool? isletterhead = false)
+        public async Task<string>   BillPDF(Guid requestguid, string tenant_code, bool? isletterhead = false)
         {
             try
             {
@@ -1601,7 +1601,7 @@ namespace medico_backend.Class
 
                 // ─── Step 1: Bill data ────────────────────────────────────────────
                 string billSql = @"
-            SELECT
+            SELECT 
                 -- ✅ PatientId: custcode from customer_master (mirrors statement JOIN)
                 COALESCE(cm.custcode, '')                                    AS PatientId,
 
@@ -2005,7 +2005,7 @@ namespace medico_backend.Class
                 INNER JOIN lab_request_details lrd ON lrd.requestguid = lrm.requestguid
                 INNER JOIN test_master tm ON tm.tcode = lrd.tcode
                 LEFT JOIN customerdb.customer_master cm ON cm.custid = lrm.custid
-                LEFT JOIN doctor_master dm ON dm.dcode = lrm.dcode
+                LEFT JOIN doctor_master dm ON dm.dcode = lrm.dcode 
                 LEFT JOIN mastertenant.user_master um ON um.user_code = lrm.usercode
 
                 WHERE lrm.tenant_code = @tenant_code

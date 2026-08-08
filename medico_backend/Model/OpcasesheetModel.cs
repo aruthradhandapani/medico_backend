@@ -30,6 +30,7 @@ namespace medico_backend.Model
 
 
         // Status
+        public bool refer_to_ip { get; set; } = false;
         public bool is_consulted { get; set; } = false;
         public string sheet_status { get; set; } = "DRAFT";  // DRAFT / FINAL
 
@@ -268,6 +269,7 @@ namespace medico_backend.Model
 
 
         // Sheet status
+        public bool refer_to_ip { get; set; } = false;
         public string sheet_status { get; set; } = "DRAFT";  // DRAFT / FINAL
 
 
@@ -420,6 +422,7 @@ namespace medico_backend.Model
         // Status
         public bool is_consulted { get; set; }
         public string? sheet_status { get; set; }
+        public bool refer_to_ip { get; set; } = false;
 
 
         // Structured lists
