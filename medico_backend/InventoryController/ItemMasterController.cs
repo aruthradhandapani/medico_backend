@@ -1657,6 +1657,83 @@ public async Task<IActionResult> GetList()
           });
       }
   }
+      public async Task<IActionResult> UpdateStockAdjustment(
+[FromBody] stock_adjustment_request request)
+    {
+        try
+        {
+            string tenantcode =
+                HttpContext.Items["TenantCode"]?.ToString()
+                ?? string.Empty;
+
+            if (string.IsNullOrEmpty(tenantcode))
+            {
+                return BadRequest(new
+                {
+                    status = "Failed",
+                    message = "Tenant code not found."
+                });
+            }
+
+            // Do not trust tenantcode from Postman
+            request.stock.tenantcode = tenantcode;
+            request.adjustmentlog.tenantcode = tenantcode;
+
+            var result = await itemclass.UpdateStockAdjustment(request);
+
+            return Ok(new
+            {
+                status = "Success",
+                message = result
+            });
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new
+            {
+                status = "Failed",
+                message = ex.Message
+            });
+        }
+    }
+    [HttpDelete("deletestockadjustment")]
+    public async Task<IActionResult> DeleteStockAdjustment(
+long adjustmentlogcode)
+    {
+        try
+        {
+            string tenantcode =
+                HttpContext.Items["TenantCode"]?.ToString()
+                ?? string.Empty;
+
+            if (string.IsNullOrEmpty(tenantcode))
+            {
+                return BadRequest(new
+                {
+                    status = "Failed",
+                    message = "Tenant code not found."
+                });
+            }
+
+            var result = await itemclass.DeleteStockAdjustment(
+                adjustmentlogcode,
+                tenantcode);
+
+            return Ok(new
+            {
+                status = "Success",
+                message = result
+            });
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new
+            {
+                status = "Failed",
+                message = ex.Message
+            });
+        }
+    }
     }
 }
     
