@@ -3750,6 +3750,344 @@ VALUES
                 return $"Error : {ex.Message}";
             }
         }
+        public async Task<string> UpdateStockAdjustment(stock_adjustment_request request)
+        {
+            using var conn = new NpgsqlConnection(con);
+            await conn.OpenAsync();
+
+            using var tran = conn.BeginTransaction();
+
+            try
+            {
+                //=================================================
+                // 1. Check Stock Exists - Tenant Wise
+                //=================================================
+
+                string checkStockQuery = @"
+SELECT
+    stockcode,
+    closingstock,
+    unitcost
+FROM stock_master
+WHERE stockcode = @stockcode
+AND tenantcode = @tenantcode
+AND deleted = false;";
+
+                var stock = await conn.QueryFirstOrDefaultAsync<stock_master>(
+                    checkStockQuery,
+                    new
+                    {
+                        stockcode = request.stock.stockcode,
+                        tenantcode = request.stock.tenantcode
+                    },
+                    tran);
+
+                if (stock == null)
+                {
+                    await tran.RollbackAsync();
+                    return "Stock record not found.";
+                }
+
+                //=================================================
+                // 2. Check Adjustment Log Exists - Tenant Wise
+                //=================================================
+
+                string checkLogQuery = @"
+SELECT
+    adjustmentlogcode,
+    stockcode,
+    beforeqty,
+    adjustedqty,
+    afterqty
+FROM stock_adjustment_log
+WHERE adjustmentlogcode = @adjustmentlogcode
+AND tenantcode = @tenantcode
+AND deleted = false;";
+
+                var adjustmentLog = await conn.QueryFirstOrDefaultAsync<stock_adjustment_log>(
+                    checkLogQuery,
+                    new
+                    {
+                        adjustmentlogcode = request.adjustmentlog.adjustmentlogcode,
+                        tenantcode = request.stock.tenantcode
+                    },
+                    tran);
+
+                if (adjustmentLog == null)
+                {
+                    await tran.RollbackAsync();
+                    return "Stock adjustment record not found.";
+                }
+
+                //=================================================
+                // 3. Calculate New Stock
+                //=================================================
+
+                decimal beforeQty = adjustmentLog.beforeqty;
+
+                decimal newAfterQty;
+
+                if (request.adjustmentlog.adjustmenttype == "Increase")
+                {
+                    newAfterQty = beforeQty + request.adjustmentlog.adjustedqty;
+                }
+                else if (request.adjustmentlog.adjustmenttype == "Decrease")
+                {
+                    newAfterQty = beforeQty - request.adjustmentlog.adjustedqty;
+                }
+                else
+                {
+                    await tran.RollbackAsync();
+                    return "Invalid adjustment type. Use Increase or Decrease.";
+                }
+
+                if (newAfterQty < 0)
+                {
+                    await tran.RollbackAsync();
+                    return "Stock quantity cannot be negative.";
+                }
+
+                decimal stockValue = newAfterQty * stock.unitcost;
+
+                //=================================================
+                // 4. Update Stock Master
+                //=================================================
+
+                string updateStockQuery = @"
+UPDATE stock_master
+SET
+    adjustedqty = @adjustedqty,
+    adjusteddate = CURRENT_TIMESTAMP,
+    adjustedby = @adjustedby,
+    adjustmentreason = @adjustmentreason,
+    adjustmenttype = @adjustmenttype,
+    closingstock = @closingstock,
+    stockvalue = @stockvalue,
+    modifieddate = CURRENT_TIMESTAMP
+WHERE stockcode = @stockcode
+AND tenantcode = @tenantcode
+AND deleted = false;";
+
+                await conn.ExecuteAsync(
+                    updateStockQuery,
+                    new
+                    {
+                        adjustedqty = request.adjustmentlog.adjustedqty,
+                        adjustedby = request.adjustmentlog.adjustedby,
+                        adjustmentreason = request.adjustmentlog.adjustmentreason,
+                        adjustmenttype = request.adjustmentlog.adjustmenttype,
+                        closingstock = newAfterQty,
+                        stockvalue = stockValue,
+                        stockcode = request.stock.stockcode,
+                        tenantcode = request.stock.tenantcode
+                    },
+                    tran);
+
+                //=================================================
+                // 5. Update Adjustment Log
+                //=================================================
+
+                string updateLogQuery = @"
+UPDATE stock_adjustment_log
+SET
+    itemcode = @itemcode,
+    warehousecode = @warehousecode,
+    branchcode = @branchcode,
+    locationcode = @locationcode,
+    batchno = @batchno,
+    beforeqty = @beforeqty,
+    adjustedqty = @adjustedqty,
+    afterqty = @afterqty,
+    unitcost = @unitcost,
+    stockvalue = @stockvalue,
+    adjustmenttype = @adjustmenttype,
+    adjustmentreason = @adjustmentreason,
+    remarks = @remarks,
+    adjustedby = @adjustedby,
+    modifieddate = CURRENT_TIMESTAMP,
+    companycode = @companycode
+WHERE adjustmentlogcode = @adjustmentlogcode
+AND tenantcode = @tenantcode
+AND deleted = false;";
+
+                int rows = await conn.ExecuteAsync(
+                    updateLogQuery,
+                    new
+                    {
+                        adjustmentlogcode = request.adjustmentlog.adjustmentlogcode,
+
+                        itemcode = request.adjustmentlog.itemcode,
+                        warehousecode = request.adjustmentlog.warehousecode,
+                        branchcode = request.adjustmentlog.branchcode,
+                        locationcode = request.adjustmentlog.locationcode,
+                        batchno = request.adjustmentlog.batchno,
+
+                        beforeqty = beforeQty,
+                        adjustedqty = request.adjustmentlog.adjustedqty,
+                        afterqty = newAfterQty,
+
+                        unitcost = stock.unitcost,
+                        stockvalue = stockValue,
+
+                        adjustmenttype = request.adjustmentlog.adjustmenttype,
+                        adjustmentreason = request.adjustmentlog.adjustmentreason,
+                        remarks = request.adjustmentlog.remarks,
+
+                        adjustedby = request.adjustmentlog.adjustedby,
+
+                        companycode = request.stock.companycode,
+                        tenantcode = request.stock.tenantcode
+                    },
+                    tran);
+
+                if (rows == 0)
+                {
+                    await tran.RollbackAsync();
+                    return "Stock adjustment record not found.";
+                }
+
+                //=================================================
+                // 6. Commit
+                //=================================================
+
+                await tran.CommitAsync();
+
+                return "Stock Adjustment Updated Successfully.";
+            }
+            catch (Exception ex)
+            {
+                await tran.RollbackAsync();
+                return $"Error : {ex.Message}";
+            }
+        }
+        public async Task<string> DeleteStockAdjustment(
+    long adjustmentlogcode,
+    string tenantcode)
+        {
+            using var conn = new NpgsqlConnection(con);
+            await conn.OpenAsync();
+
+            using var tran = conn.BeginTransaction();
+
+            try
+            {
+                //=================================================
+                // 1. Get Adjustment Log
+                //=================================================
+
+                string getLogQuery = @"
+SELECT
+    adjustmentlogcode,
+    stockcode,
+    beforeqty,
+    adjustedqty,
+    afterqty
+FROM stock_adjustment_log
+WHERE adjustmentlogcode = @adjustmentlogcode
+AND tenantcode = @tenantcode
+AND deleted = false;";
+
+                var log = await conn.QueryFirstOrDefaultAsync<stock_adjustment_log>(
+                    getLogQuery,
+                    new
+                    {
+                        adjustmentlogcode,
+                        tenantcode
+                    },
+                    tran);
+
+                if (log == null)
+                {
+                    await tran.RollbackAsync();
+                    return "Stock adjustment record not found.";
+                }
+
+                //=================================================
+                // 2. Restore Previous Stock Quantity
+                //=================================================
+
+                string updateStockQuery = @"
+UPDATE stock_master
+SET
+    closingstock = @beforeqty,
+    stockvalue = @stockvalue,
+    modifieddate = CURRENT_TIMESTAMP
+WHERE stockcode = @stockcode
+AND tenantcode = @tenantcode
+AND deleted = false;";
+
+                // Get unit cost
+                string unitCostQuery = @"
+SELECT unitcost
+FROM stock_master
+WHERE stockcode = @stockcode
+AND tenantcode = @tenantcode
+AND deleted = false;";
+
+                decimal unitcost = await conn.ExecuteScalarAsync<decimal>(
+                    unitCostQuery,
+                    new
+                    {
+                        stockcode = log.stockcode,
+                        tenantcode
+                    },
+                    tran);
+
+                decimal stockValue = log.beforeqty * unitcost;
+
+                await conn.ExecuteAsync(
+                    updateStockQuery,
+                    new
+                    {
+                        beforeqty = log.beforeqty,
+                        stockvalue = stockValue,
+                        stockcode = log.stockcode,
+                        tenantcode
+                    },
+                    tran);
+
+                //=================================================
+                // 3. Soft Delete Adjustment Log
+                //=================================================
+
+                string deleteQuery = @"
+UPDATE stock_adjustment_log
+SET
+    deleted = true,
+    isactive = false,
+    modifieddate = CURRENT_TIMESTAMP
+WHERE adjustmentlogcode = @adjustmentlogcode
+AND tenantcode = @tenantcode;";
+
+                int rows = await conn.ExecuteAsync(
+                    deleteQuery,
+                    new
+                    {
+                        adjustmentlogcode,
+                        tenantcode
+                    },
+                    tran);
+
+                if (rows == 0)
+                {
+                    await tran.RollbackAsync();
+                    return "Stock adjustment record not found.";
+                }
+
+                //=================================================
+                // 4. Commit
+                //=================================================
+
+                await tran.CommitAsync();
+
+                return "Stock Adjustment Deleted Successfully.";
+            }
+            catch (Exception ex)
+            {
+                await tran.RollbackAsync();
+                return $"Error : {ex.Message}";
+            }
+        }
         // ─── PHARMACY QUEUE (prescription → pharmacy dispensing) ───────────────────────
 
         public async Task<string> ReceivePrescription(ReceivePrescriptionRequest req, string tenant_code)
