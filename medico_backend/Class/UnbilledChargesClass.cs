@@ -184,14 +184,19 @@ namespace medico_backend.Class
             {
                 using var db = GetConnection();
 
+                // AFTER
                 var ip = await db.QueryFirstOrDefaultAsync<dynamic>(
-                    @"SELECT admitdate, dischargedate, ip_status, rmtcode, bedcode, custid
-              FROM ip_registration
-              WHERE ip_id = @ip_id AND tenant_code = @tenant_code",
+                    @"SELECT admitdate, dischargedate, ip_status, rmtcode, bedcode, custid, billing_rmtcode
+      FROM ip_registration
+      WHERE ip_id = @ip_id AND tenant_code = @tenant_code",
                     new { ip_id, tenant_code });
 
                 if (ip == null)
                     return $"IP Registration not found for ip_id='{ip_id}' tenant_code='{tenant_code}'";
+
+                // Rate lookup always uses the billing type chosen at admission.
+                // Falls back to the physical room type only for legacy rows where billing_rmtcode was never set.
+                int? effectiveRateRmt = (int?)ip.billing_rmtcode ?? (int?)ip.rmtcode;
 
                 DateTime admitdate = NormalizeUtc((DateTime)ip.admitdate);
                 bool isDischarged = ip.ip_status == "DISCHARGED" && ip.dischargedate != null;
@@ -240,18 +245,20 @@ namespace medico_backend.Class
                 }
                 int inserted = 0, skippedExisting = 0, skippedNoRoomType = 0;
 
+                // AFTER
                 foreach (var seg in segments)
                 {
-                    if (seg.rmtcode == null) continue;
+                    if (seg.rmtcode == null) continue;   // still used to confirm the physical segment is valid
 
                     decimal chargedDays = CalculateRoomRentDays(seg.from, seg.to);
                     if (chargedDays <= 0) continue;
 
+                    // Rate resolved from billing type, NOT the physical segment's rmtcode.
                     var roomType = await db.QueryFirstOrDefaultAsync<dynamic>(
                         @"SELECT roomrate FROM public.roomtype_master
-                  WHERE rmtcode = @rmtcode AND tenant_code = @tenant_code
-                  AND (deleted IS NULL OR deleted = false)",
-                        new { seg.rmtcode, tenant_code });
+          WHERE rmtcode = @rmtcode AND tenant_code = @tenant_code
+          AND (deleted IS NULL OR deleted = false)",
+                        new { rmtcode = effectiveRateRmt, tenant_code });
 
                     if (roomType == null) { skippedNoRoomType++; continue; }
                     decimal roomRate = (decimal)(roomType.roomrate ?? 0);
@@ -276,7 +283,8 @@ namespace medico_backend.Class
                             custid = (decimal)ip.custid,
                             ip_id = ip_id,
                             bedcode = seg.bedcode,        // NEW
-                            tcode = seg.rmtcode,
+                                                          // AFTER (both places)
+                            tcode = effectiveRateRmt,
                             quantity = (double)chargedDays,
                             rate = (double)roomRate,
                             amount = (double)(chargedDays * roomRate),
@@ -308,7 +316,8 @@ namespace medico_backend.Class
                             custid = (decimal)ip.custid,
                             ip_id = ip_id,
                             bedcode = seg.bedcode,        // NEW
-                            tcode = seg.rmtcode,
+                                                          // AFTER (both places)
+                            tcode = effectiveRateRmt,
                             quantity = (double)chargedDays,
                             rate = (double)roomRate,
                             amount = (double)(chargedDays * roomRate),

@@ -48,7 +48,8 @@ namespace medico_backend.Model
             public string? guardian_name { get; set; }
             public string? guardian_relation { get; set; }
             public string? guardian_contact { get; set; }
-
+            public int? billing_rmtcode { get; set; }
+            public string? billing_type { get; set; }
             public string? notes { get; set; }
 
             public string? tenant_code { get; set; }
@@ -92,6 +93,9 @@ namespace medico_backend.Model
             public string? guardian_name { get; set; }
             public string? guardian_relation { get; set; }
             public string? guardian_contact { get; set; }
+            // Model/IPRegistrationModel.cs — inside CreateIpRegistrationRequest
+            public int? billing_rmtcode { get; set; }   // rate to charge (AC / Non-AC room type)
+            public string? billing_type { get; set; }   // "AC" / "NON_AC" — for display only
 
             public string? notes { get; set; }
         }
@@ -130,7 +134,8 @@ namespace medico_backend.Model
             public string? guardian_name { get; set; }
             public string? guardian_relation { get; set; }
             public string? guardian_contact { get; set; }
-
+            public int? billing_rmtcode { get; set; }
+            public string? billing_type { get; set; }
             public string? notes { get; set; }
         }
 

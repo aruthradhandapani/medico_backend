@@ -103,6 +103,8 @@ namespace medico_backend.Class
                     flrcode = req.flrcode,
                     wrdcode = req.wrdcode,
                     rmtcode = req.rmtcode,
+                    billing_rmtcode = req.billing_rmtcode ?? req.rmtcode,     // defaults to physical if not chosen
+                    billing_type = req.billing_type,
                     bedcode = req.bedcode,
                     ip_status = "ADMITTED",
                     isinsurancepatient = req.isinsurancepatient,
@@ -126,7 +128,7 @@ namespace medico_backend.Class
                     INSERT INTO ip_registration
                     (ip_id, ip_no, custid, booking_id, op_id, dcode, referring_dcode, department_code,
                      admission_type, admission_reason, admitdate, expected_dischargedate,
-                     branchcode, blockcode, flrcode, wrdcode, rmtcode, bedcode, ip_status,
+                     branchcode, blockcode, flrcode, wrdcode, rmtcode, billing_rmtcode, billing_type,bedcode, ip_status,
                      isinsurancepatient, insurance_company, policyno, authorizationno, tpa_name,
                      insurance_approved_amount, insurance_status,
                      guardian_name, guardian_relation, guardian_contact,
@@ -134,7 +136,7 @@ namespace medico_backend.Class
                     VALUES
                     (@ip_id, @ip_no, @custid, @booking_id, @op_id, @dcode, @referring_dcode, @department_code,
                      @admission_type, @admission_reason, @admitdate, @expected_dischargedate,
-                     @branchcode, @blockcode, @flrcode, @wrdcode, @rmtcode, @bedcode, @ip_status,
+                     @branchcode, @blockcode, @flrcode, @wrdcode, @rmtcode,@billing_rmtcode, @billing_type, @bedcode, @ip_status,
                      @isinsurancepatient, @insurance_company, @policyno, @authorizationno, @tpa_name,
                      @insurance_approved_amount, @insurance_status,
                      @guardian_name, @guardian_relation, @guardian_contact,
@@ -329,6 +331,8 @@ namespace medico_backend.Class
                 guardian_relation          = @guardian_relation,
                 guardian_contact           = @guardian_contact,
                 notes                      = @notes,
+                billing_rmtcode = @billing_rmtcode,
+                billing_type    = @billing_type,
                 updated_at                 = now()
                 WHERE ip_id = @ip_id AND tenant_code = @tenant_code";
 
@@ -355,6 +359,9 @@ namespace medico_backend.Class
                 req.guardian_relation,
                 req.guardian_contact,
                 req.notes,
+                // Update() params object — add
+                req.billing_rmtcode,
+                req.billing_type,
                 req.ip_id,
                 tenant_code
             });
