@@ -185,6 +185,8 @@ builder.Services.AddScoped<LabSampleCollectionClass>();
 builder.Services.AddScoped<LabSampleCollectionController>();
 builder.Services.AddScoped<ReportClass>();
 builder.Services.AddScoped<ReportController>();
+builder.Services.AddScoped<NurseNotesClass>();
+builder.Services.AddScoped<NurseNotesController>();
 
 builder.Services.AddSingleton<IAmazonS3>(sp =>
 {
