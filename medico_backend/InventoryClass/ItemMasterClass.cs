@@ -3004,58 +3004,7 @@ ORDER BY salesdetailcode;";
                 return result;
             }
         }
-        public async Task<string> UpsertWarehouse(warehouse_master warehouse)
-        {
-            try
-            {
-                using (IDbConnection db = new NpgsqlConnection(con))
-                {
-                    string query = @"
-      INSERT INTO warehouse_master
-      (
-          orderno,
-          warehousename,
-          shortname,
-          description,
-          location,
-          tenantcode,
-          isactive,
-          isdeleted,
-          createddate
-      )
-      VALUES
-      (
-          @orderno,
-          @warehousename,
-          @shortname,
-          @description,
-          @location,
-          @tenantcode,
-          @isactive,
-          @isdeleted,
-          @createddate
-      )
-      ON CONFLICT (warehousecode)
-      DO UPDATE SET
-          warehousename = EXCLUDED.warehousename,
-         
-          shortname = EXCLUDED.shortname,
-          description = EXCLUDED.description,
-          location = EXCLUDED.location,
-          tenantcode = EXCLUDED.tenantcode,
-          isactive = EXCLUDED.isactive,
-          isdeleted = EXCLUDED.isdeleted;";
-
-                    await db.ExecuteAsync(query, warehouse);
-
-                    return "Warehouse Upserted Successfully";
-                }
-            }
-            catch (Exception ex)
-            {
-                return ex.Message;
-            }
-        }
+       public async Task<string> UpsertWarehouse(warehouse_master warehouse) { try { using (IDbConnection db = new NpgsqlConnection(con)) { string query = @" INSERT INTO warehouse_master ( warehousecode, orderno, warehousename, shortname, description, location, tenantcode, isactive, isdeleted, createddate ) VALUES ( @warehousecode, @orderno, @warehousename, @shortname, @description, @location, @tenantcode, @isactive, @isdeleted, @createddate ) ON CONFLICT (warehousecode, tenantcode) DO UPDATE SET orderno = EXCLUDED.orderno, warehousename = EXCLUDED.warehousename, shortname = EXCLUDED.shortname, description = EXCLUDED.description, location = EXCLUDED.location, isactive = EXCLUDED.isactive, isdeleted = EXCLUDED.isdeleted, modifieddate = CURRENT_TIMESTAMP; "; await db.ExecuteAsync(query, warehouse); return "Warehouse Upserted Successfully"; } } catch (Exception ex) { return ex.Message; } }
 
         public async Task<string> InsertOrUpdateWarehouse(warehouse_master warehouse)
         {
