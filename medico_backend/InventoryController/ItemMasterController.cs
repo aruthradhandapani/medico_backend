@@ -1305,62 +1305,83 @@ namespace medico_backend.InventoryController
          Data = result
      });
  }
-  [HttpPost("insertsales")]
- public async Task<IActionResult> InsertSales([FromBody] sales_request request)
- {
-     try
-     {
-         var result = await itemclass.InsertSales(request);
+   [HttpPost("insertsales")]
+  public async Task<IActionResult> InsertSales([FromBody] sales_request request)
+  {
+      try
+      {
+          var result = await itemclass.InsertSales(request);
 
-         return Ok(new
-         {
-             Status = "Success",
-             Message = result
-         });
-     }
-     catch (Exception ex)
-     {
-         return BadRequest(new
-         {
-             Status = "Error",
-             Message = ex.Message
-         });
-     }
- }
- [HttpPost("updatesales")]
- public async Task<IActionResult> UpdateSales([FromBody] sales_request request)
- {
-     try
-     {
-         var result = await itemclass.UpdateSales(request);
+          return Ok(new
+          {
+              Status = "Success",
+              Message = result
+          });
+      }
+      catch (Exception ex)
+      {
+          return BadRequest(new
+          {
+              Status = "Error",
+              Message = ex.Message
+          });
+      }
+  }
+  [HttpPost("updatesales")]
+  public async Task<IActionResult> UpdateSales([FromBody] sales_request request)
+  {
+      try
+      {
+          var result = await itemclass.UpdateSales(request);
 
-         return Ok(new
-         {
-             Status = "Success",
-             Message = result
-         });
-     }
-     catch (Exception ex)
-     {
-         return BadRequest(new
-         {
-             Status = "Error",
-             Message = ex.Message
-         });
-     }
- }
- [HttpGet("getsales")]
- public async Task<IActionResult> GetSales()
- {
-     var data = await itemclass.GetSales();
+          return Ok(new
+          {
+              Status = "Success",
+              Message = result
+          });
+      }
+      catch (Exception ex)
+      {
+          return BadRequest(new
+          {
+              Status = "Error",
+              Message = ex.Message
+          });
+      }
+  }
+  [HttpGet("getsales")]
+  public async Task<IActionResult> GetSales()
+  {
+      var data = await itemclass.GetSales();
 
-     return Ok(new
-     {
-         Status = "Success",
-         Data = data
-     });
- }
+      return Ok(new
+      {
+          status = "Success",
+          data = data
+      });
+  }
+  [HttpDelete("deletesales")]
+  public async Task<IActionResult> DeleteSales(long salescode)
+  {
+      try
+      {
+          var result = await itemclass.DeleteSales(salescode);
 
+          return Ok(new
+          {
+              Status = "Success",
+              Message = result
+          });
+      }
+      catch (Exception ex)
+      {
+          return BadRequest(new
+          {
+              Status = "Error",
+              Message = ex.Message
+          });
+      }
+  }
   [HttpPost("upsertwarehouse")]
  public async Task<IActionResult> Upsert([FromBody] warehouse_master warehouse)
  {
