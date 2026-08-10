@@ -3008,6 +3008,7 @@ WHERE stockcode=@stockcode;";
                 return "Sales Deleted Successfully";
             }
         }
+       
         public async Task<string> UpsertWarehouse(warehouse_master warehouse)
         {
             try
@@ -3051,34 +3052,10 @@ WHERE stockcode=@stockcode;";
                     salesallow    = @salesallow,
                     modifieddate  = CURRENT_TIMESTAMP
                 WHERE warehousecode = @warehousecode
-                  AND tenantcode = @tenantcode;";
+                  AND tenantcode::text = @tenantcode;";
 
                     int rows = await db.ExecuteAsync(updateQuery, warehouse);
                     return rows > 0 ? "Warehouse Updated Successfully" : "Warehouse not found";
-                }
-            }
-            catch (Exception ex)
-            {
-                return ex.Message;
-            }
-        }
-        public async Task<string> InsertOrUpdateWarehouse(warehouse_master warehouse)
-        {
-            try
-            {
-                using IDbConnection db = new NpgsqlConnection(con);
-
-                var existing = await db.GetAsync<warehouse_master>(warehouse.warehousecode);
-
-                if (existing == null)
-                {
-                    await db.InsertAsync(warehouse);
-                    return "Warehouse Inserted Successfully";
-                }
-                else
-                {
-                    await db.UpdateAsync(warehouse);
-                    return "Warehouse Updated Successfully";
                 }
             }
             catch (Exception ex)

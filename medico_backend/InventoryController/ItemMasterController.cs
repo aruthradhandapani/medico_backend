@@ -1380,12 +1380,17 @@ namespace medico_backend.InventoryController
 
                 warehouse.tenantcode = tenantcode;
 
+                // TEMP DEBUG — remove once confirmed
+                var branch = (warehouse.warehousecode == null || warehouse.warehousecode == 0) ? "INSERT" : "UPDATE";
+
                 var result = await itemclass.UpsertWarehouse(warehouse);
 
                 return Ok(new
                 {
                     status = true,
-                    message = result
+                    message = result,
+                    debug_branch = branch,
+                    debug_warehousecode_received = warehouse.warehousecode
                 });
             }
             catch (Exception ex)
