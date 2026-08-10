@@ -1283,253 +1283,216 @@ namespace medico_backend.InventoryController
                 Message = "Ledger Group not found"
             });
         }
-         [HttpGet("getledgertype")]
- public async Task<IActionResult> GetLedgerTypes()
- {
-     var result = await itemclass.GetLedgerTypes();
-
-     return Ok(new
-     {
-         Status = "Success",
-         Data = result
-     });
- }
- [HttpGet("getledgergroup")]
- public async Task<IActionResult> GetLedgerGroups()
- {
-     var result = await itemclass.GetLedgerGroups();
-
-     return Ok(new
-     {
-         Status = "Success",
-         Data = result
-     });
- }
-   [HttpPost("insertsales")]
-  public async Task<IActionResult> InsertSales([FromBody] sales_request request)
-  {
-      try
-      {
-          var result = await itemclass.InsertSales(request);
-
-          return Ok(new
-          {
-              Status = "Success",
-              Message = result
-          });
-      }
-      catch (Exception ex)
-      {
-          return BadRequest(new
-          {
-              Status = "Error",
-              Message = ex.Message
-          });
-      }
-  }
-  [HttpPost("updatesales")]
-  public async Task<IActionResult> UpdateSales([FromBody] sales_request request)
-  {
-      try
-      {
-          var result = await itemclass.UpdateSales(request);
-
-          return Ok(new
-          {
-              Status = "Success",
-              Message = result
-          });
-      }
-      catch (Exception ex)
-      {
-          return BadRequest(new
-          {
-              Status = "Error",
-              Message = ex.Message
-          });
-      }
-  }
-  [HttpGet("getsales")]
-  public async Task<IActionResult> GetSales()
-  {
-      var data = await itemclass.GetSales();
-
-      return Ok(new
-      {
-          status = "Success",
-          data = data
-      });
-  }
-  [HttpDelete("deletesales")]
-  public async Task<IActionResult> DeleteSales(long salescode)
-  {
-      try
-      {
-          var result = await itemclass.DeleteSales(salescode);
-
-          return Ok(new
-          {
-              Status = "Success",
-              Message = result
-          });
-      }
-      catch (Exception ex)
-      {
-          return BadRequest(new
-          {
-              Status = "Error",
-              Message = ex.Message
-          });
-      }
-  }
-     [HttpPost("upsertwarehouse")]
-    public async Task<IActionResult> Upsert(
-[FromBody] warehouse_master warehouse)
-    {
-        try
+        [HttpGet("getledgertype")]
+        public async Task<IActionResult> GetLedgerTypes()
         {
-            string tenantcode =
-                HttpContext.Items["TenantCode"]?.ToString()
-                ?? string.Empty;
+            var tenantcode = GetTenantCode();
+            if (string.IsNullOrEmpty(tenantcode)) return MissingTenantCode();
 
-            if (string.IsNullOrEmpty(tenantcode))
+            var result = await itemclass.GetLedgerTypes(tenantcode);
+            return Ok(new { Status = "Success", Data = result });
+        }
+
+        [HttpGet("getledgergroup")]
+        public async Task<IActionResult> GetLedgerGroups()
+        {
+            var tenantcode = GetTenantCode();
+            if (string.IsNullOrEmpty(tenantcode)) return MissingTenantCode();
+
+            var result = await itemclass.GetLedgerGroups(tenantcode);
+            return Ok(new { Status = "Success", Data = result });
+        }
+        [HttpPost("insertsales")]
+        public async Task<IActionResult> InsertSales([FromBody] sales_request request)
+        {
+            try
+            {
+                var tenantcode = GetTenantCode();
+                if (string.IsNullOrEmpty(tenantcode)) return MissingTenantCode();
+
+                request.master.tenantcode = tenantcode;
+                foreach (var d in request.details) d.tenantcode = tenantcode;
+
+                var result = await itemclass.InsertSales(request);
+                return Ok(new { Status = "Success", Message = result });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { Status = "Error", Message = ex.Message });
+            }
+        }
+
+        [HttpPost("updatesales")]
+        public async Task<IActionResult> UpdateSales([FromBody] sales_request request)
+        {
+            try
+            {
+                var tenantcode = GetTenantCode();
+                if (string.IsNullOrEmpty(tenantcode)) return MissingTenantCode();
+
+                request.master.tenantcode = tenantcode;
+                foreach (var d in request.details) d.tenantcode = tenantcode;
+
+                var result = await itemclass.UpdateSales(request);
+                return Ok(new { Status = "Success", Message = result });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { Status = "Error", Message = ex.Message });
+            }
+        }
+
+        [HttpGet("getsales")]
+        public async Task<IActionResult> GetSales()
+        {
+            var tenantcode = GetTenantCode();
+            if (string.IsNullOrEmpty(tenantcode)) return MissingTenantCode();
+
+            var data = await itemclass.GetSales(tenantcode);
+            return Ok(new { status = "Success", data = data });
+        }
+
+        [HttpDelete("deletesales")]
+        public async Task<IActionResult> DeleteSales(long salescode)
+        {
+            try
+            {
+                var tenantcode = GetTenantCode();
+                if (string.IsNullOrEmpty(tenantcode)) return MissingTenantCode();
+
+                var result = await itemclass.DeleteSales(salescode, tenantcode);
+                return Ok(new { Status = "Success", Message = result });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { Status = "Error", Message = ex.Message });
+            }
+        }
+        [HttpPost("upsertwarehouse")]
+        public async Task<IActionResult> Upsert([FromBody] warehouse_master warehouse)
+        {
+            try
+            {
+                var tenantcode = GetTenantCode();
+
+                if (string.IsNullOrEmpty(tenantcode))
+                    return MissingTenantCode();
+
+                warehouse.tenantcode = tenantcode;
+
+                var result = await itemclass.UpsertWarehouse(warehouse);
+
+                return Ok(new
+                {
+                    status = true,
+                    message = result
+                });
+            }
+            catch (Exception ex)
             {
                 return BadRequest(new
                 {
                     status = false,
-                    message = "Tenant code not found."
+                    message = ex.Message
                 });
             }
-
-            warehouse.tenantcode = tenantcode;
-
-            var result = await itemclass.UpsertWarehouse(warehouse);
-
-            return Ok(new
-            {
-                status = true,
-                message = result
-            });
         }
-        catch (Exception ex)
+
+        [HttpGet("getallwarehouse")]
+        public async Task<IActionResult> GetAllS()
         {
-            return BadRequest(new
+            try
             {
-                status = false,
-                message = ex.Message
-            });
-        }
-    }
+                var tenantcode = GetTenantCode();
 
-    [HttpGet("getallwarehouse")]
-    public async Task<IActionResult> GetAllS()
-    {
-        try
-        {
-            string tenantcode =
-                HttpContext.Items["TenantCode"]?.ToString()
-                ?? string.Empty;
+                if (string.IsNullOrEmpty(tenantcode))
+                    return MissingTenantCode();
 
-            if (string.IsNullOrEmpty(tenantcode))
+                var result = await itemclass.GetWarehouseList(tenantcode);
+
+                return Ok(result);
+            }
+            catch (Exception ex)
             {
                 return BadRequest(new
                 {
                     status = false,
-                    message = "Tenant code not found."
+                    message = ex.Message
                 });
             }
-
-            var result = await itemclass.GetWarehouseList(tenantcode);
-
-            return Ok(result);
         }
-        catch (Exception ex)
+
+
+
+        [HttpGet("deletewarehouse")]
+        public async Task<IActionResult> Delete(int warehousecode)
         {
-            return BadRequest(new
+            try
             {
-                status = false,
-                message = ex.Message
-            });
-        }
-    }
+                var tenantcode = GetTenantCode();
 
+                if (string.IsNullOrEmpty(tenantcode))
+                    return MissingTenantCode();
 
+                var result = await itemclass.DeleteWarehouse(warehousecode, tenantcode);
 
-    [HttpDelete("deletewarehouse")]
-    public async Task<IActionResult> Delete(int warehousecode)
-    {
-        try
-        {
-            string tenantcode =
-                HttpContext.Items["TenantCode"]?.ToString()
-                ?? string.Empty;
-
-            if (string.IsNullOrEmpty(tenantcode))
+                return Ok(new
+                {
+                    status = true,
+                    message = result
+                });
+            }
+            catch (Exception ex)
             {
                 return BadRequest(new
                 {
                     status = false,
-                    message = "Tenant code not found."
+                    message = ex.Message
                 });
             }
-
-            var result = await itemclass.DeleteWarehouse(
-                warehousecode,
-                tenantcode);
-
-            return Ok(new
-            {
-                status = true,
-                message = result
-            });
         }
-        catch (Exception ex)
+        [HttpPost("upsertmanufacturer")]
+        public async Task<IActionResult> UpsertManufacturer([FromBody] manufacturer_master manufacturer)
         {
-            return BadRequest(new
+            try
             {
-                status = false,
-                message = ex.Message
-            });
-        }
-    }
- [HttpPost("upsertmanufacturer")]
-public async Task<IActionResult> UpsertManufacturer([FromBody] manufacturer_master manufacturer)
-{
-    try
-    {
-        var result = await itemclass.UpsertManufacturer(manufacturer);
-        return Ok(result);
-    }
-    catch (Exception ex)
-    {
-        return BadRequest(ex.Message);
-    }
-}
-[HttpGet("getlistmanufacturer")]
-public async Task<IActionResult> GetList()
-{
-    try
-    {
-        var result = await itemclass.GetManufacturerList();
-        return Ok(result);
-    }
-    catch (Exception ex)
-    {
-        return BadRequest(ex.Message);
+                var tenantcode = GetTenantCode();
+                if (string.IsNullOrEmpty(tenantcode)) return MissingTenantCode();
+
+                manufacturer.tenantcode = tenantcode;
+
+                var result = await itemclass.UpsertManufacturer(manufacturer);
+                return Ok(result);
             }
+            catch (Exception ex) { return BadRequest(ex.Message); }
         }
+
+        [HttpGet("getlistmanufacturer")]
+        public async Task<IActionResult> GetList()
+        {
+            try
+            {
+                var tenantcode = GetTenantCode();
+                if (string.IsNullOrEmpty(tenantcode)) return MissingTenantCode();
+
+                var result = await itemclass.GetManufacturerList(tenantcode);
+                return Ok(result);
+            }
+            catch (Exception ex) { return BadRequest(ex.Message); }
+        }
+
         [HttpDelete("deletemanufacturer")]
         public async Task<IActionResult> Deletemanufacturer(long manufacturercode)
         {
             try
             {
-                var result = await itemclass.DeleteManufacturer(manufacturercode);
+                var tenantcode = GetTenantCode();
+                if (string.IsNullOrEmpty(tenantcode)) return MissingTenantCode();
+
+                var result = await itemclass.DeleteManufacturer(manufacturercode, tenantcode);
                 return Ok(result);
             }
-            catch (Exception ex)
-            {
-                return BadRequest(ex.Message);
-            }
+            catch (Exception ex) { return BadRequest(ex.Message); }
         }
         // ─── PURCHASE RETURN ──────────────────────────────────────────────────────────
 

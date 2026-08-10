@@ -112,7 +112,7 @@ namespace medico_backend.Class
                     ourdiscount = req.ourdiscount,
                     totalamount = calculativeNetAmount,
                     paidamount = req.paidamount ?? 0,
-                    paidviareceipt = req.paidamount ?? 0,
+                    paidviareceipt =  0,
                     pmc1 = req.pmc1 ?? 0,
                     pmc2 = req.pmc2 ?? 0,
                     pmc3 = req.pmc3 ?? 0,
@@ -845,7 +845,7 @@ namespace medico_backend.Class
                 int pmc3Flag = pmc3Amt > 0.01 ? 1 : 0;
 
                 masterBill.paidamount = existingSettled + req.amount;
-                masterBill.paidviareceipt = (masterBill.paidviareceipt ?? 0) + req.amount;
+                masterBill.paidviareceipt = 0;
                 masterBill.pmc1 = (masterBill.pmc1 ?? 0) + pmc1Flag;
                 masterBill.pmc2 = (masterBill.pmc2 ?? 0) + pmc2Flag;
                 masterBill.pmc3 = (masterBill.pmc3 ?? 0) + pmc3Flag;
