@@ -2677,8 +2677,7 @@ namespace medico_backend.InventoryClass
             }
 
             return list;
-        }
-        public async Task<string> InsertSales(sales_request request)
+        }        public async Task<string> InsertSales(sales_request request)
         {
             using (var conn = new NpgsqlConnection(con))
             {
@@ -2897,27 +2896,27 @@ WHERE stockcode=@stockcode;";
                     try
                     {
                         string updateMaster = @"
-            UPDATE sales_master SET
-                billno=@billno,
-                billdate=@billdate,
-                invoiceno=@invoiceno,
-                invoicedate=@invoicedate,
-                customercode=@customercode,
-                grossamount=@grossamount,
-                discountamount=@discountamount,
-                taxamount=@taxamount,
-                netamount=@netamount,
-                paymentmode=@paymentmode,
-                paymentstatus=@paymentstatus,
-                currencycode=@currencycode,
-                remarks=@remarks,
-                modifieddate=NOW(),
-                usercode=@usercode,
-                tenantcode=@tenantcode,
-                branchcode=@branchcode,
-                companycode=@companycode,
-                ordercode=@ordercode
-            WHERE salescode=@salescode";
+                UPDATE sales_master SET
+                    billno=@billno,
+                    billdate=@billdate,
+                    invoiceno=@invoiceno,
+                    invoicedate=@invoicedate,
+                    customercode=@customercode,
+                    grossamount=@grossamount,
+                    discountamount=@discountamount,
+                    taxamount=@taxamount,
+                    netamount=@netamount,
+                    paymentmode=@paymentmode,
+                    paymentstatus=@paymentstatus,
+                    currencycode=@currencycode,
+                    remarks=@remarks,
+                    modifieddate=NOW(),
+                    usercode=@usercode,
+                    tenantcode=@tenantcode,
+                    branchcode=@branchcode,
+                    companycode=@companycode,
+                    ordercode=@ordercode
+                WHERE salescode=@salescode";
 
                         await conn.ExecuteAsync(updateMaster, request.master, trans);
 
@@ -2927,30 +2926,30 @@ WHERE stockcode=@stockcode;";
                             trans);
 
                         string detailQuery = @"
-            INSERT INTO sales_detail
-            (
-                salesdetailcode,salescode,itemcode,quantity,
-                freequantity,uomcode,rate,
-                discountpercentage,discountamount,
-                taxpercentage,taxamount,
-                amount,totalamount,batchno,
-                manufacturingdate,expirydate,
-                orderedqty,deliveredqty,
-                returnedqty,warehousecode,
-                tenantcode
-            )
-            VALUES
-            (
-                @salesdetailcode,@salescode,@itemcode,@quantity,
-                @freequantity,@uomcode,@rate,
-                @discountpercentage,@discountamount,
-                @taxpercentage,@taxamount,
-                @amount,@totalamount,@batchno,
-                @manufacturingdate,@expirydate,
-                @orderedqty,@deliveredqty,
-                @returnedqty,@warehousecode,
-                @tenantcode
-            )";
+                INSERT INTO sales_detail
+                (
+                    salesdetailcode,salescode,itemcode,quantity,
+                    freequantity,uomcode,rate,
+                    discountpercentage,discountamount,
+                    taxpercentage,taxamount,
+                    amount,totalamount,batchno,
+                    manufacturingdate,expirydate,
+                    orderedqty,deliveredqty,
+                    returnedqty,warehousecode,
+                    tenantcode
+                )
+                VALUES
+                (
+                    @salesdetailcode,@salescode,@itemcode,@quantity,
+                    @freequantity,@uomcode,@rate,
+                    @discountpercentage,@discountamount,
+                    @taxpercentage,@taxamount,
+                    @amount,@totalamount,@batchno,
+                    @manufacturingdate,@expirydate,
+                    @orderedqty,@deliveredqty,
+                    @returnedqty,@warehousecode,
+                    @tenantcode
+                )";
 
                         foreach (var item in request.details)
                         {
@@ -3002,6 +3001,24 @@ ORDER BY salesdetailcode;";
                 });
 
                 return result;
+            }
+        }
+        public async Task<string> DeleteSales(long salescode)
+        {
+            using (var conn = new NpgsqlConnection(con))
+            {
+                await conn.OpenAsync();
+
+                string query = @"
+        UPDATE sales_master
+        SET deleted = true,
+            isactive = false,
+            modifieddate = NOW()
+        WHERE salescode = @salescode";
+
+                await conn.ExecuteAsync(query, new { salescode });
+
+                return "Sales Deleted Successfully";
             }
         }
        public async Task<string> UpsertWarehouse(warehouse_master warehouse) { try { using (IDbConnection db = new NpgsqlConnection(con)) { string query = @" INSERT INTO warehouse_master ( warehousecode, orderno, warehousename, shortname, description, location, tenantcode, isactive, isdeleted, createddate ) VALUES ( @warehousecode, @orderno, @warehousename, @shortname, @description, @location, @tenantcode, @isactive, @isdeleted, @createddate ) ON CONFLICT (warehousecode, tenantcode) DO UPDATE SET orderno = EXCLUDED.orderno, warehousename = EXCLUDED.warehousename, shortname = EXCLUDED.shortname, description = EXCLUDED.description, location = EXCLUDED.location, isactive = EXCLUDED.isactive, isdeleted = EXCLUDED.isdeleted, modifieddate = CURRENT_TIMESTAMP; "; await db.ExecuteAsync(query, warehouse); return "Warehouse Upserted Successfully"; } } catch (Exception ex) { return ex.Message; } }
