@@ -334,7 +334,9 @@ public class purchase_detail
         public long? requestedby { get; set; }
         public long? departmentcode { get; set; }
         public string? branchcode { get; set; }
+        public long purchasedetailcode { get; set; }
 
+        public decimal issuedqty { get; set; }
         // Remarks
         public string? remarks { get; set; }
 
