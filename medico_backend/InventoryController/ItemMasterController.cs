@@ -1410,14 +1410,18 @@ namespace medico_backend.InventoryController
 
                 var result = await itemclass.GetWarehouseList(tenantcode);
 
-                return Ok(result);
+                return Ok(new
+                {
+                    Status = "Success",
+                    Data = result
+                });
             }
             catch (Exception ex)
             {
                 return BadRequest(new
                 {
-                    status = false,
-                    message = ex.Message
+                    Status = "Failed",
+                    Message = ex.Message
                 });
             }
         }
