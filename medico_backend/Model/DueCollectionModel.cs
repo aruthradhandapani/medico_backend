@@ -651,4 +651,37 @@ namespace medico_backend.Model
         public double total_advance_refund { get; set; }
         public double grand_total { get; set; }
     }
+    public class HmsAdvanceUseRequest
+    {
+        public decimal custid { get; set; }
+        public double amount_to_use { get; set; }
+        /// <summary>Optional — settle only this bill. If omitted, applies FIFO across all due bills for the patient (oldest first).</summary>
+        public string? requestguid { get; set; }
+        public int? enteredbhcode { get; set; }
+        public int? cntcode { get; set; }
+        public int? usercode { get; set; }
+        public int? computercode { get; set; }
+        public string? remarks { get; set; }
+    }
+
+    public class HmsAdvanceUseItemResult
+    {
+        public string requestguid { get; set; } = string.Empty;
+        public string? bill_no { get; set; }
+        public double due_before { get; set; }
+        public double advance_used { get; set; }
+        public double due_after { get; set; }
+        public bool is_fully_settled { get; set; }
+    }
+
+    public class HmsAdvanceUseResponse
+    {
+        public decimal custid { get; set; }
+        public string? patient_name { get; set; }
+        public double advance_balance_before { get; set; }
+        public double total_advance_used { get; set; }
+        public double advance_balance_after { get; set; }
+        public int bills_settled { get; set; }
+        public List<HmsAdvanceUseItemResult> items { get; set; } = new();
+    }
 }

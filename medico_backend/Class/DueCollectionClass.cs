@@ -2563,5 +2563,238 @@ LEFT JOIN doctor_master dm
 
             return (rows, total, summary);
         }
+        // ═══════════════════════════════════════════════════════════════════════
+        //  4b. USE ADVANCE FOR CUSTOMER
+        //
+        //  Applies existing advance credit against outstanding due bill(s) for a
+        //  patient — no counter shift required since no new money changes hands.
+        //    - requestguid provided → settle only that bill
+        //    - requestguid omitted  → FIFO across all due bills (oldest first)
+        //      until amount_to_use or due bills are exhausted
+        // ═══════════════════════════════════════════════════════════════════════
+
+        public async Task<(string status, HmsAdvanceUseResponse? data)> UseAdvance(
+            HmsAdvanceUseRequest req, string tenantCode)
+        {
+            if (req.amount_to_use <= 0)
+                return ("Amount to use must be greater than zero.", null);
+
+            using var db = GetConnection();
+            db.Open();
+            using var tx = db.BeginTransaction();
+
+            try
+            {
+                double advanceBalanceBefore = await GetPatientAdvanceBalance(db, req.custid, tenantCode, tx);
+
+                if (advanceBalanceBefore <= 0.01)
+                    return ("No advance balance available for this patient.", null);
+
+                double amountToUse = Math.Round(Math.Min(req.amount_to_use, advanceBalanceBefore), 2);
+
+                List<HmsLabRequestMaster> bills;
+
+                if (!string.IsNullOrWhiteSpace(req.requestguid))
+                {
+                    var single = await db.QueryFirstOrDefaultAsync<HmsLabRequestMaster>(
+                        @"SELECT * FROM lab_request_master
+                   WHERE requestguid = @rg AND tenant_code = @t
+                   FOR UPDATE",
+                        new { rg = req.requestguid, t = tenantCode }, tx);
+
+                    if (single == null)
+                        return ("Bill not found.", null);
+                    if (single.isdeleted == true || single.deleted == true)
+                        return ("Cannot use advance on a cancelled bill.", null);
+                    if (single.custid != req.custid)
+                        return ("Bill does not belong to this patient.", null);
+
+                    bills = new List<HmsLabRequestMaster> { single };
+                }
+                else
+                {
+                    bills = (await db.QueryAsync<HmsLabRequestMaster>(
+                        @"SELECT * FROM lab_request_master
+                   WHERE custid = @c AND tenant_code = @t
+                     AND COALESCE(isdeleted, false) = false
+                     AND COALESCE(deleted,   false) = false
+                     AND (COALESCE(totalamount, 0) - COALESCE(paidamount, 0)) > 0.05
+                   ORDER BY requestdatetime ASC
+                   FOR UPDATE",
+                        new { c = (int)req.custid, t = tenantCode }, tx)).ToList();
+                }
+
+                if (!bills.Any())
+                    return ("No outstanding due bills found for this patient.", null);
+
+                var patientName = bills.First().name;
+                var itemResults = new List<HmsAdvanceUseItemResult>();
+                double remaining = amountToUse;
+                double totalUsed = 0;
+
+                foreach (var bill in bills)
+                {
+                    if (remaining <= 0.01) break;
+
+                    double totalBill = bill.totalamount ?? 0;
+                    double previousPaid = bill.paidamount ?? 0;
+                    double currentDue = Math.Round(Math.Max(totalBill - previousPaid, 0), 2);
+
+                    if (currentDue <= 0.01) continue;
+
+                    double useOnThisBill = Math.Round(Math.Min(currentDue, remaining), 2);
+
+                    // FIFO deposit consumption for this bill's portion
+                    var deposits = (await db.QueryAsync<dynamic>(
+                        @"SELECT ra.receiptadvanceid, ra.receiptguid, ra.receiptamount,
+                         COALESCE(
+                             (SELECT SUM(u.receiptamount)
+                                FROM receipt_advances u
+                               WHERE u.receiptguid  = ra.receiptguid
+                                 AND u.requestguid IS NOT NULL
+                                 AND COALESCE(u.deleted, false) = false),
+                         0) AS used_amount
+                    FROM receipt_advances ra
+                   WHERE ra.requestguid IS NULL
+                     AND COALESCE(ra.deleted, false) = false
+                     AND ra.receiptguid IN (
+                         SELECT rm.receiptguid FROM receipt_master rm
+                          WHERE rm.custid      = @custid
+                            AND rm.tenant_code = @t
+                            AND rm.receipttype = 'ADVANCE'
+                            AND COALESCE(rm.isdeleted, false) = false
+                     )
+                   ORDER BY ra.receiptadvanceid ASC",
+                        new { custid = (int?)req.custid, t = tenantCode }, tx)).ToList();
+
+                    double billRemaining = useOnThisBill;
+
+                    foreach (var dep in deposits)
+                    {
+                        if (billRemaining <= 0.01) break;
+
+                        double available = Math.Round((double)dep.receiptamount - (double)dep.used_amount, 2);
+                        if (available <= 0.01) continue;
+
+                        double debit = Math.Round(Math.Min(available, billRemaining), 2);
+
+                        await db.ExecuteAsync(
+                            @"INSERT INTO receipt_advances
+                        (receiptadvanceid, receiptguid, requestguid, receiptamount,
+                         deleted, tenant_code, usercode, computercode, entereddate, ibsdate)
+                      VALUES
+                        (@id, @rg, @billGuid, @amt, false, @t, @uc, @cc, @dt, @dt)",
+                            new
+                            {
+                                id = Guid.NewGuid().ToString(),
+                                rg = (string)dep.receiptguid,
+                                billGuid = bill.requestguid,
+                                amt = debit,
+                                t = tenantCode,
+                                uc = req.usercode,
+                                cc = req.computercode,
+                                dt = DateTime.UtcNow
+                            }, tx);
+
+                        await db.ExecuteAsync(
+                            @"INSERT INTO balancecollectionby (
+                          balancecollectionbyid, bhcode,
+                          collecteddate, collectiontype, receiptguid, requestguid,
+                          collected_date, collection_type, receipt_guid, request_guid,
+                          collectedamount, deleted, usercode, computercode,
+                          entereddate, ibsdate, tmcode, cntcode, cnttid, pmcode, ctcode,
+                          tenant_code)
+                      VALUES (
+                          @id, @bh,
+                          @dt, 'ADVANCE', @rg, @req,
+                          @dt, 'ADVANCE', @rg, @req,
+                          @amt, false, @uc, @cc,
+                          @dt, @dt, @tm, @cnt, NULL, @pm, @cct,
+                          @t)",
+                            new
+                            {
+                                id = Guid.NewGuid().ToString(),
+                                bh = req.enteredbhcode,
+                                dt = DateTime.UtcNow,
+                                rg = (string)dep.receiptguid,
+                                req = bill.requestguid,
+                                amt = debit,
+                                uc = req.usercode,
+                                cc = req.computercode,
+                                tm = bill.tmcode,
+                                cnt = req.cntcode,
+                                pm = bill.pmcode,
+                                cct = bill.ctcode,
+                                t = tenantCode
+                            }, tx);
+
+                        billRemaining = Math.Round(billRemaining - debit, 2);
+                    }
+
+                    double actuallyUsed = Math.Round(useOnThisBill - billRemaining, 2);
+                    if (actuallyUsed <= 0.01) continue;
+
+                    await db.ExecuteAsync(
+                        @"UPDATE lab_request_master
+                     SET paidamount = COALESCE(paidamount, 0) + @amt
+                   WHERE requestguid = @rg AND tenant_code = @t",
+                        new { amt = actuallyUsed, rg = bill.requestguid, t = tenantCode }, tx);
+
+                    double dueAfter = Math.Round(Math.Max(currentDue - actuallyUsed, 0), 2);
+
+                    if (dueAfter <= 0.05)
+                    {
+                        await db.ExecuteAsync(
+                            @"UPDATE balancecollectionbytest
+                         SET requeststatus = true
+                       WHERE balancecollectionbyid IN (
+                           SELECT balancecollectionbyid
+                             FROM balancecollectionby
+                            WHERE request_guid = @rg AND tenant_code = @t
+                              AND COALESCE(deleted, false) = false
+                       )",
+                            new { rg = bill.requestguid, t = tenantCode }, tx);
+                    }
+
+                    itemResults.Add(new HmsAdvanceUseItemResult
+                    {
+                        requestguid = bill.requestguid ?? string.Empty,
+                        bill_no = bill.requestsnoprint,
+                        due_before = currentDue,
+                        advance_used = actuallyUsed,
+                        due_after = dueAfter,
+                        is_fully_settled = dueAfter <= 0.05
+                    });
+
+                    totalUsed = Math.Round(totalUsed + actuallyUsed, 2);
+                    remaining = Math.Round(remaining - actuallyUsed, 2);
+                }
+
+                if (totalUsed <= 0.01)
+                {
+                    tx.Rollback();
+                    return ("Unable to apply advance — no eligible due amount on the target bill(s).", null);
+                }
+
+                tx.Commit();
+
+                return ("SUCCESS", new HmsAdvanceUseResponse
+                {
+                    custid = req.custid,
+                    patient_name = patientName,
+                    advance_balance_before = advanceBalanceBefore,
+                    total_advance_used = totalUsed,
+                    advance_balance_after = Math.Round(advanceBalanceBefore - totalUsed, 2),
+                    bills_settled = itemResults.Count,
+                    items = itemResults
+                });
+            }
+            catch (Exception ex)
+            {
+                tx.Rollback();
+                _logger.LogError(ex, "UseAdvance failed for custid={c}", req.custid);
+                return ($"Transaction error: {ex.Message}", null);
+            }
+        }
     }
 }

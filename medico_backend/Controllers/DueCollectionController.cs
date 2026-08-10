@@ -432,7 +432,7 @@ namespace medico_backend.Controllers
             try
             {
                 string tenant = ResolveTenantCode();
-                var (data, totalCount, summary) = 
+                var (data, totalCount, summary) =
                     await _service.GetDailyCollectionReport(filter, tenant);
 
                 return Ok(new
@@ -448,6 +448,31 @@ namespace medico_backend.Controllers
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error in GetDailyCollectionReport.");
+                return StatusCode(500, new { success = false, message = ex.Message });
+            }
+        }
+        // ═══════════════════════════════════════════════════════════════════════
+        //  8b. USE ADVANCE FOR CUSTOMER
+        //
+        //  POST /api/HmsDueCollection/advance/use
+        // ═══════════════════════════════════════════════════════════════════════
+
+        [HttpPost("advance/use")]
+        public async Task<IActionResult> UseAdvance([FromBody] HmsAdvanceUseRequest req)
+        {
+            try
+            {
+                string tenant = ResolveTenantCode();
+                var (status, data) = await _service.UseAdvance(req, tenant);
+
+                if (status != "SUCCESS")
+                    return BadRequest(new { success = false, message = status });
+
+                return Ok(new { success = true, data });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error using advance for custid={c}", req?.custid);
                 return StatusCode(500, new { success = false, message = ex.Message });
             }
         }
