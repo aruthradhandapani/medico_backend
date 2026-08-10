@@ -2617,7 +2617,23 @@ namespace medico_backend.InventoryClass
                     {
                         while (await reader.ReadAsync())
                         {
-                            list.Add(new ledger_type_master { /* ...unchanged mapping... */ });
+                            list.Add(new ledger_type_master
+                            {
+                                ledgertypecode = Convert.ToInt32(reader["ledgertypecode"]),
+                                ledgertypename = reader["ledgertypename"].ToString(),
+                                shortname = reader["shortname"].ToString(),
+                                description = reader["description"].ToString(),
+                                naturetype = Convert.ToInt32(reader["naturetype"]),
+                                isactive = Convert.ToBoolean(reader["isactive"]),
+                                createddate = Convert.ToDateTime(reader["createddate"]),
+                                tenantcode = reader["tenantcode"].ToString(),
+                                isgstapplicable = Convert.ToBoolean(reader["isgstapplicable"]),
+                                isvatapplicable = Convert.ToBoolean(reader["isvatapplicable"]),
+                                sgstpercentage = Convert.ToDecimal(reader["sgstpercentage"]),
+                                cgstpercentage = Convert.ToDecimal(reader["cgstpercentage"]),
+                                igstpercentage = Convert.ToDecimal(reader["igstpercentage"]),
+                                deleted = Convert.ToBoolean(reader["deleted"])
+                            });
                         }
                     }
                 }
@@ -2641,7 +2657,18 @@ namespace medico_backend.InventoryClass
                     {
                         while (await reader.ReadAsync())
                         {
-                            list.Add(new ledger_group_master { /* ...unchanged mapping... */ });
+                            list.Add(new ledger_group_master
+                            {
+                                ledgergroupcode = Convert.ToInt32(reader["ledgergroupcode"]),
+                                ledgergroupname = reader["ledgergroupname"].ToString(),
+                                shortname = reader["shortname"].ToString(),
+                                ledgertypecode = Convert.ToInt32(reader["ledgertypecode"]),
+                                description = reader["description"].ToString(),
+                                isactive = Convert.ToBoolean(reader["isactive"]),
+                                createddate = Convert.ToDateTime(reader["createddate"]),
+                                tenantcode = reader["tenantcode"].ToString(),
+                                deleted = Convert.ToBoolean(reader["deleted"])
+                            });
                         }
                     }
                 }
@@ -2981,8 +3008,60 @@ WHERE stockcode=@stockcode;";
                 return "Sales Deleted Successfully";
             }
         }
-        public async Task<string> UpsertWarehouse(warehouse_master warehouse) { try { using (IDbConnection db = new NpgsqlConnection(con)) { string query = @" INSERT INTO warehouse_master ( warehousecode, orderno, warehousename, shortname, description, location, tenantcode, isactive, isdeleted, createddate ) VALUES ( @warehousecode, @orderno, @warehousename, @shortname, @description, @location, @tenantcode, @isactive, @isdeleted, @createddate ) ON CONFLICT (warehousecode, tenantcode) DO UPDATE SET orderno = EXCLUDED.orderno, warehousename = EXCLUDED.warehousename, shortname = EXCLUDED.shortname, description = EXCLUDED.description, location = EXCLUDED.location, isactive = EXCLUDED.isactive, isdeleted = EXCLUDED.isdeleted, modifieddate = CURRENT_TIMESTAMP; "; await db.ExecuteAsync(query, warehouse); return "Warehouse Upserted Successfully"; } } catch (Exception ex) { return ex.Message; } }
+        public async Task<string> UpsertWarehouse(warehouse_master warehouse)
+        {
+            try
+            {
+                using IDbConnection db = new NpgsqlConnection(con);
+                db.Open();
 
+                if (warehouse.warehousecode == null || warehouse.warehousecode == 0)
+                {
+                    string insertQuery = @"
+                INSERT INTO warehouse_master
+                (
+                    orderno, warehousename, shortname, description, location,
+                    tenantcode, isactive, isdeleted, createddate,
+                    purchaseallow, salesallow
+                )
+                VALUES
+                (
+                    @orderno, @warehousename, @shortname, @description, @location,
+                    @tenantcode, @isactive, @isdeleted, CURRENT_TIMESTAMP,
+                    @purchaseallow, @salesallow
+                )
+                RETURNING warehousecode;";
+
+                    int newcode = await db.ExecuteScalarAsync<int>(insertQuery, warehouse);
+                    return $"Warehouse Inserted Successfully|WarehouseCode:{newcode}";
+                }
+                else
+                {
+                    string updateQuery = @"
+                UPDATE warehouse_master
+                SET
+                    orderno       = @orderno,
+                    warehousename = @warehousename,
+                    shortname     = @shortname,
+                    description   = @description,
+                    location      = @location,
+                    isactive      = @isactive,
+                    isdeleted     = @isdeleted,
+                    purchaseallow = @purchaseallow,
+                    salesallow    = @salesallow,
+                    modifieddate  = CURRENT_TIMESTAMP
+                WHERE warehousecode = @warehousecode
+                  AND tenantcode = @tenantcode;";
+
+                    int rows = await db.ExecuteAsync(updateQuery, warehouse);
+                    return rows > 0 ? "Warehouse Updated Successfully" : "Warehouse not found";
+                }
+            }
+            catch (Exception ex)
+            {
+                return ex.Message;
+            }
+        }
         public async Task<string> InsertOrUpdateWarehouse(warehouse_master warehouse)
         {
             try
