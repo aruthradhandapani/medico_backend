@@ -3048,17 +3048,18 @@ ORDER BY salesdetailcode;";
             }
         }
 
-        public async Task<string> DeleteWarehouse(int warehousecode)
+        public async Task<string> DeleteWarehouse(int warehousecode, string tenantcode)
         {
             try
             {
                 using (IDbConnection db = new NpgsqlConnection(con))
                 {
                     string query = @"UPDATE warehouse_master
-                       SET isdeleted = true
-                       WHERE warehousecode = @warehousecode";
+                   SET isdeleted = true
+                   WHERE warehousecode = @warehousecode
+                     AND tenantcode = @tenantcode";
 
-                    await db.ExecuteAsync(query, new { warehousecode });
+                    await db.ExecuteAsync(query, new { warehousecode, tenantcode });
 
                     return "Warehouse Deleted Successfully";
                 }
@@ -3068,18 +3069,19 @@ ORDER BY salesdetailcode;";
                 return ex.Message;
             }
         }
-        public async Task<IEnumerable<warehouse_master>> GetWarehouseList()
+        public async Task<IEnumerable<warehouse_master>> GetWarehouseList(string tenantcode)
         {
             try
             {
                 using (IDbConnection db = new NpgsqlConnection(con))
                 {
                     string query = @"SELECT *
-                       FROM warehouse_master
-                       WHERE isdeleted = false
-                       ORDER BY warehousecode";
+                   FROM warehouse_master
+                   WHERE isdeleted = false
+                     AND tenantcode = @tenantcode
+                   ORDER BY warehousecode";
 
-                    return await db.QueryAsync<warehouse_master>(query);
+                    return await db.QueryAsync<warehouse_master>(query, new { tenantcode });
                 }
             }
             catch (Exception)

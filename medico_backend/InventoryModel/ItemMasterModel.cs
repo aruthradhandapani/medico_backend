@@ -691,7 +691,7 @@ public class purchase_detail
      public string description { get; set; }
      public string location { get; set; }
 
-     public int tenantcode { get; set; }
+     public string tenantcode { get; set; }
 
      public bool isactive { get; set; }
      public bool isdeleted { get; set; }

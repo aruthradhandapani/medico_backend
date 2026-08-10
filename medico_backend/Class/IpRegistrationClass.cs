@@ -117,6 +117,9 @@ namespace medico_backend.Class
                     guardian_name = req.guardian_name,
                     guardian_relation = req.guardian_relation,
                     guardian_contact = req.guardian_contact,
+                    id_proof_name = req.id_proof_name,
+                    id_proof_id = req.id_proof_id,
+                    identification_mark = req.identification_mark,
                     notes = req.notes,
                     tenant_code = tenant_code,
                     isdeleted = false,
@@ -132,6 +135,7 @@ namespace medico_backend.Class
                      isinsurancepatient, insurance_company, policyno, authorizationno, tpa_name,
                      insurance_approved_amount, insurance_status,
                      guardian_name, guardian_relation, guardian_contact,
+                     id_proof_name, id_proof_id, identification_mark,
                      notes, tenant_code, isdeleted, created_at, updated_at)
                     VALUES
                     (@ip_id, @ip_no, @custid, @booking_id, @op_id, @dcode, @referring_dcode, @department_code,
@@ -140,6 +144,7 @@ namespace medico_backend.Class
                      @isinsurancepatient, @insurance_company, @policyno, @authorizationno, @tpa_name,
                      @insurance_approved_amount, @insurance_status,
                      @guardian_name, @guardian_relation, @guardian_contact,
+                     @id_proof_name, @id_proof_id, @identification_mark,
                      @notes, @tenant_code, @isdeleted, @created_at, @updated_at)",
                     data, tx);
 
@@ -330,6 +335,9 @@ namespace medico_backend.Class
                 guardian_name              = @guardian_name,
                 guardian_relation          = @guardian_relation,
                 guardian_contact           = @guardian_contact,
+                id_proof_name              = @id_proof_name,
+                id_proof_id                = @id_proof_id,
+                identification_mark        = @identification_mark,
                 notes                      = @notes,
                 billing_rmtcode = @billing_rmtcode,
                 billing_type    = @billing_type,
@@ -358,6 +366,9 @@ namespace medico_backend.Class
                 req.guardian_name,
                 req.guardian_relation,
                 req.guardian_contact,
+                req.id_proof_name,
+                req.id_proof_id,
+                req.identification_mark,
                 req.notes,
                 // Update() params object — add
                 req.billing_rmtcode,
@@ -401,7 +412,7 @@ namespace medico_backend.Class
 
                 tx.Commit();
                 return "Success";
-                
+
             }
             catch (Exception ex)
             {
