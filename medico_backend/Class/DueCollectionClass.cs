@@ -1563,51 +1563,59 @@ LEFT JOIN lab_request_master lrm
         // ═══════════════════════════════════════════════════════════════════════
 
         public async Task<HmsPatientAdvanceSummary> GetPatientAdvanceSummary(
-            decimal custid, string tenantCode)
+    decimal custid, string tenantCode)
         {
             using var db = GetConnection();
 
             var patientName = await db.ExecuteScalarAsync<string>(
                 @"SELECT name FROM lab_request_master
-                   WHERE custid = @c AND tenant_code = @t
-                     AND COALESCE(isdeleted, false) = false
-                   ORDER BY requestdatetime DESC LIMIT 1",
+           WHERE custid = @c AND tenant_code = @t
+             AND COALESCE(isdeleted, false) = false
+           ORDER BY requestdatetime DESC LIMIT 1",
                 new { c = (int)custid, t = tenantCode });
 
+            // Classify each receipt_advances row correctly:
+            //   requestguid IS NULL                              -> DEPOSIT
+            //   requestguid points to a receipt_master row with
+            //     receipttype = 'ADVANCE_REFUND'                 -> REFUND
+            //   requestguid points to anything else (a bill guid) -> USED
             var rows = (await db.QueryAsync<HmsAdvanceLedgerRow>(
                 @"SELECT ra.receiptadvanceid,
-                         ra.receiptguid,
-                         ra.requestguid,
-                         ra.receiptamount,
-                         rm.receiptdate,
-                         rm.receiptsnoprint
-                    FROM receipt_advances ra
-                   INNER JOIN receipt_master rm
-                           ON ra.receiptguid  = rm.receiptguid
-                          AND rm.tenant_code  = @t
-                   WHERE rm.custid      = @c
-                     AND rm.tenant_code = @t
-                     AND rm.receipttype = 'ADVANCE'
-                     AND COALESCE(rm.isdeleted, false) = false
-                     AND COALESCE(ra.deleted,   false) = false
-                   ORDER BY ra.receiptadvanceid ASC",
+                 ra.receiptguid,
+                 ra.requestguid,
+                 ra.receiptamount,
+                 rm.receiptdate,
+                 rm.receiptsnoprint,
+                 CASE
+                     WHEN ra.requestguid IS NULL THEN 'DEPOSIT'
+                     WHEN rref.receipttype = 'ADVANCE_REFUND' THEN 'REFUND'
+                     ELSE 'USED'
+                 END AS transaction_type
+            FROM receipt_advances ra
+           INNER JOIN receipt_master rm
+                   ON ra.receiptguid  = rm.receiptguid
+                  AND rm.tenant_code  = @t
+            LEFT JOIN receipt_master rref
+                   ON rref.receiptguid  = ra.requestguid
+                  AND rref.tenant_code  = @t
+                  AND rref.receipttype  = 'ADVANCE_REFUND'
+           WHERE rm.custid      = @c
+             AND rm.tenant_code = @t
+             AND rm.receipttype = 'ADVANCE'
+             AND COALESCE(rm.isdeleted, false) = false
+             AND COALESCE(ra.deleted,   false) = false
+           ORDER BY ra.receiptadvanceid ASC",
                 new { c = (int)custid, t = tenantCode })).ToList();
 
-            foreach (var row in rows)
-                row.transaction_type = row.requestguid == null ? "DEPOSIT" : "USED";
+            // No more manual transaction_type assignment here — SQL already set it.
 
-            var refundTotal = await db.ExecuteScalarAsync<double>(
-                @"SELECT COALESCE(SUM(amounttotal), 0)
-                    FROM receipt_master
-                   WHERE custid      = @c
-                     AND tenant_code = @t
-                     AND receipttype = 'ADVANCE_REFUND'
-                     AND COALESCE(isdeleted, false) = false",
-                new { c = (int)custid, t = tenantCode });
+            double totalDeposited = rows.Where(r => r.transaction_type == "DEPOSIT").Sum(r => r.receiptamount);
+            double totalUsed = rows.Where(r => r.transaction_type == "USED").Sum(r => r.receiptamount);
+            double totalRefunded = rows.Where(r => r.transaction_type == "REFUND").Sum(r => r.receiptamount);
 
-            double totalDeposited = rows.Where(r => r.requestguid == null).Sum(r => r.receiptamount);
-            double totalUsed = rows.Where(r => r.requestguid != null).Sum(r => r.receiptamount);
-            double available = Math.Round(Math.Max(totalDeposited - totalUsed - refundTotal, 0), 2);
+            // available = deposits − usage − refunds, computed purely from the ledger
+            // (no separate receipt_master ADVANCE_REFUND aggregate, so nothing is double-counted)
+            double available = Math.Round(Math.Max(totalDeposited - totalUsed - totalRefunded, 0), 2);
 
             return new HmsPatientAdvanceSummary
             {
@@ -1615,7 +1623,7 @@ LEFT JOIN lab_request_master lrm
                 patient_name = patientName,
                 total_advance_deposited = totalDeposited,
                 total_advance_used = totalUsed,
-                total_advance_refunded = refundTotal,
+                total_advance_refunded = totalRefunded,
                 available_balance = available,
                 ledger = rows
             };
