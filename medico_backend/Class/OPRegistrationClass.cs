@@ -45,6 +45,7 @@ namespace medico_backend.Class
             try
             {
                 using IDbConnection db = new NpgsqlConnection(_db_conn);
+                db.Open();
 
                 // ── 1. Validate visit_type ──────────────────────────────
                 var allowedVisitTypes = new[] { "NEWVISIT", "FOLLOWUP" };
@@ -59,18 +60,16 @@ namespace medico_backend.Class
                 data.reg_type = data.reg_type.ToUpper();
 
                 // ── 3. Both WALKIN and ONLINE use booking flow ──────────
-                //       because WALKIN is now booked via /book endpoint
-                //       so both always have a booking_id
                 if (!data.booking_id.HasValue || data.booking_id == Guid.Empty)
                     return "booking_id is required. Both WALKIN and ONLINE must be pre-booked.";
 
                 string checkBookingSql = @"SELECT booking_status, token_no,
-                                          slot_detail_id, booking_type,
-                                          booking_no
-                                   FROM   appointment_booking
-                                   WHERE  booking_id  = @booking_id
-                                   AND    tenant_code = @tenant_code
-                                   AND    isdeleted   = false";
+                                  slot_detail_id, booking_type,
+                                  booking_no
+                           FROM   appointment_booking
+                           WHERE  booking_id  = @booking_id
+                           AND    tenant_code = @tenant_code
+                           AND    isdeleted   = false";
 
                 var booking = await db.QueryFirstOrDefaultAsync(
                     checkBookingSql, new { data.booking_id, data.tenant_code });
@@ -84,9 +83,6 @@ namespace medico_backend.Class
                 if (booking.booking_status == "VISITED")
                     return "Patient already registered for this booking";
 
-                // ✅ Carry token from booking — assigned at booking time
-                data.token_no = (int)booking.token_no;
-
                 // ✅ Carry reg_type from booking_type (WALKIN/ONLINE)
                 data.reg_type = ((string)booking.booking_type).ToUpper();
 
@@ -97,61 +93,67 @@ namespace medico_backend.Class
                 if (data.slot_detail_id == null || data.slot_detail_id == Guid.Empty)
                     data.slot_detail_id = (Guid?)booking.slot_detail_id;
 
-                // ✅ Mark booking as VISITED
-                await db.ExecuteAsync(
-                    @"UPDATE appointment_booking
-              SET    booking_status = 'VISITED',
-                     updated_at     = now()
-              WHERE  booking_id     = @booking_id
-              AND    tenant_code    = @tenant_code",
-                    new { data.booking_id, data.tenant_code });
-
-                // ── 4. Set defaults & insert ────────────────────────────
-                data.op_id = Guid.NewGuid();
-                data.op_no = await GenerateOpNo(db, data.tenant_code!);
-                data.visit_date = DateOnly.FromDateTime(DateTime.UtcNow);
-                data.visit_status = "WAITING";
-                data.created_at = DateTime.SpecifyKind(DateTime.UtcNow, DateTimeKind.Utc);
-                data.updated_at = DateTime.SpecifyKind(DateTime.UtcNow, DateTimeKind.Utc);
-
-                await db.ExecuteAsync(@"INSERT INTO op_registration
-    (op_id, op_no, booking_id, booking_no, slot_detail_id, custid, dcode,
-     department_code, visit_type, reg_type, visit_date,
-     token_no, queue_no, visit_status, notes,
-     tenant_code, isdeleted, created_at, updated_at)
-   VALUES
-    (@op_id, @op_no, @booking_id, @booking_no, @slot_detail_id, @custid, @dcode,
-     @department_code, @visit_type, @reg_type, @visit_date,
-     @token_no, @queue_no, @visit_status, @notes,
-     @tenant_code, @isdeleted, @created_at, @updated_at)", new
+                // ── 4. Token + insert, all inside ONE locked transaction ──
+                using var tx = db.BeginTransaction();
+                try
                 {
-                    data.op_id,
-                    data.op_no,
-                    data.booking_id,
-                    data.booking_no,
-                    data.slot_detail_id,
-                    data.custid,
-                    data.dcode,
-                    data.department_code,
-                    data.visit_type,
-                    data.reg_type,
-                    visit_date = data.visit_date.ToDateTime(TimeOnly.MinValue),
-                    data.token_no,
-                    data.queue_no,
-                    data.visit_status,
-                    data.notes,
-                    data.tenant_code,
-                    data.isdeleted,
-                    data.created_at,
-                    data.updated_at
-                });
+                    // ✅ Generate token INSIDE the lock — this is what was missing.
+                    // Previously this call and the INSERT below were unlocked/separate,
+                    // so two concurrent "mark visited" calls for the same doctor/slot
+                    // could both read the same MAX(token_no) and collide.
+                    data.token_no = await GenerateNextTokenNo(db, tx, data.dcode, data.slot_detail_id, data.tenant_code!);
 
-                // ── 5. Auto-add consultation fee to unbilledcharges ─────
-                // NOTE: you'll need a source for tcode/rate/amount — either
-                // hardcode a default, pull from a doctor-fee master table,
-                // or accept it as an optional field on OpRegistrationModel.
-                // Placeholder below uses a fixed rate; replace with your actual lookup.
-                // ── 5. Auto-add consultation fee to unbilledcharges ─────
+                    data.op_id = Guid.NewGuid();
+                    data.op_no = await GenerateOpNo(db, data.tenant_code!);   // see note below
+                    data.visit_date = DateOnly.FromDateTime(
+                        TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow,
+                            TimeZoneInfo.FindSystemTimeZoneById("Asia/Kolkata")));
+                    data.visit_status = "WAITING";
+                    data.created_at = DateTime.SpecifyKind(DateTime.UtcNow, DateTimeKind.Utc);
+                    data.updated_at = DateTime.SpecifyKind(DateTime.UtcNow, DateTimeKind.Utc);
+
+                    await db.ExecuteAsync(@"INSERT INTO op_registration
+        (op_id, op_no, booking_id, booking_no, slot_detail_id, custid, dcode,
+         department_code, visit_type, reg_type, visit_date,
+         token_no, queue_no, visit_status, notes,
+         tenant_code, isdeleted, created_at, updated_at)
+       VALUES
+        (@op_id, @op_no, @booking_id, @booking_no, @slot_detail_id, @custid, @dcode,
+         @department_code, @visit_type, @reg_type, @visit_date,
+         @token_no, @queue_no, @visit_status, @notes,
+         @tenant_code, @isdeleted, @created_at, @updated_at)", new
+                    {
+                        data.op_id,
+                        data.op_no,
+                        data.booking_id,
+                        data.booking_no,
+                        data.slot_detail_id,
+                        data.custid,
+                        data.dcode,
+                        data.department_code,
+                        data.visit_type,
+                        data.reg_type,
+                        visit_date = data.visit_date.ToDateTime(TimeOnly.MinValue),
+                        data.token_no,
+                        data.queue_no,
+                        data.visit_status,
+                        data.notes,
+                        data.tenant_code,
+                        data.isdeleted,
+                        data.created_at,
+                        data.updated_at
+                    }, tx);
+
+                    tx.Commit();
+                }
+                catch
+                {
+                    tx.Rollback();
+                    throw;
+                }
+
+                // ── 5. Auto-add consultation fee — stays OUTSIDE the transaction,
+                // a delay here doesn't cause duplicate tokens, no need to hold the lock ──
                 var (feeTcode, feeRate, feeAmount) = await GetDoctorConsultationFee(db, data.dcode, data.tenant_code!, data.custid);
 
                 await _unbilledCls.AddConsultationCharge(new AddUnbilledConsultationRequest
@@ -314,9 +316,34 @@ namespace medico_backend.Class
             o.*,
             c.name AS patient_name,
             c.mobile,
-            c.isvip
+            c.isvip,
+            cs.refer_to_ip,
+            uc.billedstatus AS unbilled_status,
+            dm.name AS doctor_name
         FROM op_registration o
         LEFT JOIN customerdb.customer_master c ON c.custid = o.custid
+        LEFT JOIN doctor_master dm
+               ON dm.dcode       = o.dcode
+              AND dm.tenant_code = o.tenant_code
+              AND dm.deleted     = false
+        LEFT JOIN LATERAL (
+            SELECT refer_to_ip
+            FROM   op_case_sheet
+            WHERE  op_case_sheet.op_id       = o.op_id
+            AND    op_case_sheet.tenant_code = o.tenant_code
+            AND    op_case_sheet.isdeleted   = false
+            ORDER  BY op_case_sheet.created_at DESC
+            LIMIT  1
+        ) cs ON true
+        LEFT JOIN LATERAL (
+            SELECT billedstatus
+            FROM   unbilledcharges
+            WHERE  unbilledcharges.opvisitid   = o.op_id::text
+            AND    unbilledcharges.entrytype   = 'CONSULTATION'
+            AND    unbilledcharges.tenant_code = o.tenant_code
+            ORDER  BY unbilledcharges.chargedate DESC
+            LIMIT  1
+        ) uc ON true
         WHERE o.isdeleted = false
         AND o.tenant_code = @tenant_code
         AND (@dcode IS NULL OR o.dcode = @dcode)
@@ -345,6 +372,12 @@ namespace medico_backend.Class
             public string? mobile { get; set; }
 
             public bool? isvip { get; set; }
+
+            public bool? refer_to_ip { get; set; }
+
+
+            public bool? unbilled_status { get; set; }
+            public string? doctor_name { get; set; }
         }
 
         // ─────────────────────────────────────────
@@ -462,6 +495,7 @@ namespace medico_backend.Class
             try
             {
                 using IDbConnection db = new NpgsqlConnection(_db_conn);
+                db.Open();
 
                 // Determine doctor
                 int assignedDcode = req.dcode.HasValue && req.dcode > 0
@@ -472,22 +506,16 @@ namespace medico_backend.Class
 
                 if (assignedDcode == 0)
                     return "Either dcode or duty_dcode is required";
+
                 bool slotRequired = await db.ExecuteScalarAsync<bool?>(
-    @"SELECT is_slot_required FROM lab_settings
-      WHERE tenant_code = @tenant_code AND deleted = false
-      ORDER BY (bh_code IS NULL) LIMIT 1",
-    new { tenant_code }) ?? true;
+                    @"SELECT is_slot_required FROM lab_settings
+              WHERE tenant_code = @tenant_code AND deleted = false
+              ORDER BY (bh_code IS NULL) LIMIT 1",
+                    new { tenant_code }) ?? true;
 
                 if (!slotRequired)
                 {
                     // NO-SLOT MODE — just the doctor, no slot validation/quota at all
-                    int noSlotToken = await db.ExecuteScalarAsync<int>(
-                        @"SELECT COALESCE(MAX(token_no), 0) + 1
-          FROM op_registration
-          WHERE dcode = @dcode AND tenant_code = @tenant_code AND isdeleted = false
-          AND visit_date = (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata')::date",
-                        new { dcode = assignedDcode, tenant_code });
-
                     var noSlotData = new OpRegistrationModel
                     {
                         op_id = Guid.NewGuid(),
@@ -498,9 +526,8 @@ namespace medico_backend.Class
                         slot_detail_id = null,
                         visit_type = string.IsNullOrWhiteSpace(req.visit_type) ? "NEWVISIT" : req.visit_type.ToUpper(),
                         reg_type = "WALKIN",
-                        visit_date = DateOnly.FromDateTime(DateTime.UtcNow),
-                        token_no = noSlotToken,
-                        queue_no = noSlotToken,
+                        visit_date = DateOnly.FromDateTime(
+                            TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, TimeZoneInfo.FindSystemTimeZoneById("Asia/Kolkata"))),
                         visit_status = "WAITING",
                         notes = req.notes,
                         is_direct_walkin = true,
@@ -511,37 +538,54 @@ namespace medico_backend.Class
                         updated_at = DateTime.SpecifyKind(DateTime.UtcNow, DateTimeKind.Utc)
                     };
 
-                    await db.ExecuteAsync(@"
-        INSERT INTO op_registration
-        (op_id, op_no, custid, dcode, department_code, slot_detail_id, visit_type,
-         reg_type, visit_date, token_no, queue_no, visit_status, notes,
-         is_direct_walkin, duty_dcode, tenant_code, isdeleted, created_at, updated_at)
-        VALUES
-        (@op_id, @op_no, @custid, @dcode, @department_code, @slot_detail_id, @visit_type,
-         @reg_type, @visit_date, @token_no, @queue_no, @visit_status, @notes,
-         @is_direct_walkin, @duty_dcode, @tenant_code, @isdeleted, @created_at, @updated_at)",
-                        new
+                    using (var tx = db.BeginTransaction())
+                    {
+                        try
                         {
-                            noSlotData.op_id,
-                            noSlotData.op_no,
-                            noSlotData.custid,
-                            noSlotData.dcode,
-                            noSlotData.department_code,
-                            noSlotData.slot_detail_id,
-                            noSlotData.visit_type,
-                            noSlotData.reg_type,
-                            visit_date = noSlotData.visit_date.ToDateTime(TimeOnly.MinValue),
-                            noSlotData.token_no,
-                            noSlotData.queue_no,
-                            noSlotData.visit_status,
-                            noSlotData.notes,
-                            noSlotData.is_direct_walkin,
-                            noSlotData.duty_dcode,
-                            noSlotData.tenant_code,
-                            noSlotData.isdeleted,
-                            noSlotData.created_at,
-                            noSlotData.updated_at
-                        });
+                            int noSlotToken = await GenerateNextTokenNo(db, tx, assignedDcode, null, tenant_code);
+                            noSlotData.token_no = noSlotToken;
+                            noSlotData.queue_no = noSlotToken;
+
+                            await db.ExecuteAsync(@"
+                        INSERT INTO op_registration
+                        (op_id, op_no, custid, dcode, department_code, slot_detail_id, visit_type,
+                         reg_type, visit_date, token_no, queue_no, visit_status, notes,
+                         is_direct_walkin, duty_dcode, tenant_code, isdeleted, created_at, updated_at)
+                        VALUES
+                        (@op_id, @op_no, @custid, @dcode, @department_code, @slot_detail_id, @visit_type,
+                         @reg_type, @visit_date, @token_no, @queue_no, @visit_status, @notes,
+                         @is_direct_walkin, @duty_dcode, @tenant_code, @isdeleted, @created_at, @updated_at)",
+                                new
+                                {
+                                    noSlotData.op_id,
+                                    noSlotData.op_no,
+                                    noSlotData.custid,
+                                    noSlotData.dcode,
+                                    noSlotData.department_code,
+                                    noSlotData.slot_detail_id,
+                                    noSlotData.visit_type,
+                                    noSlotData.reg_type,
+                                    visit_date = noSlotData.visit_date.ToDateTime(TimeOnly.MinValue),
+                                    noSlotData.token_no,
+                                    noSlotData.queue_no,
+                                    noSlotData.visit_status,
+                                    noSlotData.notes,
+                                    noSlotData.is_direct_walkin,
+                                    noSlotData.duty_dcode,
+                                    noSlotData.tenant_code,
+                                    noSlotData.isdeleted,
+                                    noSlotData.created_at,
+                                    noSlotData.updated_at
+                                }, tx);
+
+                            tx.Commit();
+                        }
+                        catch
+                        {
+                            tx.Rollback();
+                            throw;
+                        }
+                    }
 
                     var (noSlotTcode, noSlotRate, noSlotAmount) = await GetDoctorConsultationFee(db, assignedDcode, tenant_code, req.custid);
 
@@ -555,32 +599,25 @@ namespace medico_backend.Class
                         quantity = 1
                     }, tenant_code);
 
-                    return $"Success|OpNo:{noSlotData.op_no}|OpId:{noSlotData.op_id}|Token:{noSlotToken}";
+                    return $"Success|OpNo:{noSlotData.op_no}|OpId:{noSlotData.op_id}|Token:{noSlotData.token_no}";
                 }
 
-                // slotRequired == true → falls through to the existing slot validation code below, unchanged
-                // Validate slot
+                // slotRequired == true → validate slot
                 var slot = await db.QueryFirstOrDefaultAsync<DoctorAppointmentSlotDetailsModel>(
-                @"SELECT *
-          FROM doctor_appointment_slot_details
-          WHERE slot_detail_id = @slot_detail_id
-            AND tenant_code = @tenant_code
-            AND isdeleted = false
-            AND is_active = true",
-                new
-                {
-                    req.slot_detail_id,
-                    tenant_code
-                });
+                    @"SELECT *
+              FROM doctor_appointment_slot_details
+              WHERE slot_detail_id = @slot_detail_id
+                AND tenant_code = @tenant_code
+                AND isdeleted = false
+                AND is_active = true",
+                    new { req.slot_detail_id, tenant_code });
 
                 if (slot == null)
                     return "Slot not found";
 
-                // Validate doctor belongs to slot
                 if (slot.dcode != assignedDcode)
                     return "Selected slot does not belong to selected doctor";
 
-                // Slot status check
                 if (slot.slot_status == "FULL")
                     return "Slot is full";
 
@@ -590,128 +627,90 @@ namespace medico_backend.Class
                 if (slot.slot_status == "CLOSED")
                     return "Slot is closed";
 
-                // Walk-in quota validation
                 if (slot.walkin_count >= slot.max_walkin)
                     return "Walk-in quota full for this slot";
 
-                // Total capacity validation
                 if (slot.booked_count >= slot.max_patients)
                     return "Slot capacity reached";
-
-                // Generate token
-                int token = slot.booked_count + 1;
 
                 var data = new OpRegistrationModel
                 {
                     op_id = Guid.NewGuid(),
                     op_no = await GenerateOpNo(db, tenant_code),
-
                     custid = req.custid,
                     dcode = assignedDcode,
                     department_code = req.department_code,
-
                     slot_detail_id = slot.slot_detail_id,
-
                     visit_type = string.IsNullOrWhiteSpace(req.visit_type)
                         ? "NEWVISIT"
                         : req.visit_type.ToUpper(),
-
                     reg_type = "WALKIN",
-
                     visit_date = slot.appointment_date,
-
-                    token_no = token,
-                    queue_no = token,
-
                     visit_status = "WAITING",
-
                     notes = req.notes,
-
                     is_direct_walkin = true,
                     duty_dcode = req.duty_dcode,
-
                     tenant_code = tenant_code,
                     isdeleted = false,
-
-                    created_at = DateTime.SpecifyKind(
-                        DateTime.UtcNow,
-                        DateTimeKind.Utc),
-
-                    updated_at = DateTime.SpecifyKind(
-                        DateTime.UtcNow,
-                        DateTimeKind.Utc)
+                    created_at = DateTime.SpecifyKind(DateTime.UtcNow, DateTimeKind.Utc),
+                    updated_at = DateTime.SpecifyKind(DateTime.UtcNow, DateTimeKind.Utc)
                 };
 
-                // Insert OP Registration
-                await db.ExecuteAsync(@"
-        INSERT INTO op_registration
-        (
-            op_id,
-            op_no,
-            custid,
-            dcode,
-            department_code,
-            slot_detail_id,
-            visit_type,
-            reg_type,
-            visit_date,
-            token_no,
-            queue_no,
-            visit_status,
-            notes,
-            is_direct_walkin,
-            duty_dcode,
-            tenant_code,
-            isdeleted,
-            created_at,
-            updated_at
-        )
-        VALUES
-        (
-            @op_id,
-            @op_no,
-            @custid,
-            @dcode,
-            @department_code,
-            @slot_detail_id,
-            @visit_type,
-            @reg_type,
-            @visit_date,
-            @token_no,
-            @queue_no,
-            @visit_status,
-            @notes,
-            @is_direct_walkin,
-            @duty_dcode,
-            @tenant_code,
-            @isdeleted,
-            @created_at,
-            @updated_at
-        )",
-                new
+                int token;
+
+                using (var tx = db.BeginTransaction())
                 {
-                    data.op_id,
-                    data.op_no,
-                    data.custid,
-                    data.dcode,
-                    data.department_code,
-                    data.slot_detail_id,
-                    data.visit_type,
-                    data.reg_type,
+                    try
+                    {
+                        token = await GenerateNextTokenNo(db, tx, assignedDcode, slot.slot_detail_id, tenant_code);
+                        data.token_no = token;
+                        data.queue_no = token;
 
-                    visit_date = data.visit_date.ToDateTime(TimeOnly.MinValue),
+                        await db.ExecuteAsync(@"
+                    INSERT INTO op_registration
+                    (
+                        op_id, op_no, custid, dcode, department_code, slot_detail_id,
+                        visit_type, reg_type, visit_date, token_no, queue_no, visit_status,
+                        notes, is_direct_walkin, duty_dcode, tenant_code, isdeleted, created_at, updated_at
+                    )
+                    VALUES
+                    (
+                        @op_id, @op_no, @custid, @dcode, @department_code, @slot_detail_id,
+                        @visit_type, @reg_type, @visit_date, @token_no, @queue_no, @visit_status,
+                        @notes, @is_direct_walkin, @duty_dcode, @tenant_code, @isdeleted, @created_at, @updated_at
+                    )",
+                            new
+                            {
+                                data.op_id,
+                                data.op_no,
+                                data.custid,
+                                data.dcode,
+                                data.department_code,
+                                data.slot_detail_id,
+                                data.visit_type,
+                                data.reg_type,
+                                visit_date = data.visit_date.ToDateTime(TimeOnly.MinValue),
+                                data.token_no,
+                                data.queue_no,
+                                data.visit_status,
+                                data.notes,
+                                data.is_direct_walkin,
+                                data.duty_dcode,
+                                data.tenant_code,
+                                data.isdeleted,
+                                data.created_at,
+                                data.updated_at
+                            }, tx);
 
-                    data.token_no,
-                    data.queue_no,
-                    data.visit_status,
-                    data.notes,
-                    data.is_direct_walkin,
-                    data.duty_dcode,
-                    data.tenant_code,
-                    data.isdeleted,
-                    data.created_at,
-                    data.updated_at
-                });
+                        tx.Commit();
+                    }
+                    catch
+                    {
+                        tx.Rollback();
+                        throw;
+                    }
+                }
+
                 // ── Auto-add consultation fee to unbilledcharges ─────
                 var (feeTcode, feeRate, feeAmount) = await GetDoctorConsultationFee(db, assignedDcode, tenant_code, req.custid);
 
@@ -725,34 +724,25 @@ namespace medico_backend.Class
                     quantity = 1
                 }, tenant_code);
 
-
                 // Update slot counters
                 await db.ExecuteAsync(@"
-        UPDATE doctor_appointment_slot_details
-        SET
-            booked_count = booked_count + 1,
-            walkin_count = walkin_count + 1,
-            updated_at = now()
-        WHERE slot_detail_id = @slot_detail_id
-          AND tenant_code = @tenant_code",
-                new
-                {
-                    slot_detail_id = slot.slot_detail_id,
-                    tenant_code
-                });
+            UPDATE doctor_appointment_slot_details
+            SET
+                booked_count = booked_count + 1,
+                walkin_count = walkin_count + 1,
+                updated_at = now()
+            WHERE slot_detail_id = @slot_detail_id
+              AND tenant_code = @tenant_code",
+                    new { slot_detail_id = slot.slot_detail_id, tenant_code });
 
                 // Mark slot FULL if reached capacity
                 await db.ExecuteAsync(@"
-        UPDATE doctor_appointment_slot_details
-        SET slot_status = 'FULL'
-        WHERE slot_detail_id = @slot_detail_id
-          AND booked_count >= max_patients
-          AND tenant_code = @tenant_code",
-                new
-                {
-                    slot_detail_id = slot.slot_detail_id,
-                    tenant_code
-                });
+            UPDATE doctor_appointment_slot_details
+            SET slot_status = 'FULL'
+            WHERE slot_detail_id = @slot_detail_id
+              AND booked_count >= max_patients
+              AND tenant_code = @tenant_code",
+                    new { slot_detail_id = slot.slot_detail_id, tenant_code });
 
                 return $"Success|OpNo:{data.op_no}|OpId:{data.op_id}|Token:{token}";
             }
@@ -762,17 +752,13 @@ namespace medico_backend.Class
             }
         }
 
-        // ─────────────────────────────────────────
-        // TRANSFER TO ANOTHER DOCTOR
-        // Called after duty doctor sees patient and decides to refer to specialist.
-        // Old OP → TRANSFERRED, new OP created for specialist with WAITING status.
-        // ─────────────────────────────────────────
         public async Task<string> TransferDoctor(
     TransferDoctorRequest req, string tenant_code)
         {
             try
             {
                 using IDbConnection db = new NpgsqlConnection(_db_conn);
+                db.Open();
 
                 var op = await db.QueryFirstOrDefaultAsync<OpRegistrationModel>(
                     @"SELECT * FROM op_registration
@@ -804,11 +790,7 @@ namespace medico_backend.Class
                   AND tenant_code = @tenant_code
                   AND isdeleted = false
                   AND is_active = true",
-                        new
-                        {
-                            slot_detail_id = req.slot_detail_id,
-                            tenant_code
-                        });
+                        new { slot_detail_id = req.slot_detail_id, tenant_code });
 
                     if (slot == null)
                         return "Slot not found";
@@ -829,153 +811,100 @@ namespace medico_backend.Class
                         return "Slot capacity reached";
                 }
 
-                // Generate token
                 int newToken;
+                OpRegistrationModel newOp;
 
-                if (slot != null)
+                using (var tx = db.BeginTransaction())
                 {
-                    newToken = slot.booked_count + 1;
-                }
-                else
-                {
-                    newToken = await db.ExecuteScalarAsync<int>(
-                        @"SELECT COALESCE(MAX(token_no),0) + 1
-                  FROM op_registration
-                  WHERE dcode = @dcode
-                  AND tenant_code = @tenant_code
-                  AND isdeleted = false
-                  AND visit_date = (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata')::date",
-                        new
+                    try
+                    {
+                        newToken = await GenerateNextTokenNo(db, tx, req.transfer_to_dcode, slot?.slot_detail_id, tenant_code);
+
+                        // Mark old OP as transferred (same tx)
+                        await db.ExecuteAsync(
+                            @"UPDATE op_registration
+                      SET visit_status = 'TRANSFERRED',
+                          transferred_to_dcode = @transfer_to_dcode,
+                          transfer_reason = @transfer_reason,
+                          updated_at = now()
+                      WHERE op_id = @op_id
+                      AND tenant_code = @tenant_code",
+                            new { req.op_id, req.transfer_to_dcode, req.transfer_reason, tenant_code }, tx);
+
+                        newOp = new OpRegistrationModel
                         {
+                            op_id = Guid.NewGuid(),
+                            op_no = await GenerateOpNo(db, tenant_code),
+                            custid = op.custid,
                             dcode = req.transfer_to_dcode,
-                            tenant_code
-                        });
+                            department_code = op.department_code,
+                            slot_detail_id = req.slot_detail_id,
+                            visit_type = "FOLLOWUP",
+                            reg_type = op.reg_type,
+                            visit_date = slot != null
+                                ? slot.appointment_date
+                                : DateOnly.FromDateTime(
+                                    TimeZoneInfo.ConvertTimeFromUtc(
+                                        DateTime.UtcNow,
+                                        TimeZoneInfo.FindSystemTimeZoneById("Asia/Kolkata"))),
+                            token_no = newToken,
+                            queue_no = newToken,
+                            visit_status = "WAITING",
+                            notes = $"Transferred from OP# {op.op_no}. Reason: {req.transfer_reason}",
+                            is_direct_walkin = op.is_direct_walkin,
+                            duty_dcode = op.duty_dcode,
+                            tenant_code = tenant_code,
+                            isdeleted = false,
+                            created_at = DateTime.SpecifyKind(DateTime.UtcNow, DateTimeKind.Utc),
+                            updated_at = DateTime.SpecifyKind(DateTime.UtcNow, DateTimeKind.Utc)
+                        };
+
+                        await db.ExecuteAsync(@"
+                    INSERT INTO op_registration
+                    (
+                        op_id, op_no, custid, dcode, department_code, slot_detail_id,
+                        visit_type, reg_type, visit_date, token_no, queue_no, visit_status,
+                        notes, is_direct_walkin, duty_dcode, tenant_code, isdeleted, created_at, updated_at
+                    )
+                    VALUES
+                    (
+                        @op_id, @op_no, @custid, @dcode, @department_code, @slot_detail_id,
+                        @visit_type, @reg_type, @visit_date, @token_no, @queue_no, @visit_status,
+                        @notes, @is_direct_walkin, @duty_dcode, @tenant_code, @isdeleted, @created_at, @updated_at
+                    )",
+                            new
+                            {
+                                newOp.op_id,
+                                newOp.op_no,
+                                newOp.custid,
+                                newOp.dcode,
+                                newOp.department_code,
+                                newOp.slot_detail_id,
+                                newOp.visit_type,
+                                newOp.reg_type,
+                                visit_date = newOp.visit_date.ToDateTime(TimeOnly.MinValue),
+                                newOp.token_no,
+                                newOp.queue_no,
+                                newOp.visit_status,
+                                newOp.notes,
+                                newOp.is_direct_walkin,
+                                newOp.duty_dcode,
+                                newOp.tenant_code,
+                                newOp.isdeleted,
+                                newOp.created_at,
+                                newOp.updated_at
+                            }, tx);
+
+                        tx.Commit();
+                    }
+                    catch
+                    {
+                        tx.Rollback();
+                        throw;
+                    }
                 }
 
-                // Mark old OP as transferred
-                await db.ExecuteAsync(
-                    @"UPDATE op_registration
-                    SET visit_status = 'TRANSFERRED',
-                  transferred_to_dcode = @transfer_to_dcode,
-                  transfer_reason = @transfer_reason,
-                  updated_at = now()
-                  WHERE op_id = @op_id
-                  AND tenant_code = @tenant_code",
-                    new
-                    {
-                        req.op_id,
-                        req.transfer_to_dcode,
-                        req.transfer_reason,
-                        tenant_code
-                    });
-
-                var newOp = new OpRegistrationModel
-                {
-                    op_id = Guid.NewGuid(),
-                    op_no = await GenerateOpNo(db, tenant_code),
-
-                    custid = op.custid,
-                    dcode = req.transfer_to_dcode,
-                    department_code = op.department_code,
-
-                    slot_detail_id = req.slot_detail_id,
-
-                    visit_type = "FOLLOWUP",
-                    reg_type = op.reg_type,
-
-                    visit_date = slot != null
-                        ? slot.appointment_date
-                        : DateOnly.FromDateTime(
-                            TimeZoneInfo.ConvertTimeFromUtc(
-                                DateTime.UtcNow,
-                                TimeZoneInfo.FindSystemTimeZoneById("Asia/Kolkata"))),
-
-                    token_no = newToken,
-                    queue_no = newToken,
-
-                    visit_status = "WAITING",
-
-                    notes = $"Transferred from OP# {op.op_no}. Reason: {req.transfer_reason}",
-
-                    is_direct_walkin = op.is_direct_walkin,
-                    duty_dcode = op.duty_dcode,
-
-                    tenant_code = tenant_code,
-                    isdeleted = false,
-
-                    created_at = DateTime.SpecifyKind(DateTime.UtcNow, DateTimeKind.Utc),
-                    updated_at = DateTime.SpecifyKind(DateTime.UtcNow, DateTimeKind.Utc)
-                };
-
-                await db.ExecuteAsync(@"
-            INSERT INTO op_registration
-            (
-                op_id,
-                op_no,
-                custid,
-                dcode,
-                department_code,
-                slot_detail_id,
-                visit_type,
-                reg_type,
-                visit_date,
-                token_no,
-                queue_no,
-                visit_status,
-                notes,
-                is_direct_walkin,
-                duty_dcode,
-                tenant_code,
-                isdeleted,
-                created_at,
-                updated_at
-            )
-            VALUES
-            (
-                @op_id,
-                @op_no,
-                @custid,
-                @dcode,
-                @department_code,
-                @slot_detail_id,
-                @visit_type,
-                @reg_type,
-                @visit_date,
-                @token_no,
-                @queue_no,
-                @visit_status,
-                @notes,
-                @is_direct_walkin,
-                @duty_dcode,
-                @tenant_code,
-                @isdeleted,
-                @created_at,
-                @updated_at
-            )",
-                    new
-                    {
-                        newOp.op_id,
-                        newOp.op_no,
-                        newOp.custid,
-                        newOp.dcode,
-                        newOp.department_code,
-                        newOp.slot_detail_id,
-                        newOp.visit_type,
-                        newOp.reg_type,
-                        visit_date = newOp.visit_date.ToDateTime(TimeOnly.MinValue),
-                        newOp.token_no,
-                        newOp.queue_no,
-                        newOp.visit_status,
-                        newOp.notes,
-                        newOp.is_direct_walkin,
-                        newOp.duty_dcode,
-                        newOp.tenant_code,
-                        newOp.isdeleted,
-                        newOp.created_at,
-                        newOp.updated_at
-                    });
-
-                // Update slot counters
+                // Update slot counters (outside tx — fine, doesn't affect token correctness)
                 if (slot != null)
                 {
                     await db.ExecuteAsync(
@@ -984,11 +913,7 @@ namespace medico_backend.Class
                       updated_at = now()
                   WHERE slot_detail_id = @slot_detail_id
                   AND tenant_code = @tenant_code",
-                        new
-                        {
-                            slot_detail_id = slot.slot_detail_id,
-                            tenant_code
-                        });
+                        new { slot_detail_id = slot.slot_detail_id, tenant_code });
 
                     await db.ExecuteAsync(
                         @"UPDATE doctor_appointment_slot_details
@@ -996,11 +921,7 @@ namespace medico_backend.Class
                   WHERE slot_detail_id = @slot_detail_id
                   AND booked_count >= max_patients
                   AND tenant_code = @tenant_code",
-                        new
-                        {
-                            slot_detail_id = slot.slot_detail_id,
-                            tenant_code
-                        });
+                        new { slot_detail_id = slot.slot_detail_id, tenant_code });
                 }
 
                 return $"Success|NewOpNo:{newOp.op_no}|NewOpId:{newOp.op_id}|Token:{newToken}|TransferredTo:{req.transfer_to_dcode}";
@@ -1374,6 +1295,60 @@ AND b.tenant_code = @tenant_code
             {
                 return ex.Message;
             }
+        }
+        // ─────────────────────────────────────────
+        // GENERATE NEXT TOKEN NO — race-safe via pg_advisory_xact_lock
+        // Must be called with the SAME db connection + transaction that will
+        // perform the subsequent op_registration INSERT, so the lock covers
+        // both the read and the write.
+        // If slot required  → slot-wise, restarts per slot
+        // If slot not required → doctor-wise, restarts daily
+        // Dressing keeps its own separate counter (is_dressing=true filter, unchanged)
+        // ─────────────────────────────────────────
+        private async Task<int> GenerateNextTokenNo(
+            IDbConnection db, IDbTransaction tx, int dcode, Guid? slot_detail_id, string tenant_code)
+        {
+            bool slotRequired = await db.ExecuteScalarAsync<bool?>(
+                @"SELECT is_slot_required FROM lab_settings
+          WHERE tenant_code = @tenant_code AND deleted = false
+          ORDER BY (bh_code IS NULL) LIMIT 1",
+                new { tenant_code }, tx) ?? true;
+
+            string lockKey;
+            string sql;
+            object param;
+
+            if (slotRequired && slot_detail_id.HasValue && slot_detail_id != Guid.Empty)
+            {
+                lockKey = $"SLOT:{slot_detail_id}";
+                sql = @"SELECT COALESCE(MAX(token_no), 0) + 1
+                FROM   op_registration
+                WHERE  slot_detail_id = @slot_detail_id
+                AND    tenant_code    = @tenant_code
+                AND    isdeleted      = false
+                AND    COALESCE(is_dressing, false) = false";
+                param = new { slot_detail_id, tenant_code };
+            }
+            else
+            {
+                lockKey = $"DCODE:{tenant_code}:{dcode}";
+                sql = @"SELECT COALESCE(MAX(token_no), 0) + 1
+                FROM   op_registration
+                WHERE  dcode        = @dcode
+                AND    tenant_code  = @tenant_code
+                AND    isdeleted    = false
+                AND    COALESCE(is_dressing, false) = false
+                AND    visit_date   = (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata')::date";
+                param = new { dcode, tenant_code };
+            }
+
+            // Blocks any other transaction requesting the SAME key until this
+            // transaction commits/rolls back. Different doctors/slots never block
+            // each other. Released automatically at commit/rollback — no cleanup needed.
+            await db.ExecuteAsync("SELECT pg_advisory_xact_lock(hashtext(@lockKey))",
+                new { lockKey }, tx);
+
+            return await db.ExecuteScalarAsync<int>(sql, param, tx);
         }
     }
 }

@@ -366,7 +366,7 @@ public class purchase_detail
         // Item Reference
         public long itemcode { get; set; }
         public long purchasedetailcode { get; set; }
-
+            
         // Quantity
         public decimal requestedqty { get; set; }
         public decimal approvedqty { get; set; }
