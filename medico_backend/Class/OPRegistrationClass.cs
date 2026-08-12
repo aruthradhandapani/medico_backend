@@ -97,10 +97,6 @@ namespace medico_backend.Class
                 using var tx = db.BeginTransaction();
                 try
                 {
-                    // ✅ Generate token INSIDE the lock — this is what was missing.
-                    // Previously this call and the INSERT below were unlocked/separate,
-                    // so two concurrent "mark visited" calls for the same doctor/slot
-                    // could both read the same MAX(token_no) and collide.
                     data.token_no = await GenerateNextTokenNo(db, tx, data.dcode, data.slot_detail_id, data.tenant_code!);
 
                     data.op_id = Guid.NewGuid();
@@ -1370,42 +1366,21 @@ AND b.tenant_code = @tenant_code
         private async Task<int> GenerateNextTokenNo(
             IDbConnection db, IDbTransaction tx, int dcode, Guid? slot_detail_id, string tenant_code)
         {
-            bool slotRequired = await db.ExecuteScalarAsync<bool?>(
-                @"SELECT is_slot_required FROM lab_settings
-          WHERE tenant_code = @tenant_code AND deleted = false
-          ORDER BY (bh_code IS NULL) LIMIT 1",
-                new { tenant_code }, tx) ?? true;
-
-            string lockKey;
-            string sql;
-            object param;
-
-            if (slotRequired && slot_detail_id.HasValue && slot_detail_id != Guid.Empty)
-            {
-                lockKey = $"SLOT:{slot_detail_id}";
-                sql = @"SELECT COALESCE(MAX(token_no), 0) + 1
-                FROM   op_registration
-                WHERE  slot_detail_id = @slot_detail_id
-                AND    tenant_code    = @tenant_code
-                AND    isdeleted      = false
-                AND    COALESCE(is_dressing, false) = false";
-                param = new { slot_detail_id, tenant_code };
-            }
-            else
-            {
-                lockKey = $"DCODE:{tenant_code}:{dcode}";
-                sql = @"SELECT COALESCE(MAX(token_no), 0) + 1
+            // ✅ Token generation is always doctor-wise and restarts daily —
+            // slot-wise generation removed. slot_detail_id is kept in the
+            // signature (unused) so existing call sites don't need changes.
+            string lockKey = $"DCODE:{tenant_code}:{dcode}";
+            string sql = @"SELECT COALESCE(MAX(token_no), 0) + 1
                 FROM   op_registration
                 WHERE  dcode        = @dcode
                 AND    tenant_code  = @tenant_code
                 AND    isdeleted    = false
                 AND    COALESCE(is_dressing, false) = false
                 AND    visit_date   = (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata')::date";
-                param = new { dcode, tenant_code };
-            }
+            var param = new { dcode, tenant_code };
 
             // Blocks any other transaction requesting the SAME key until this
-            // transaction commits/rolls back. Different doctors/slots never block
+            // transaction commits/rolls back. Different doctors never block
             // each other. Released automatically at commit/rollback — no cleanup needed.
             await db.ExecuteAsync("SELECT pg_advisory_xact_lock(hashtext(@lockKey))",
                 new { lockKey }, tx);
