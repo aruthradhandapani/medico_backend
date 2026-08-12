@@ -156,6 +156,8 @@ namespace medico_backend.Class
                 // a delay here doesn't cause duplicate tokens, no need to hold the lock ──
                 var (feeTcode, feeRate, feeAmount) = await GetDoctorConsultationFee(db, data.dcode, data.tenant_code!, data.custid);
 
+                Console.WriteLine($"[UNBILL-DEBUG][CreateOpRegistration] op_id={data.op_id} custid={data.custid} tcode={feeTcode} rate={feeRate} amount={feeAmount}");
+
                 await _unbilledCls.AddConsultationCharge(new AddUnbilledConsultationRequest
                 {
                     op_id = data.op_id.ToString(),
@@ -165,6 +167,8 @@ namespace medico_backend.Class
                     amount = feeAmount,
                     quantity = 1
                 }, data.tenant_code!);
+
+                Console.WriteLine($"[UNBILL-DEBUG][CreateOpRegistration] AddConsultationCharge call completed for op_id={data.op_id}");
 
                 return $"Success|OpNo:{data.op_no}|OpId:{data.op_id}|Token:{data.token_no}|RegType:{data.reg_type}";
             }
@@ -319,13 +323,18 @@ namespace medico_backend.Class
             c.isvip,
             cs.refer_to_ip,
             uc.billedstatus AS unbilled_status,
-            dm.name AS doctor_name
+            dm.name AS doctor_name,
+            sd.slot_start_time,
+            sd.slot_end_time
         FROM op_registration o
         LEFT JOIN customerdb.customer_master c ON c.custid = o.custid
         LEFT JOIN doctor_master dm
                ON dm.dcode       = o.dcode
               AND dm.tenant_code = o.tenant_code
               AND dm.deleted     = false
+        LEFT JOIN doctor_appointment_slot_details sd
+               ON sd.slot_detail_id = o.slot_detail_id
+              AND sd.tenant_code    = o.tenant_code
         LEFT JOIN LATERAL (
             SELECT refer_to_ip
             FROM   op_case_sheet
@@ -373,11 +382,19 @@ namespace medico_backend.Class
 
             public bool? isvip { get; set; }
 
+            // ✅ NEW — from op_case_sheet (most recent sheet for this op_id)
             public bool? refer_to_ip { get; set; }
 
-
+            // ✅ NEW — from unbilledcharges, CONSULTATION entry for this op_id
+            // true = billed, false = unbilled, null = no consultation charge row found
             public bool? unbilled_status { get; set; }
+
+            // ✅ NEW — from doctor_master
             public string? doctor_name { get; set; }
+
+            // ✅ NEW — from doctor_appointment_slot_details (via o.slot_detail_id)
+            public TimeOnly? slot_start_time { get; set; }
+            public TimeOnly? slot_end_time { get; set; }
         }
 
         // ─────────────────────────────────────────
@@ -589,6 +606,8 @@ namespace medico_backend.Class
 
                     var (noSlotTcode, noSlotRate, noSlotAmount) = await GetDoctorConsultationFee(db, assignedDcode, tenant_code, req.custid);
 
+                    Console.WriteLine($"[UNBILL-DEBUG][DirectWalkin-NoSlot] op_id={noSlotData.op_id} custid={noSlotData.custid} tcode={noSlotTcode} rate={noSlotRate} amount={noSlotAmount}");
+
                     await _unbilledCls.AddConsultationCharge(new AddUnbilledConsultationRequest
                     {
                         op_id = noSlotData.op_id.ToString(),
@@ -598,6 +617,8 @@ namespace medico_backend.Class
                         amount = noSlotAmount,
                         quantity = 1
                     }, tenant_code);
+
+                    Console.WriteLine($"[UNBILL-DEBUG][DirectWalkin-NoSlot] AddConsultationCharge call completed for op_id={noSlotData.op_id}");
 
                     return $"Success|OpNo:{noSlotData.op_no}|OpId:{noSlotData.op_id}|Token:{noSlotData.token_no}";
                 }
@@ -714,6 +735,8 @@ namespace medico_backend.Class
                 // ── Auto-add consultation fee to unbilledcharges ─────
                 var (feeTcode, feeRate, feeAmount) = await GetDoctorConsultationFee(db, assignedDcode, tenant_code, req.custid);
 
+                Console.WriteLine($"[UNBILL-DEBUG][DirectWalkin-Slot] op_id={data.op_id} custid={data.custid} tcode={feeTcode} rate={feeRate} amount={feeAmount}");
+
                 await _unbilledCls.AddConsultationCharge(new AddUnbilledConsultationRequest
                 {
                     op_id = data.op_id.ToString(),
@@ -723,6 +746,8 @@ namespace medico_backend.Class
                     amount = feeAmount,
                     quantity = 1
                 }, tenant_code);
+
+                Console.WriteLine($"[UNBILL-DEBUG][DirectWalkin-Slot] AddConsultationCharge call completed for op_id={data.op_id}");
 
                 // Update slot counters
                 await db.ExecuteAsync(@"
@@ -1024,7 +1049,7 @@ AND b.tenant_code = @tenant_code
             return res.ToList();
         }
         private async Task<(int? tcode, double rate, double amount)> GetDoctorConsultationFee(
-     IDbConnection db, int dcode, string tenant_code, decimal? custid = null)
+    IDbConnection db, int dcode, string tenant_code, decimal? custid = null)
         {
             var doctor = await db.QueryFirstOrDefaultAsync<DoctorMasterModel>(
                 @"SELECT tcode, opcharge, override_flat_opcharge FROM doctor_master
@@ -1032,8 +1057,6 @@ AND b.tenant_code = @tenant_code
           AND   TRIM(tenant_code) = TRIM(@tenant_code)
           AND   deleted = false",
                 new { dcode, tenant_code });
-
-            double flatFee = doctor?.opcharge ?? 0;
 
             int? tcode = await db.ExecuteScalarAsync<int?>(
                 @"SELECT tcode FROM test_master
@@ -1044,29 +1067,57 @@ AND b.tenant_code = @tenant_code
           LIMIT 1",
                 new { tenant_code });
 
-            if (doctor?.override_flat_opcharge == true)
-                return (tcode, flatFee, flatFee);
+            Console.WriteLine($"[FEE-DEBUG] dcode={dcode} tenant={tenant_code} custid={custid} doctorFound={doctor != null}");
 
-            // ✅ FIX: don't rely on picking a single arbitrary branch row —
-            // treat split as enabled if ANY active lab_settings row for the
-            // tenant has it on. If you need true per-branch behavior, this
-            // function needs a bh_code parameter passed in from the caller.
-            bool ageWiseSplit = await db.ExecuteScalarAsync<bool?>(
-    @"SELECT bool_or(COALESCE(op_age_wise_split, false)) FROM lab_settings
-      WHERE TRIM(tenant_code) = TRIM(@tenant_code) AND deleted = false",
-    new { tenant_code }) ?? false;
-
-            if (ageWiseSplit && custid.HasValue)
+            if (doctor == null)
             {
-                // ✅ FIX: fall back to computing age from dateofbirth when
-                // ageyears isn't populated
-                var cust = await db.QueryFirstOrDefaultAsync(
-                    @"SELECT ageyears, dateofbirth FROM customerdb.customer_master
-              WHERE custid = @custid
-              AND   TRIM(tenant_code) = TRIM(@tenant_code)
-              AND   deleted = false
-              LIMIT 1",
-                    new { custid, tenant_code });
+                Console.WriteLine($"[FEE-DEBUG] Doctor not found — returning 0");
+                return (tcode, 0, 0);
+            }
+
+            double flatFee = doctor.opcharge ?? 0;
+            Console.WriteLine($"[FEE-DEBUG] flatFee={flatFee} override={doctor.override_flat_opcharge}");
+
+            if (doctor.override_flat_opcharge == true)
+            {
+                Console.WriteLine($"[FEE-DEBUG] override_flat_opcharge=true — returning flatFee={flatFee}");
+                return (tcode, flatFee, flatFee);
+            }
+
+            bool ageWiseSplit = await db.ExecuteScalarAsync<bool?>(
+                @"SELECT bool_or(COALESCE(op_age_wise_split, false)) FROM lab_settings
+          WHERE TRIM(tenant_code) = TRIM(@tenant_code) AND deleted = false",
+                new { tenant_code }) ?? false;
+
+            Console.WriteLine($"[FEE-DEBUG] ageWiseSplit={ageWiseSplit}");
+
+            if (!ageWiseSplit)
+            {
+                Console.WriteLine($"[FEE-DEBUG] Split OFF — returning flatFee={flatFee}");
+                return (tcode, flatFee, flatFee);
+            }
+
+            if (custid.HasValue)
+            {
+                // ✅ FIX: customerdb.customer_master is central/shared — a patient can be
+                // registered under a parent tenant_code or a different branch than the
+                // one on today's op_registration. A hard "AND tenant_code = @tenant_code"
+                // silently excludes the row → cust becomes null → age null → fee falls
+                // through to 0. Look up by custid first (globally unique), and only use
+                // tenant_code to prefer an exact-tenant match when duplicates exist.
+                var custMatches = (await db.QueryAsync(
+                    @"SELECT ageyears, dateofbirth, tenant_code
+              FROM   customerdb.customer_master
+              WHERE  custid::numeric = @custid::numeric
+              AND    deleted = false",
+                    new { custid })).ToList();
+
+                var cust = custMatches.FirstOrDefault(c =>
+                               string.Equals(((string)c.tenant_code)?.Trim(), tenant_code?.Trim(),
+                                              StringComparison.OrdinalIgnoreCase))
+                           ?? custMatches.FirstOrDefault();   // fallback: any tenant, if no exact match
+
+                Console.WriteLine($"[FEE-DEBUG] custFound={cust != null} matchCount={custMatches.Count} ageyears={cust?.ageyears} dob={cust?.dateofbirth}");
 
                 int? age = null;
                 if (cust != null)
@@ -1084,21 +1135,32 @@ AND b.tenant_code = @tenant_code
                     }
                 }
 
+                Console.WriteLine($"[FEE-DEBUG] resolvedAge={age}");
+
                 if (age.HasValue)
                 {
                     double? slabFee = await db.ExecuteScalarAsync<double?>(
                         @"SELECT opcharge FROM doctor_op_charge_slab
-                  WHERE TRIM(tenant_code) = TRIM(@tenant_code) AND dcode = @dcode
-                  AND   deleted = false AND @age BETWEEN min_age AND max_age
+                  WHERE TRIM(tenant_code) = TRIM(@tenant_code)
+                  AND   dcode   = @dcode
+                  AND   deleted = false
+                  AND   @age BETWEEN min_age AND max_age
                   ORDER BY min_age LIMIT 1",
                         new { tenant_code, dcode, age = age.Value });
+
+                    Console.WriteLine($"[FEE-DEBUG] slabFee={slabFee} (dcode={dcode}, age={age.Value})");
 
                     if (slabFee.HasValue)
                         return (tcode, slabFee.Value, slabFee.Value);
                 }
             }
+            else
+            {
+                Console.WriteLine($"[FEE-DEBUG] custid is null — cannot resolve age");
+            }
 
-            return (tcode, flatFee, flatFee);
+            Console.WriteLine($"[FEE-DEBUG] NO SLAB MATCHED — returning 0");
+            return (tcode, 0, 0);
         }
         public async Task<string> DressingRegistration(DressingRegistrationRequest req, string tenant_code)
         {
