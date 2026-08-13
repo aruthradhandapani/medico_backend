@@ -1146,6 +1146,22 @@
   },
   {
     "ContainingType": "medico_backend.Controllers.CaseSheetController",
+    "Method": "GetAllInvestigations",
+    "RelativePath": "api/CaseSheet/investigation/all",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "search",
+        "Type": "System.String",
+        "IsRequired": false
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "medico_backend.Controllers.CaseSheetController",
     "Method": "DeleteInvestigation",
     "RelativePath": "api/CaseSheet/investigation/delete",
     "HttpMethod": "GET",
@@ -2679,6 +2695,96 @@
     "ReturnTypes": []
   },
   {
+    "ContainingType": "Medico_Backend.Controllers.DoctorCurrentStatusController",
+    "Method": "Delete",
+    "RelativePath": "api/DoctorCurrentStatus/delete",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "status_id",
+        "Type": "System.Int64",
+        "IsRequired": false
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "Medico_Backend.Controllers.DoctorCurrentStatusController",
+    "Method": "Get",
+    "RelativePath": "api/DoctorCurrentStatus/get",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "Medico_Backend.Controllers.DoctorCurrentStatusController",
+    "Method": "GetByDcode",
+    "RelativePath": "api/DoctorCurrentStatus/get-by-dcode",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "dcode",
+        "Type": "System.Int64",
+        "IsRequired": false
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "Medico_Backend.Controllers.DoctorCurrentStatusController",
+    "Method": "SearchByStatus",
+    "RelativePath": "api/DoctorCurrentStatus/search-by-status",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "status",
+        "Type": "System.String",
+        "IsRequired": false
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "Medico_Backend.Controllers.DoctorCurrentStatusController",
+    "Method": "SetStatus",
+    "RelativePath": "api/DoctorCurrentStatus/set-status",
+    "HttpMethod": "POST",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "data",
+        "Type": "Medico_Backend.Model.DoctorCurrentStatusModel",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "Medico_Backend.Controllers.DoctorCurrentStatusController",
+    "Method": "Update",
+    "RelativePath": "api/DoctorCurrentStatus/update",
+    "HttpMethod": "POST",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "data",
+        "Type": "Medico_Backend.Model.DoctorCurrentStatusModel",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
     "ContainingType": "Medico_Backend.Controllers.DoctorGroupMasterController",
     "Method": "Delete",
     "RelativePath": "api/DoctorGroupMaster/delete",
@@ -3144,6 +3250,11 @@
         "IsRequired": false
       },
       {
+        "Name": "override_flat_opcharge",
+        "Type": "System.Nullable\u00601[[System.Boolean, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
+        "IsRequired": false
+      },
+      {
         "Name": "ContentType",
         "Type": "System.String",
         "IsRequired": false
@@ -3467,6 +3578,11 @@
       {
         "Name": "group_id",
         "Type": "System.Nullable\u00601[[System.Int64, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
+        "IsRequired": false
+      },
+      {
+        "Name": "override_flat_opcharge",
+        "Type": "System.Nullable\u00601[[System.Boolean, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
         "IsRequired": false
       },
       {
@@ -5067,6 +5183,22 @@
   },
   {
     "ContainingType": "medico_backend.Controllers.HmsDueCollectionController",
+    "Method": "UseAdvance",
+    "RelativePath": "api/HmsDueCollection/advance/use",
+    "HttpMethod": "POST",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "req",
+        "Type": "medico_backend.Model.HmsAdvanceUseRequest",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "medico_backend.Controllers.HmsDueCollectionController",
     "Method": "CancelDueCollection",
     "RelativePath": "api/HmsDueCollection/cancel/{receiptGuid}",
     "HttpMethod": "GET",
@@ -5337,6 +5469,22 @@
   },
   {
     "ContainingType": "medico_backend.InventoryController.ItemMasterController",
+    "Method": "UpdateStockAdjustment",
+    "RelativePath": "api/ItemMaster",
+    "HttpMethod": "",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "request",
+        "Type": "medico_backend.InventoryModel.stock_adjustment_request",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "medico_backend.InventoryController.ItemMasterController",
     "Method": "DeleteCategory",
     "RelativePath": "api/ItemMaster/deletecategory",
     "HttpMethod": "GET",
@@ -5497,6 +5645,22 @@
   },
   {
     "ContainingType": "medico_backend.InventoryController.ItemMasterController",
+    "Method": "DeleteSales",
+    "RelativePath": "api/ItemMaster/deletesales",
+    "HttpMethod": "DELETE",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "salescode",
+        "Type": "System.Int64",
+        "IsRequired": false
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "medico_backend.InventoryController.ItemMasterController",
     "Method": "DeleteStock",
     "RelativePath": "api/ItemMaster/deletestock",
     "HttpMethod": "GET",
@@ -5505,6 +5669,22 @@
     "Parameters": [
       {
         "Name": "stockcode",
+        "Type": "System.Int64",
+        "IsRequired": false
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "medico_backend.InventoryController.ItemMasterController",
+    "Method": "DeleteStockAdjustment",
+    "RelativePath": "api/ItemMaster/deletestockadjustment",
+    "HttpMethod": "DELETE",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "adjustmentlogcode",
         "Type": "System.Int64",
         "IsRequired": false
       }
@@ -5547,7 +5727,7 @@
     "ContainingType": "medico_backend.InventoryController.ItemMasterController",
     "Method": "Delete",
     "RelativePath": "api/ItemMaster/deletewarehouse",
-    "HttpMethod": "DELETE",
+    "HttpMethod": "GET",
     "IsController": true,
     "Order": 0,
     "Parameters": [
@@ -6082,6 +6262,22 @@
       {
         "Name": "stock",
         "Type": "medico_backend.InventoryModel.stock_master",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "medico_backend.InventoryController.ItemMasterController",
+    "Method": "InsertStockAdjustment",
+    "RelativePath": "api/ItemMaster/insertstockadjustment",
+    "HttpMethod": "POST",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "request",
+        "Type": "medico_backend.InventoryModel.stock_adjustment_request",
         "IsRequired": true
       }
     ],
@@ -7465,6 +7661,16 @@
         "IsRequired": false
       },
       {
+        "Name": "is_slot_required",
+        "Type": "System.Nullable\u00601[[System.Boolean, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
+        "IsRequired": false
+      },
+      {
+        "Name": "op_age_wise_split",
+        "Type": "System.Nullable\u00601[[System.Boolean, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
+        "IsRequired": false
+      },
+      {
         "Name": "ContentType",
         "Type": "System.String",
         "IsRequired": false
@@ -8397,6 +8603,16 @@
         "IsRequired": false
       },
       {
+        "Name": "is_slot_required",
+        "Type": "System.Nullable\u00601[[System.Boolean, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
+        "IsRequired": false
+      },
+      {
+        "Name": "op_age_wise_split",
+        "Type": "System.Nullable\u00601[[System.Boolean, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
+        "IsRequired": false
+      },
+      {
         "Name": "ContentType",
         "Type": "System.String",
         "IsRequired": false
@@ -8901,6 +9117,96 @@
     "ReturnTypes": []
   },
   {
+    "ContainingType": "medico_backend.Controllers.LabTestResultController",
+    "Method": "GetCustomerResults",
+    "RelativePath": "api/LabTestResult/deltacheck",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "custcode",
+        "Type": "System.String",
+        "IsRequired": false
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "medico_backend.Controllers.LabTestResultController",
+    "Method": "LoadResultEntry",
+    "RelativePath": "api/LabTestResult/LoadResultEntry",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "requestGuid",
+        "Type": "System.String",
+        "IsRequired": false
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "medico_backend.Controllers.LabTestResultController",
+    "Method": "LoadTestResultDetails",
+    "RelativePath": "api/LabTestResult/LoadTestResultDetails",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "testResultId",
+        "Type": "System.Guid",
+        "IsRequired": false
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "medico_backend.Controllers.LabTestResultController",
+    "Method": "SaveResult",
+    "RelativePath": "api/LabTestResult/saveresultentry",
+    "HttpMethod": "POST",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "entries",
+        "Type": "System.Collections.Generic.List\u00601[[medico_backend.Model.LabResultEntry, medico_backend, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]]",
+        "IsRequired": false
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "medico_backend.Controllers.LabTestResultController",
+    "Method": "GetResultList",
+    "RelativePath": "api/LabTestResult/ViewResultSearch",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "dcode",
+        "Type": "System.Int32",
+        "IsRequired": false
+      },
+      {
+        "Name": "fromdate",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "todate",
+        "Type": "System.String",
+        "IsRequired": false
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
     "ContainingType": "Medico_Backend.Controllers.MachineMasterController",
     "Method": "Delete",
     "RelativePath": "api/MachineMaster/delete",
@@ -9085,6 +9391,187 @@
       {
         "Name": "data",
         "Type": "Medico_Backend.Model.NurseMasterModel",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "medico_backend.Controllers.NurseNotesController",
+    "Method": "GetById",
+    "RelativePath": "api/NurseNotes/{note_id}",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "note_id",
+        "Type": "System.Guid",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "medico_backend.Controllers.NurseNotesController",
+    "Method": "Add",
+    "RelativePath": "api/NurseNotes/add",
+    "HttpMethod": "POST",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "req",
+        "Type": "medico_backend.Model.AddNurseNoteRequest",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "medico_backend.Controllers.NurseNotesController",
+    "Method": "GetByIpId",
+    "RelativePath": "api/NurseNotes/by-ip/{ip_id}",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "ip_id",
+        "Type": "System.Guid",
+        "IsRequired": true
+      },
+      {
+        "Name": "note_type",
+        "Type": "System.String",
+        "IsRequired": false
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "medico_backend.Controllers.NurseNotesController",
+    "Method": "Cancel",
+    "RelativePath": "api/NurseNotes/cancel",
+    "HttpMethod": "POST",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "req",
+        "Type": "medico_backend.Model.CancelNurseNoteRequest",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "medico_backend.Controllers.NurseNotesController",
+    "Method": "Delete",
+    "RelativePath": "api/NurseNotes/delete/{note_id}",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "note_id",
+        "Type": "System.Guid",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "medico_backend.Controllers.NurseNotesController",
+    "Method": "GetDressingHistory",
+    "RelativePath": "api/NurseNotes/dressing-history/{ip_id}",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "ip_id",
+        "Type": "System.Guid",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "medico_backend.Controllers.NurseNotesController",
+    "Method": "GetFullIpChart",
+    "RelativePath": "api/NurseNotes/full-chart/{ip_id}",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "ip_id",
+        "Type": "System.Guid",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "medico_backend.Controllers.NurseNotesController",
+    "Method": "GetHandoverHistory",
+    "RelativePath": "api/NurseNotes/handover-history/{ip_id}",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "ip_id",
+        "Type": "System.Guid",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "medico_backend.Controllers.NurseNotesController",
+    "Method": "GetMedicationHistory",
+    "RelativePath": "api/NurseNotes/medication-history/{ip_id}",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "ip_id",
+        "Type": "System.Guid",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "medico_backend.Controllers.NurseNotesController",
+    "Method": "Update",
+    "RelativePath": "api/NurseNotes/update",
+    "HttpMethod": "POST",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "req",
+        "Type": "medico_backend.Model.UpdateNurseNoteRequest",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "medico_backend.Controllers.NurseNotesController",
+    "Method": "Verify",
+    "RelativePath": "api/NurseNotes/verify",
+    "HttpMethod": "POST",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "req",
+        "Type": "medico_backend.Model.VerifyNurseNoteRequest",
         "IsRequired": true
       }
     ],
@@ -9377,6 +9864,70 @@
     "ReturnTypes": []
   },
   {
+    "ContainingType": "medico_backend.Controllers.OpChargeSlabController",
+    "Method": "AddList",
+    "RelativePath": "api/OpChargeSlab/add-list",
+    "HttpMethod": "POST",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "models",
+        "Type": "System.Collections.Generic.List\u00601[[medico_backend.Model.OpChargeSlabModel, medico_backend, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]]",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "medico_backend.Controllers.OpChargeSlabController",
+    "Method": "Delete",
+    "RelativePath": "api/OpChargeSlab/delete",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "slabid",
+        "Type": "System.Int32",
+        "IsRequired": false
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "medico_backend.Controllers.OpChargeSlabController",
+    "Method": "Get",
+    "RelativePath": "api/OpChargeSlab/get",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "dcode",
+        "Type": "System.Int32",
+        "IsRequired": false
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "medico_backend.Controllers.OpChargeSlabController",
+    "Method": "UpdateList",
+    "RelativePath": "api/OpChargeSlab/update-list",
+    "HttpMethod": "POST",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "models",
+        "Type": "System.Collections.Generic.List\u00601[[medico_backend.Model.OpChargeSlabModel, medico_backend, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]]",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
     "ContainingType": "medico_backend.Controllers.OpRegistrationController",
     "Method": "GetAllOpList",
     "RelativePath": "api/OpRegistration/all",
@@ -9466,6 +10017,22 @@
         "Name": "appointment_date",
         "Type": "System.DateOnly",
         "IsRequired": false
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "medico_backend.Controllers.OpRegistrationController",
+    "Method": "DressingRegistration",
+    "RelativePath": "api/OpRegistration/dressing",
+    "HttpMethod": "POST",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "req",
+        "Type": "medico_backend.Model.OPRegistrationModel\u002BDressingRegistrationRequest",
+        "IsRequired": true
       }
     ],
     "ReturnTypes": []
@@ -10124,6 +10691,32 @@
   },
   {
     "ContainingType": "medico_backend.Controllers.ReportController",
+    "Method": "GetConsolidatedBill",
+    "RelativePath": "api/Report/getconsolidatedbill",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "requestguid",
+        "Type": "System.Guid",
+        "IsRequired": false
+      },
+      {
+        "Name": "includeMedicines",
+        "Type": "System.Boolean",
+        "IsRequired": false
+      },
+      {
+        "Name": "isletterhead",
+        "Type": "System.Nullable\u00601[[System.Boolean, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
+        "IsRequired": false
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "medico_backend.Controllers.ReportController",
     "Method": "GetDischargeSummary",
     "RelativePath": "api/Report/getdischargesummary",
     "HttpMethod": "GET",
@@ -10603,6 +11196,53 @@
       {
         "Name": "isletterhead",
         "Type": "System.Nullable\u00601[[System.Boolean, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
+        "IsRequired": false
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "medico_backend.Controllers.ReportController",
+    "Method": "GetSalesReport",
+    "RelativePath": "api/Report/sales-report",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "fromdate",
+        "Type": "System.DateTime",
+        "IsRequired": false
+      },
+      {
+        "Name": "todate",
+        "Type": "System.DateTime",
+        "IsRequired": false
+      },
+      {
+        "Name": "warehousecode",
+        "Type": "System.String",
+        "IsRequired": false
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "medico_backend.Controllers.ReportController",
+    "Method": "GetStockReport",
+    "RelativePath": "api/Report/stock-report",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "warehousecode",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "date",
+        "Type": "System.Nullable\u00601[[System.DateTime, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
         "IsRequired": false
       }
     ],

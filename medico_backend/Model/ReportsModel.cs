@@ -841,6 +841,173 @@ namespace medico_backend.Model
         public string? host_url { get; set; }
     }
 
+    // ========================================================================
+    // CONSOLIDATED BILL MODELS
+    // ========================================================================
+
+    public class ConsolidatedBillApiRequest
+    {
+        public string RequestGuid { get; set; }
+        public bool IncludeMedicines { get; set; }
+    }
+
+    public class ConsolidatedBillApiResponse
+    {
+        public ConsolidatedBillData? BillData { get; set; }
+        public bool Success { get; set; }
+        public string? Message { get; set; }
+    }
+
+    public class ConsolidatedBillData
+    {
+        // Header Info
+        public string? LabName { get; set; }
+        public string? BranchName { get; set; }
+        public string? Address { get; set; }
+        public string? MobileNo { get; set; }
+        public string? ContactNo { get; set; }
+        public string? Email { get; set; }
+        public string? Website { get; set; }
+        public string? HelplineNo { get; set; }
+        public string? RegNo { get; set; }
+        public string? Timings { get; set; }
+        public string? ClosedDay { get; set; }
+
+        // Bill Info
+        public string? BillNo { get; set; }
+        public string? RequestGuid { get; set; }
+        public DateTime? BillDate { get; set; }
+
+        // Patient & Admission Info
+        public string? PatientUid { get; set; }
+        public string? PatientName { get; set; }
+        public string? PatientId { get; set; }
+        public string? Age { get; set; }
+        public string? Gender { get; set; }
+        public string? PatientAddress { get; set; }
+        public string? CusMobileNo { get; set; }
+        public string? CareOf { get; set; }
+        public string? DoctorName { get; set; }
+        public string? AdmissionNo { get; set; }
+        public DateTime? AdmissionDate { get; set; }
+        public DateTime? DischargeDate { get; set; }
+        public string? BedNo { get; set; }
+
+        // Summary Section for Sample Report UI
+        public List<ConsolidatedBillSummaryItem> BillSummary { get; set; } = new List<ConsolidatedBillSummaryItem>();
+
+        // Categories (Legacy & Detailed Breakup)
+        public ConsolidatedBillCategory? LabBills { get; set; }
+        public ConsolidatedBillCategory? Consultation { get; set; }
+        public ConsolidatedBillCategory? NurseCharges { get; set; }
+        public ConsolidatedBillCategory? BedCharges { get; set; }
+        public ConsolidatedBillCategory? Medicines { get; set; }
+        public List<ConsolidatedBillCategory> DetailedBreakup { get; set; } = new List<ConsolidatedBillCategory>();
+        public List<ConsolidatedBillAdvanceRow> Advances { get; set; } = new List<ConsolidatedBillAdvanceRow>();
+
+        // Totals
+        public decimal? TotalAmount { get; set; }
+        public decimal? TotalBillAmount { get; set; }
+        public decimal? AmountPayable { get; set; }
+        public decimal? AmountPaid { get; set; }
+        public decimal? ReceivedAmount { get; set; }
+        public decimal? DiscountAmount { get; set; }
+        public decimal? NetAmount { get; set; }
+        public decimal? BalanceAmount { get; set; }
+        public string? AmountInWords { get; set; }
+
+        // Footer
+        public string? CreatedBy { get; set; }
+        public DateTime? CreatedTime { get; set; }
+        public string? billauthorizedby { get; set; }
+        public byte[]? billauthorizesignature { get; set; }
+    }
+
+    public class ConsolidatedBillSummaryItem
+    {
+        public string? PrimaryCode { get; set; }
+        public string? Particulars { get; set; }
+        public decimal? Amount { get; set; }
+    }
+
+    public class ConsolidatedBillAdvanceRow
+    {
+        public string? ReceiptNo { get; set; }
+        public DateTime? Date { get; set; }
+        public string? Type { get; set; } // DEPOSIT, USED, REFUND
+        public decimal Amount { get; set; }
+        public string? Description { get; set; }
+    }
+
+    public class ConsolidatedBillCategory
+    {
+        public string? CategoryCode { get; set; }
+        public string? CategoryName { get; set; }
+        public List<ConsolidatedBillItem> Items { get; set; } = new List<ConsolidatedBillItem>();
+        public decimal? SubTotal { get; set; }
+    }
+
+    public class ConsolidatedBillItem
+    {
+        public int SNo { get; set; }
+        public string? Code { get; set; } = "NA";
+        public string? ItemName { get; set; }
+        public string? Particulars { get; set; }
+        public string? Description { get; set; }
+        public int? Quantity { get; set; }
+        public int? Units { get; set; }
+        public decimal? Rate { get; set; }
+        public decimal? UnitPrice { get; set; }
+        public decimal? Amount { get; set; }
+        public DateTime? ServiceDate { get; set; }
+        public DateTime? DateTime { get; set; }
+    }
+
+    public class ConsolidatedBillRequest
+    {
+        public string? RequestGuid { get; set; }
+        public string? TenantId { get; set; }
+        public bool IncludeMedicines { get; set; } = false;
+        public bool isletterhead { get; set; } = false;
+        public byte[]? logo { get; set; }
+        public byte[]? headerimage { get; set; }
+        public byte[]? footerimage { get; set; }
+        public bool? show_header_footer_image { get; set; } = true;
+        public string? bill_paper_size { get; set; } = "A4";
+        public ConsolidatedBillData? BillData { get; set; }
+    }
+
+    public class RawReportHeader
+    {
+        public string? BillNo { get; set; }
+        public string? RequestGuid { get; set; }
+        public DateTime? BillDate { get; set; }
+        public string? PatientName { get; set; }
+        public string? PatientId { get; set; }
+        public string? Age { get; set; }
+        public string? Gender { get; set; }
+        public string? PatientAddress { get; set; }
+        public string? CusMobileNo { get; set; }
+        public string? CareOf { get; set; }
+        public string? DoctorName { get; set; }
+        public string? AdmissionNo { get; set; }
+        public DateTime? AdmissionDate { get; set; }
+        public DateTime? DischargeDate { get; set; }
+        public string? BedNo { get; set; }
+        public decimal? TotalAmount { get; set; }
+        public decimal? DiscountAmount { get; set; }
+        public decimal? NetAmount { get; set; }
+        public decimal? ReceivedAmount { get; set; }
+        public decimal? BalanceAmount { get; set; }
+        public string? CreatedBy { get; set; }
+        public DateTime? CreatedTime { get; set; }
+        public string? TenantCode { get; set; }
+        public int? BhCode { get; set; }
+        public decimal? CustId { get; set; }
+        public string? IpId { get; set; }
+        public string? OutpatientId { get; set; }
+    }
+
     public class RawReportRow
     {
         public string TenantId { get; set; } = "";
