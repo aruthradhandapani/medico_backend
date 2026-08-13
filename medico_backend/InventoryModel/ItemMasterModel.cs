@@ -271,8 +271,11 @@ public class purchase_detail
     // Manufacturer
     public long manufacturercode { get; set; }
 
-    public string? tenantcode { get; set; }
-}
+        public string? tenantcode { get; set; }
+        public int packsize { get; set; }
+        public decimal packg { get; set; }
+        public decimal mrp { get; set; }
+    }
 
     public class purchase_request
     {
@@ -306,6 +309,7 @@ public class purchase_detail
 
     public decimal unitcost { get; set; }
     public decimal stockvalue { get; set; }
+    public decimal mrpunit { get; set; }
 
     public string? batchno { get; set; }
     public DateTime? manufacturingdate { get; set; }
@@ -366,7 +370,7 @@ public class purchase_detail
         // Item Reference
         public long itemcode { get; set; }
         public long purchasedetailcode { get; set; }
-
+            
         // Quantity
         public decimal requestedqty { get; set; }
         public decimal approvedqty { get; set; }
@@ -453,6 +457,7 @@ public class purchase_detail
         public long? warehousecode { get; set; }
 
         public string? tenantcode { get; set; }
+        
     }
     public class purchase_entry_request
     {

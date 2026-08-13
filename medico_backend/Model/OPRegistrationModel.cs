@@ -118,6 +118,7 @@ namespace medico_backend.Model
             public int transfer_to_dcode { get; set; }
             public string? transfer_reason { get; set; }
             public Guid? slot_detail_id { get; set; }
+            public DateOnly visit_date { get; set; }
         }
         public class DoctorBookingListModel
         {
