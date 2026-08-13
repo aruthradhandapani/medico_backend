@@ -271,8 +271,11 @@ public class purchase_detail
     // Manufacturer
     public long manufacturercode { get; set; }
 
-    public string? tenantcode { get; set; }
-}
+        public string? tenantcode { get; set; }
+        public int packsize { get; set; }
+        public decimal packg { get; set; }
+        public decimal mrp { get; set; }
+    }
 
     public class purchase_request
     {
@@ -453,6 +456,7 @@ public class purchase_detail
         public long? warehousecode { get; set; }
 
         public string? tenantcode { get; set; }
+        
     }
     public class purchase_entry_request
     {

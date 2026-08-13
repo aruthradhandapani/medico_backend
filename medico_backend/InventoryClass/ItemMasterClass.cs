@@ -238,6 +238,37 @@ namespace medico_backend.InventoryClass
         }
 
         // ─── PURCHASE MASTER ──────────────────────────────────────────────────────────
+        private async Task<long> GetNextGrnCode(IDbConnection db, IDbTransaction transaction, string tenantcode)
+        {
+            int year = DateTime.Now.Year;
+            long prefix = (long)year * 10000;   // e.g. 2026 -> 20260000
+
+            // Serialize concurrent inserts for the same tenant+year (released automatically at tx end)
+            await db.ExecuteAsync(
+                "SELECT pg_advisory_xact_lock(hashtext(@lockkey));",
+                new { lockkey = tenantcode + "_" + year },
+                transaction);
+
+            string query = @"
+        SELECT MAX(billno::bigint)
+        FROM public.purchase_master
+        WHERE tenantcode = @tenantcode
+          AND billno ~ '^[0-9]+$'
+          AND billno::bigint >= @prefix
+          AND billno::bigint <  @prefixEnd;";
+
+            long? maxCode = await db.ExecuteScalarAsync<long?>(
+                query,
+                new
+                {
+                    tenantcode,
+                    prefix,
+                    prefixEnd = prefix + 10000
+                },
+                transaction);
+
+            return maxCode.HasValue ? maxCode.Value + 1 : prefix + 1;
+        }
 
         public async Task<long> InsertPurchase(purchase_request request)
         {
@@ -249,126 +280,112 @@ namespace medico_backend.InventoryClass
                 {
                     try
                     {
+                        // Generate year-reset billno (e.g. 20260001, 20260002, resets each year)
+                        long billno = await GetNextGrnCode(db, transaction, request.master.tenantcode);
+                        request.master.billno = billno.ToString();
+
                         // Purchase Master Insert
                         string masterQuery = @"
-         INSERT INTO purchase_master
-         (
-             billno,
-             billdate,
-             invoiceno,
-             invoicedate,
-             vendorcode,
-             grossamount,
-             discountamount,
-             taxamount,
-             netamount,
-             paymentmode,
-             paymentstatus,
-             currencycode,
-             remarks,
-             isactive,
-             deleted,
-             createddate,
-             usercode,
-             tenantcode,
-             branchcode,
-             companycode
-         )
-         VALUES
-         (
-             @billno,
-             @billdate,
-             @invoiceno,
-             @invoicedate,
-             @vendorcode,
-             @grossamount,
-             @discountamount,
-             @taxamount,
-             @netamount,
-             @paymentmode,
-             @paymentstatus,
-             @currencycode,
-             @remarks,
-             @isactive,
-             @deleted,
-             CURRENT_TIMESTAMP,
-             @usercode,
-             @tenantcode,
-             @branchcode,
-             @companycode
-         )
-         RETURNING purchasecode;";
+     INSERT INTO purchase_master
+     (
+         billno,
+         billdate,
+         invoiceno,
+         invoicedate,
+         vendorcode,
+         grossamount,
+         discountamount,
+         taxamount,
+         netamount,
+         paymentmode,
+         paymentstatus,
+         currencycode,
+         remarks,
+         isactive,
+         deleted,
+         createddate,
+         usercode,
+         tenantcode,
+         branchcode,
+         companycode,
+         grncode
+     )
+     VALUES
+     (
+         @billno,
+         @billdate,
+         @invoiceno,
+         @invoicedate,
+         @vendorcode,
+         @grossamount,
+         @discountamount,
+         @taxamount,
+         @netamount,
+         @paymentmode,
+         @paymentstatus,
+         @currencycode,
+         @remarks,
+         @isactive,
+         @deleted,
+         CURRENT_TIMESTAMP,
+         @usercode,
+         @tenantcode,
+         @branchcode,
+         @companycode,
+         @grncode
+     )
+     RETURNING purchasecode;";
 
                         long purchasecode = await db.ExecuteScalarAsync<long>(
                             masterQuery,
                             request.master,
                             transaction);
 
+
                         // Purchase Detail Insert
                         string detailQuery = @"
-         INSERT INTO purchase_detail
-         (
-             purchasecode,
-             itemcode,
-             quantity,
-             freequantity,
-             uomcode,
-             rate,
-             discountpercentage,
-             discountamount,
-             taxpercentage,
-             taxamount,
-             amount,
-             totalamount,
-             batchno,
-             manufacturingdate,
-             expirydate,
-             orderedqty,
-             receivedqty,
-             rejectedqty,
-             warehousecode,
-             tenantcode
-         )
-         VALUES
-         (
-             @purchasecode,
-             @itemcode,
-             @quantity,
-             @freequantity,
-             @uomcode,
-             @rate,
-             @discountpercentage,
-             @discountamount,
-             @taxpercentage,
-             @taxamount,
-             @amount,
-             @totalamount,
-             @batchno,
-             @manufacturingdate,
-             @expirydate,
-             @orderedqty,
-             @receivedqty,
-             @rejectedqty,
-             @warehousecode,
-             @tenantcode
-         );";
+             INSERT INTO purchase_detail
+    (
+        purchasecode, itemcode, quantity, freequantity, uomcode, rate,
+        discountpercentage, discountamount, taxpercentage, taxamount,
+        amount, totalamount, batchno, manufacturingdate, expirydate,
+        orderedqty, receivedqty, rejectedqty, warehousecode,
+        packsize, packg, mrp,
+        tenantcode
+    )
+    VALUES
+    (
+        @purchasecode, @itemcode, @quantity, @freequantity, @uomcode, @rate,
+        @discountpercentage, @discountamount, @taxpercentage, @taxamount,
+        @amount, @totalamount, @batchno, @manufacturingdate, @expirydate,
+        @orderedqty, @receivedqty, @rejectedqty, @warehousecode,
+        @packsize, @packg, @mrp,
+        @tenantcode
+    );";
 
                         foreach (var item in request.details)
                         {
                             item.purchasecode = purchasecode;
+                            item.packg = item.quantity * item.packsize;   // total strips/units = qty * packsize
 
                             await db.ExecuteAsync(
                                 detailQuery,
                                 item,
                                 transaction);
 
+                            // Guard against divide-by-zero
+                            if (item.packsize <= 0)
+                                throw new Exception($"Invalid packsize for item {item.itemcode}: packsize must be greater than 0");
+
+                            decimal unitPrice = item.rate / item.packsize;   // strip/unit price
+
                             // Check stock exists
                             string checkStockQuery = @"
-             SELECT stockcode
-             FROM stock_master
-             WHERE itemcode = @itemcode
-             AND warehousecode = @warehousecode
-             AND batchno = @batchno;";
+        SELECT stockcode
+        FROM stock_master
+        WHERE itemcode = @itemcode
+        AND warehousecode = @warehousecode
+        AND batchno = @batchno;";
 
                             var stockcode = await db.ExecuteScalarAsync<long?>(
                                 checkStockQuery,
@@ -384,23 +401,23 @@ namespace medico_backend.InventoryClass
                             if (stockcode.HasValue)
                             {
                                 string updateStockQuery = @"
-                 UPDATE stock_master
-                 SET
-                     purchasedqty = purchasedqty + @receivedqty,
-                     closingstock = closingstock + @receivedqty,
-                     unitcost = @rate,
-                     stockvalue =
-                         (closingstock + @receivedqty) * @rate,
-                     modifieddate = CURRENT_TIMESTAMP
-                 WHERE stockcode = @stockcode;";
+            UPDATE stock_master
+            SET
+                purchasedqty = purchasedqty + @packg,
+                closingstock = closingstock + @packg,
+                unitcost = @unitPrice,
+                stockvalue =
+                    (closingstock + @packg) * @unitPrice,
+                modifieddate = CURRENT_TIMESTAMP
+            WHERE stockcode = @stockcode;";
 
                                 await db.ExecuteAsync(
                                     updateStockQuery,
                                     new
                                     {
                                         stockcode = stockcode.Value,
-                                        item.receivedqty,
-                                        item.rate
+                                        item.packg,
+                                        unitPrice
                                     },
                                     transaction);
                             }
@@ -408,52 +425,52 @@ namespace medico_backend.InventoryClass
                             {
                                 // Insert New Stock Record
                                 string insertStockQuery = @"
-                 INSERT INTO stock_master
-                 (
-                     itemcode,
-                     warehousecode,
-                     branchcode,
-                     openingstock,
-                     purchasedqty,
-                     soldqty,
-                     damagedqty,
-                     returnqty,
-                     closingstock,
-                     unitcost,
-                     stockvalue,
-                     batchno,
-                     manufacturingdate,
-                     expirydate,
-                     isactive,
-                     deleted,
-                     createddate,
-                     usercode,
-                     tenantcode,
-                     companycode
-                 )
-                 VALUES
-                 (
-                     @itemcode,
-                     @warehousecode,
-                     @branchcode,
-                     0,
-                     @receivedqty,
-                     0,
-                     0,
-                     0,
-                     @receivedqty,
-                     @rate,
-                     (@receivedqty * @rate),
-                     @batchno,
-                     @manufacturingdate,
-                     @expirydate,
-                     true,
-                     false,
-                     CURRENT_TIMESTAMP,
-                     @usercode,
-                     @tenantcode,
-                     @companycode
-                 );";
+            INSERT INTO stock_master
+            (
+                itemcode,
+                warehousecode,
+                branchcode,
+                openingstock,
+                purchasedqty,
+                soldqty,
+                damagedqty,
+                returnqty,
+                closingstock,
+                unitcost,
+                stockvalue,
+                batchno,
+                manufacturingdate,
+                expirydate,
+                isactive,
+                deleted,
+                createddate,
+                usercode,
+                tenantcode,
+                companycode
+            )
+            VALUES
+            (
+                @itemcode,
+                @warehousecode,
+                @branchcode,
+                0,
+                @packg,
+                0,
+                0,
+                0,
+                @packg,
+                @unitPrice,
+                (@packg * @unitPrice),
+                @batchno,
+                @manufacturingdate,
+                @expirydate,
+                true,
+                false,
+                CURRENT_TIMESTAMP,
+                @usercode,
+                @tenantcode,
+                @companycode
+            );";
 
                                 await db.ExecuteAsync(
                                     insertStockQuery,
@@ -462,8 +479,8 @@ namespace medico_backend.InventoryClass
                                         item.itemcode,
                                         item.warehousecode,
                                         branchcode = request.master.branchcode,
-                                        item.receivedqty,
-                                        item.rate,
+                                        item.packg,
+                                        unitPrice,
                                         item.batchno,
                                         item.manufacturingdate,
                                         item.expirydate,
@@ -545,60 +562,31 @@ namespace medico_backend.InventoryClass
                             transaction);
 
                         string detailQuery = @"
-                INSERT INTO public.purchase_detail
-                (
-                    purchasecode,
-                    itemcode,
-                    quantity,
-                    freequantity,
-                    uomcode,
-                    rate,
-                    discountpercentage,
-                    discountamount,
-                    taxpercentage,
-                    taxamount,
-                    amount,
-                    totalamount,
-                    batchno,
-                    manufacturingdate,
-                    expirydate,
-                    orderedqty,
-                    receivedqty,
-                    rejectedqty,
-                    warehousecode,
-                    packaging,
-                    manufacturercode,
-                    tenantcode
-                )
-                VALUES
-                (
-                    @purchasecode,
-                    @itemcode,
-                    @quantity,
-                    @freequantity,
-                    @uomcode,
-                    @rate,
-                    @discountpercentage,
-                    @discountamount,
-                    @taxpercentage,
-                    @taxamount,
-                    @amount,
-                    @totalamount,
-                    @batchno,
-                    @manufacturingdate,
-                    @expirydate,
-                    @orderedqty,
-                    @receivedqty,
-                    @rejectedqty,
-                    @warehousecode,
-                    @packaging,
-                    @manufacturercode,
-                    @tenantcode
-                );";
+               INSERT INTO public.purchase_detail
+    (
+        purchasecode, itemcode, quantity, freequantity, uomcode, rate,
+        discountpercentage, discountamount, taxpercentage, taxamount,
+        amount, totalamount, batchno, manufacturingdate, expirydate,
+        orderedqty, receivedqty, rejectedqty, warehousecode,
+        packaging, manufacturercode,
+        packsize, packg, mrp,
+        tenantcode
+    )
+    VALUES
+    (
+        @purchasecode, @itemcode, @quantity, @freequantity, @uomcode, @rate,
+        @discountpercentage, @discountamount, @taxpercentage, @taxamount,
+        @amount, @totalamount, @batchno, @manufacturingdate, @expirydate,
+        @orderedqty, @receivedqty, @rejectedqty, @warehousecode,
+        @packaging, @manufacturercode,
+        @packsize, @packg, @mrp,
+        @tenantcode
+    );";
 
                         foreach (var item in request.details)
                         {
                             item.purchasecode = request.master.purchasecode;
+                            item.packg = item.quantity * item.packsize;
 
                             await db.ExecuteAsync(
                                 detailQuery,
@@ -717,7 +705,10 @@ namespace medico_backend.InventoryClass
     d.warehousecode,
     d.tenantcode,
     d.packaging,
-    d.manufacturercode
+    d.manufacturercode,
+    d.packsize,
+    d.packg,
+    d.mrp
 
     FROM public.purchase_master m
 
@@ -812,7 +803,10 @@ namespace medico_backend.InventoryClass
         d.receivedqty,
         d.rejectedqty,
         d.warehousecode,
-        d.tenantcode
+        d.tenantcode,
+        d.packsize,
+        d.packg,
+        d.mrp
 
     FROM public.purchase_master m
 
@@ -2675,6 +2669,39 @@ namespace medico_backend.InventoryClass
             }
             return list;
         }
+        private async Task<string> GetNextSalesBillNo(IDbConnection db, IDbTransaction transaction, string tenantcode)
+        {
+            int year = DateTime.Now.Year;
+            string yearPrefix = "BILL" + year;   // e.g. BILL2026
+
+            // Serialize concurrent inserts for the same tenant+year (released automatically at tx end)
+            await db.ExecuteAsync(
+                "SELECT pg_advisory_xact_lock(hashtext(@lockkey));",
+                new { lockkey = "SALES_" + tenantcode + "_" + year },
+                transaction);
+
+            string query = @"
+        SELECT MAX(
+            CAST(SUBSTRING(billno FROM LENGTH(@yearPrefix) + 1) AS bigint)
+        )
+        FROM public.sales_master
+        WHERE tenantcode = @tenantcode
+          AND billno LIKE @yearPrefix || '%'
+          AND SUBSTRING(billno FROM LENGTH(@yearPrefix) + 1) ~ '^[0-9]+$';";
+
+            long? maxSeq = await db.ExecuteScalarAsync<long?>(
+                query,
+                new
+                {
+                    tenantcode,
+                    yearPrefix
+                },
+                transaction);
+
+            long nextSeq = maxSeq.HasValue ? maxSeq.Value + 1 : 1;
+
+            return yearPrefix + nextSeq.ToString("D4");   // e.g. BILL20260001
+        }
         public async Task<string> InsertSales(sales_request request)
         {
             using (var conn = new NpgsqlConnection(con))
@@ -2685,6 +2712,10 @@ namespace medico_backend.InventoryClass
                 {
                     try
                     {
+                        // Generate year-reset billno (e.g. BILL20260001, resets each year)
+                        string billno = await GetNextSalesBillNo(conn, trans, request.master.tenantcode);
+                        request.master.billno = billno;
+
                         //==========================
                         // Insert Sales Master
                         //==========================
