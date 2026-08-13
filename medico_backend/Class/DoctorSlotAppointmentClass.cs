@@ -222,6 +222,40 @@ namespace Medico_Backend.Class
                         data.updated_at
                     });
 
+                    string rangeLockKey = $"SLOTRANGE:{tenant_code}:{data.dcode}:{data.slot_date:yyyyMMdd}";
+                    await db.ExecuteAsync("SELECT pg_advisory_lock(hashtext(@rangeLockKey))",
+                        new { rangeLockKey });
+
+                    int lastToken;
+                    try
+                    {
+                        lastToken = await db.ExecuteScalarAsync<int>(@"
+        SELECT COALESCE(MAX(GREATEST(
+                   COALESCE(walkin_token_end, 0),
+                   COALESCE(online_token_end, 0))), 0)
+        FROM   doctor_appointment_slot_details
+        WHERE  dcode            = @dcode
+        AND    tenant_code      = @tenant_code
+        AND    appointment_date = @appointment_date
+        AND    isdeleted        = false",
+                            new
+                            {
+                                data.dcode,
+                                tenant_code,
+                                appointment_date = data.slot_date.Value.ToDateTime(TimeOnly.MinValue)
+                            });
+                    }
+                    finally
+                    {
+                        await db.ExecuteAsync("SELECT pg_advisory_unlock(hashtext(@rangeLockKey))",
+                            new { rangeLockKey });
+                    }
+
+                    int onlineStart = lastToken + 1;
+                    int onlineEnd = onlineStart + data.max_online - 1;
+                    int walkinStart = onlineEnd + 1;
+                    int walkinEnd = walkinStart + data.max_walkin - 1;
+
                     // ✅ AUTO INSERT DETAILS — includes typeofslot and avgtime
                     string detailSql = @"
                     INSERT INTO doctor_appointment_slot_details
@@ -231,6 +265,8 @@ namespace Medico_Backend.Class
                         max_patients, max_walkin, max_online,
                         booked_count, walkin_count, online_count,
                         typeofslot, avgtime,
+                        online_token_start, online_token_end,
+                        walkin_token_start, walkin_token_end,
                         slot_status, is_active, isdeleted,
                         created_at, updated_at
                     )
@@ -241,6 +277,8 @@ namespace Medico_Backend.Class
                         @max_patients, @max_walkin, @max_online,
                         0, 0, 0,
                         @typeofslot, @avgtime,
+                        @online_token_start, @online_token_end,
+                        @walkin_token_start, @walkin_token_end,
                         'OPEN', @is_active, false,
                         @created_at, @updated_at
                     )";
@@ -259,6 +297,10 @@ namespace Medico_Backend.Class
                         data.max_online,
                         data.typeofslot,
                         data.avgtime,
+                        online_token_start = onlineStart,
+                        online_token_end = onlineEnd,
+                        walkin_token_start = walkinStart,
+                        walkin_token_end = walkinEnd,
                         data.is_active,
                         created_at = data.created_at,
                         updated_at = data.updated_at

@@ -55,6 +55,11 @@ namespace Medico_Backend.Model
         public int walkin_count { get; set; } = 0;
         public int online_count { get; set; } = 0;
 
+        public int? online_token_start { get; set; }
+        public int? online_token_end { get; set; }
+        public int? walkin_token_start { get; set; }
+        public int? walkin_token_end { get; set; }
+
         // ── Computed (from SQL — not a DB column) ──────────────────
         [Computed]
         public int remaining_seats { get; set; }
