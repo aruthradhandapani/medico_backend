@@ -309,6 +309,7 @@ public class purchase_detail
 
     public decimal unitcost { get; set; }
     public decimal stockvalue { get; set; }
+    public decimal mrpunit { get; set; }
 
     public string? batchno { get; set; }
     public DateTime? manufacturingdate { get; set; }

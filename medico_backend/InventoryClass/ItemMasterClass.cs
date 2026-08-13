@@ -378,6 +378,7 @@ namespace medico_backend.InventoryClass
                                 throw new Exception($"Invalid packsize for item {item.itemcode}: packsize must be greater than 0");
 
                             decimal unitPrice = item.rate / item.packsize;   // strip/unit price
+                            decimal mrpUnit = item.mrp / item.packsize;
 
                             // Check stock exists
                             string checkStockQuery = @"
@@ -401,15 +402,16 @@ namespace medico_backend.InventoryClass
                             if (stockcode.HasValue)
                             {
                                 string updateStockQuery = @"
-            UPDATE stock_master
-            SET
-                purchasedqty = purchasedqty + @packg,
-                closingstock = closingstock + @packg,
-                unitcost = @unitPrice,
-                stockvalue =
-                    (closingstock + @packg) * @unitPrice,
-                modifieddate = CURRENT_TIMESTAMP
-            WHERE stockcode = @stockcode;";
+    UPDATE stock_master
+    SET
+        purchasedqty = purchasedqty + @packg,
+        closingstock = closingstock + @packg,
+        unitcost = @unitPrice,
+        mrpunit = @mrpUnit,
+        stockvalue =
+            (closingstock + @packg) * @unitPrice,
+        modifieddate = CURRENT_TIMESTAMP
+    WHERE stockcode = @stockcode;";
 
                                 await db.ExecuteAsync(
                                     updateStockQuery,
@@ -417,60 +419,62 @@ namespace medico_backend.InventoryClass
                                     {
                                         stockcode = stockcode.Value,
                                         item.packg,
-                                        unitPrice
+                                        unitPrice,
+                                        mrpUnit
                                     },
                                     transaction);
                             }
                             else
                             {
-                                // Insert New Stock Record
                                 string insertStockQuery = @"
-            INSERT INTO stock_master
-            (
-                itemcode,
-                warehousecode,
-                branchcode,
-                openingstock,
-                purchasedqty,
-                soldqty,
-                damagedqty,
-                returnqty,
-                closingstock,
-                unitcost,
-                stockvalue,
-                batchno,
-                manufacturingdate,
-                expirydate,
-                isactive,
-                deleted,
-                createddate,
-                usercode,
-                tenantcode,
-                companycode
-            )
-            VALUES
-            (
-                @itemcode,
-                @warehousecode,
-                @branchcode,
-                0,
-                @packg,
-                0,
-                0,
-                0,
-                @packg,
-                @unitPrice,
-                (@packg * @unitPrice),
-                @batchno,
-                @manufacturingdate,
-                @expirydate,
-                true,
-                false,
-                CURRENT_TIMESTAMP,
-                @usercode,
-                @tenantcode,
-                @companycode
-            );";
+    INSERT INTO stock_master
+    (
+        itemcode,
+        warehousecode,
+        branchcode,
+        openingstock,
+        purchasedqty,
+        soldqty,
+        damagedqty,
+        returnqty,
+        closingstock,
+        unitcost,
+        mrpunit,
+        stockvalue,
+        batchno,
+        manufacturingdate,
+        expirydate,
+        isactive,
+        deleted,
+        createddate,
+        usercode,
+        tenantcode,
+        companycode
+    )
+    VALUES
+    (
+        @itemcode,
+        @warehousecode,
+        @branchcode,
+        0,
+        @packg,
+        0,
+        0,
+        0,
+        @packg,
+        @unitPrice,
+        @mrpUnit,
+        (@packg * @unitPrice),
+        @batchno,
+        @manufacturingdate,
+        @expirydate,
+        true,
+        false,
+        CURRENT_TIMESTAMP,
+        @usercode,
+        @tenantcode,
+        @companycode
+    );";
 
                                 await db.ExecuteAsync(
                                     insertStockQuery,
@@ -481,6 +485,7 @@ namespace medico_backend.InventoryClass
                                         branchcode = request.master.branchcode,
                                         item.packg,
                                         unitPrice,
+                                        mrpUnit,
                                         item.batchno,
                                         item.manufacturingdate,
                                         item.expirydate,
@@ -976,6 +981,7 @@ namespace medico_backend.InventoryClass
             returnqty,
             closingstock,
             unitcost,
+            mrpunit,
             stockvalue,
             batchno,
 
@@ -1014,6 +1020,7 @@ namespace medico_backend.InventoryClass
             returnqty,
             closingstock,
             unitcost,
+            mrpunit,
             stockvalue,
             batchno,
 
@@ -1052,6 +1059,7 @@ namespace medico_backend.InventoryClass
             returnqty,
             closingstock,
             unitcost,
+            mrpunit,
             stockvalue,
             batchno,
 
