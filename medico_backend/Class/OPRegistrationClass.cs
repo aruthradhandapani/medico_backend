@@ -101,9 +101,6 @@ namespace medico_backend.Class
 
                     data.op_id = Guid.NewGuid();
                     data.op_no = await GenerateOpNo(db, data.tenant_code!);   // see note below
-                    data.visit_date = DateOnly.FromDateTime(
-                        TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow,
-                            TimeZoneInfo.FindSystemTimeZoneById("Asia/Kolkata")));
                     data.visit_status = "WAITING";
                     data.created_at = DateTime.SpecifyKind(DateTime.UtcNow, DateTimeKind.Utc);
                     data.updated_at = DateTime.SpecifyKind(DateTime.UtcNow, DateTimeKind.Utc);
@@ -862,12 +859,7 @@ namespace medico_backend.Class
                             slot_detail_id = req.slot_detail_id,
                             visit_type = "FOLLOWUP",
                             reg_type = op.reg_type,
-                            visit_date = slot != null
-                                ? slot.appointment_date
-                                : DateOnly.FromDateTime(
-                                    TimeZoneInfo.ConvertTimeFromUtc(
-                                        DateTime.UtcNow,
-                                        TimeZoneInfo.FindSystemTimeZoneById("Asia/Kolkata"))),
+                            visit_date = req.visit_date,
                             token_no = newToken,
                             queue_no = newToken,
                             visit_status = "WAITING",
@@ -903,7 +895,7 @@ namespace medico_backend.Class
                                 newOp.slot_detail_id,
                                 newOp.visit_type,
                                 newOp.reg_type,
-                                visit_date = newOp.visit_date.ToDateTime(TimeOnly.MinValue),
+                                newOp.visit_date,
                                 newOp.token_no,
                                 newOp.queue_no,
                                 newOp.visit_status,
