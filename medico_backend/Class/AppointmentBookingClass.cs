@@ -1,7 +1,8 @@
 ﻿using Dapper;
+using medico_backend.Class;
+using Medico_Backend.Model;
 using Npgsql;
 using System.Data;
-using Medico_Backend.Model;
 
 namespace Medico_Backend.Class
 {
@@ -9,11 +10,13 @@ namespace Medico_Backend.Class
     {
         private readonly string _db_conn;
         private readonly string _customer_conn;
+        private readonly OpRegistrationClass _opCls;   // ← add
 
-        public AppointmentBookingClass(IConfiguration configuration)
+        public AppointmentBookingClass(IConfiguration configuration, OpRegistrationClass opCls)
         {
             _db_conn = configuration.GetConnectionString("conn")!;
             _customer_conn = configuration.GetConnectionString("cust_conn")!;
+            _opCls = opCls;   // ← add
         }
 
         // ─────────────────────────────────────────
@@ -278,6 +281,7 @@ VALUES
                 await db.ExecuteAsync(freeSlotSql,
                     new { booking.slot_detail_id, tenant_code });
 
+                await _opCls.CancelOpForBooking(booking_id, tenant_code);
                 return "Cancelled Successfully";
             }
             catch (Exception ex) { return ex.Message; }
