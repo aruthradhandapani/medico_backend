@@ -97,7 +97,8 @@ namespace medico_backend.Class
                 using var tx = db.BeginTransaction();
                 try
                 {
-                    data.token_no = await GenerateNextTokenNo(db, tx, data.dcode, data.slot_detail_id, data.tenant_code!);
+                    data.token_no = await GenerateNextTokenNo(
+    db, tx, data.dcode, data.slot_detail_id, data.reg_type, data.tenant_code!);
 
                     data.op_id = Guid.NewGuid();
                     data.op_no = await GenerateOpNo(db, data.tenant_code!);   // see note below
@@ -552,7 +553,8 @@ namespace medico_backend.Class
                     {
                         try
                         {
-                            int noSlotToken = await GenerateNextTokenNo(db, tx, assignedDcode, null, tenant_code);
+                            int noSlotToken = await GenerateNextTokenNo(
+                             db, tx, assignedDcode, null, "WALKIN", tenant_code);
                             noSlotData.token_no = noSlotToken;
                             noSlotData.queue_no = noSlotToken;
 
@@ -676,7 +678,8 @@ namespace medico_backend.Class
                 {
                     try
                     {
-                        token = await GenerateNextTokenNo(db, tx, assignedDcode, slot.slot_detail_id, tenant_code);
+                        token = await GenerateNextTokenNo(
+                        db, tx, assignedDcode, slot.slot_detail_id, "WALKIN", tenant_code);
                         data.token_no = token;
                         data.queue_no = token;
 
@@ -836,7 +839,8 @@ namespace medico_backend.Class
                 {
                     try
                     {
-                        newToken = await GenerateNextTokenNo(db, tx, req.transfer_to_dcode, slot?.slot_detail_id, tenant_code);
+                        newToken = await GenerateNextTokenNo(
+                        db, tx, req.transfer_to_dcode, slot?.slot_detail_id, op.reg_type, tenant_code);
 
                         // Mark old OP as transferred (same tx)
                         await db.ExecuteAsync(
@@ -1348,36 +1352,82 @@ AND b.tenant_code = @tenant_code
         }
         // ─────────────────────────────────────────
         // GENERATE NEXT TOKEN NO — race-safe via pg_advisory_xact_lock
-        // Must be called with the SAME db connection + transaction that will
-        // perform the subsequent op_registration INSERT, so the lock covers
-        // both the read and the write.
-        // If slot required  → slot-wise, restarts per slot
-        // If slot not required → doctor-wise, restarts daily
-        // Dressing keeps its own separate counter (is_dressing=true filter, unchanged)
+        // SLOT MODE  → pulls from the reserved online/walkin range on the slot
+        // NO-SLOT MODE → doctor+date daily counter (unchanged)
         // ─────────────────────────────────────────
         private async Task<int> GenerateNextTokenNo(
-            IDbConnection db, IDbTransaction tx, int dcode, Guid? slot_detail_id, string tenant_code)
+            IDbConnection db, IDbTransaction tx,
+            int dcode, Guid? slot_detail_id, string reg_type, string tenant_code)
         {
-            // ✅ Token generation is always doctor-wise and restarts daily —
-            // slot-wise generation removed. slot_detail_id is kept in the
-            // signature (unused) so existing call sites don't need changes.
-            string lockKey = $"DCODE:{tenant_code}:{dcode}";
-            string sql = @"SELECT COALESCE(MAX(token_no), 0) + 1
+            string bookingType = string.IsNullOrWhiteSpace(reg_type) ? "WALKIN" : reg_type.ToUpper();
+
+            if (slot_detail_id.HasValue && slot_detail_id != Guid.Empty)
+            {
+                // ── SLOT MODE ────────────────────────────────
+                string lockKey = $"SLOT:{tenant_code}:{slot_detail_id}";
+                await db.ExecuteAsync("SELECT pg_advisory_xact_lock(hashtext(@lockKey))",
+                    new { lockKey }, tx);
+
+                string sql = @"SELECT online_token_start, online_token_end, online_count,
+                               walkin_token_start, walkin_token_end, walkin_count
+                        FROM   doctor_appointment_slot_details
+                        WHERE  slot_detail_id = @slot_detail_id
+                        AND    tenant_code    = @tenant_code
+                        FOR UPDATE";
+
+                var row = await db.QueryFirstOrDefaultAsync(
+                    sql, new { slot_detail_id, tenant_code }, tx);
+
+                if (row == null)
+                    throw new Exception("Slot not found while generating token");
+
+                int start, end, used;
+
+                if (bookingType == "WALKIN")
+                {
+                    if (row.walkin_token_start == null || row.walkin_token_end == null)
+                        throw new Exception("Walk-in token range not configured on this slot");
+
+                    start = (int)row.walkin_token_start;
+                    end = (int)row.walkin_token_end;
+                    used = (int)row.walkin_count;
+                }
+                else // ONLINE / WHATSAPP → online range
+                {
+                    if (row.online_token_start == null || row.online_token_end == null)
+                        throw new Exception("Online token range not configured on this slot");
+
+                    start = (int)row.online_token_start;
+                    end = (int)row.online_token_end;
+                    used = (int)row.online_count;
+                }
+
+                int next = bookingType == "WALKIN"
+    ? start + used
+    : start + used - 1;
+                if (next > end)
+                    throw new Exception($"{bookingType} token quota exhausted for this slot");
+
+                return next;
+            }
+            else
+            {
+                // ── NO-SLOT MODE — doctor-wise, restarts daily ──
+                string lockKey = $"DCODE:{tenant_code}:{dcode}";
+                string sql = @"SELECT COALESCE(MAX(token_no), 0) + 1
                 FROM   op_registration
                 WHERE  dcode        = @dcode
                 AND    tenant_code  = @tenant_code
                 AND    isdeleted    = false
                 AND    COALESCE(is_dressing, false) = false
                 AND    visit_date   = (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata')::date";
-            var param = new { dcode, tenant_code };
+                var param = new { dcode, tenant_code };
 
-            // Blocks any other transaction requesting the SAME key until this
-            // transaction commits/rolls back. Different doctors never block
-            // each other. Released automatically at commit/rollback — no cleanup needed.
-            await db.ExecuteAsync("SELECT pg_advisory_xact_lock(hashtext(@lockKey))",
-                new { lockKey }, tx);
+                await db.ExecuteAsync("SELECT pg_advisory_xact_lock(hashtext(@lockKey))",
+                    new { lockKey }, tx);
 
-            return await db.ExecuteScalarAsync<int>(sql, param, tx);
+                return await db.ExecuteScalarAsync<int>(sql, param, tx);
+            }
         }
     }
 }
