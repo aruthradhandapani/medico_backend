@@ -1796,7 +1796,7 @@ long adjustmentlogcode)
      try
      {
          string tenantcode =
-             HttpContext.Items["TenantCode"]?.ToString()
+             Request.Headers["TenantCode"].FirstOrDefault()
              ?? string.Empty;
 
          if (string.IsNullOrEmpty(tenantcode))
