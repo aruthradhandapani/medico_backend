@@ -3,6 +3,7 @@ using medico_backend.Class;
 using Medico_Backend.Model;
 using Npgsql;
 using System.Data;
+using static medico_backend.Model.OPRegistrationModel;
 
 namespace Medico_Backend.Class
 {
@@ -215,6 +216,27 @@ VALUES
                     remarks = data.notes,
                     tenant_code = data.tenant_code!
                 });
+                // ✅ NEW — if this booking is a reschedule, immediately create the OP
+                // for the new date/slot too, instead of waiting for check-in.
+                // CreateOpRegistration pulls slot_detail_id/booking_no/reg_type itself
+                // from the appointment_booking row we just inserted, so we only need
+                // to pass the booking_id + patient/doctor + visit_date here.
+                if (data.rescheduled_from.HasValue && data.rescheduled_from != Guid.Empty)
+                {
+                    var opResult = await _opCls.CreateOpRegistration(new OpRegistrationModel
+                    {
+                        booking_id = data.booking_id,
+                        custid = data.custid,
+                        dcode = data.dcode,
+                        visit_type = "NEWVISIT",   // no visit_type stored on the booking itself — see note below
+                        reg_type = data.booking_type,
+                        visit_date = data.appointment_date,
+                        notes = data.notes,
+                        tenant_code = data.tenant_code!
+                    });
+
+                    Console.WriteLine($"[RESCHEDULE-OP-DEBUG] BookingId={data.booking_id} CreateOpRegistration result={opResult}");
+                }
 
                 return $"Success|Token:{data.token_no}|BookingNo:{data.booking_no}|BookingId:{data.booking_id}";
             }
@@ -287,76 +309,7 @@ VALUES
             catch (Exception ex) { return ex.Message; }
         }
 
-        // ─────────────────────────────────────────
-        // SOFT DELETE OLD BOOKING (reschedule only)
-        // Old booking is hidden via isdeleted = true instead of
-        // being marked CANCELLED, keeping the list clean.
-        // Slot counters are decremented exactly like a cancel.
-        // ─────────────────────────────────────────
-        private async Task<string> SoftDeleteForReschedule(
-            Guid booking_id, string tenant_code)
-        {
-            try
-            {
-                using IDbConnection db = new NpgsqlConnection(_db_conn);
-
-                // Fetch old booking
-                string getSql = @"SELECT * FROM appointment_booking
-                                  WHERE  booking_id  = @booking_id
-                                  AND    tenant_code = @tenant_code
-                                  AND    isdeleted   = false";
-
-                var booking = await db.QueryFirstOrDefaultAsync<AppointmentBookingModel>(
-                    getSql, new { booking_id, tenant_code });
-
-                if (booking == null) return "Booking not found";
-                if (booking.booking_status == "VISITED")
-                    return "Cannot reschedule a visited appointment";
-
-                // Soft delete — set isdeleted = true, no CANCELLED status needed
-                // Mark old booking as CANCELLED and soft delete — hidden from lists, status correct for audit
-                string softDeleteSql = @"UPDATE appointment_booking
-                         SET isdeleted      = true,
-                             booking_status = 'CANCELLED',
-                             cancel_reason  = 'Rescheduled',
-                             cancelled_at   = now(),
-                             updated_at     = now()
-                         WHERE booking_id  = @booking_id
-                         AND   tenant_code = @tenant_code";
-
-                await db.ExecuteAsync(softDeleteSql, new { booking_id, tenant_code });
-
-                // Decrement slot counters and reopen slot if it was FULL
-                string freeSlotSql = booking.booking_type == "WALKIN"
-                    ? @"UPDATE doctor_appointment_slot_details
-                        SET booked_count = GREATEST(booked_count - 1, 0),
-                            walkin_count = GREATEST(walkin_count - 1, 0),
-                            slot_status  = CASE
-                                             WHEN slot_status = 'FULL' THEN 'OPEN'
-                                             ELSE slot_status
-                                           END,
-                            updated_at   = now()
-                        WHERE slot_detail_id = @slot_detail_id
-                        AND   tenant_code    = @tenant_code"
-
-                    : @"UPDATE doctor_appointment_slot_details
-                        SET booked_count = GREATEST(booked_count - 1, 0),
-                            online_count = GREATEST(online_count - 1, 0),
-                            slot_status  = CASE
-                                             WHEN slot_status = 'FULL' THEN 'OPEN'
-                                             ELSE slot_status
-                                           END,
-                            updated_at   = now()
-                        WHERE slot_detail_id = @slot_detail_id
-                        AND   tenant_code    = @tenant_code";
-
-                await db.ExecuteAsync(freeSlotSql,
-                    new { booking.slot_detail_id, tenant_code });
-
-                return "Cancelled Successfully"; // keeps caller checks intact
-            }
-            catch (Exception ex) { return ex.Message; }
-        }
+        
 
         // ─────────────────────────────────────────
         // RESCHEDULE APPOINTMENT
@@ -1039,6 +992,70 @@ VALUES
 
             var rows = await db.QueryAsync<AppointmentBookingLogViewModel>(sql, param);
             return rows.ToList();
+        }
+        private async Task<string> SoftDeleteForReschedule(
+    Guid booking_id, string tenant_code)
+        {
+            try
+            {
+                using IDbConnection db = new NpgsqlConnection(_db_conn);
+
+                string getSql = @"SELECT * FROM appointment_booking
+                          WHERE  booking_id  = @booking_id
+                          AND    tenant_code = @tenant_code
+                          AND    isdeleted   = false";
+
+                var booking = await db.QueryFirstOrDefaultAsync<AppointmentBookingModel>(
+                    getSql, new { booking_id, tenant_code });
+
+                if (booking == null) return "Booking not found";
+                if (booking.booking_status == "VISITED")
+                    return "Cannot reschedule a visited appointment";
+
+                // Soft delete — hidden from active lists (isdeleted=true), but now
+                // shows RESCHEDULED instead of CANCELLED for anyone pulling history/log
+                string softDeleteSql = @"UPDATE appointment_booking
+                 SET isdeleted      = true,
+                     booking_status = 'RESCHEDULED',
+                     cancel_reason  = 'Rescheduled',
+                     cancelled_at   = now(),
+                     updated_at     = now()
+                 WHERE booking_id  = @booking_id
+                 AND   tenant_code = @tenant_code";
+
+                await db.ExecuteAsync(softDeleteSql, new { booking_id, tenant_code });
+
+                string freeSlotSql = booking.booking_type == "WALKIN"
+                    ? @"UPDATE doctor_appointment_slot_details
+                SET booked_count = GREATEST(booked_count - 1, 0),
+                    walkin_count = GREATEST(walkin_count - 1, 0),
+                    slot_status  = CASE
+                                     WHEN slot_status = 'FULL' THEN 'OPEN'
+                                     ELSE slot_status
+                                   END,
+                    updated_at   = now()
+                WHERE slot_detail_id = @slot_detail_id
+                AND   tenant_code    = @tenant_code"
+                    : @"UPDATE doctor_appointment_slot_details
+                SET booked_count = GREATEST(booked_count - 1, 0),
+                    online_count = GREATEST(online_count - 1, 0),
+                    slot_status  = CASE
+                                     WHEN slot_status = 'FULL' THEN 'OPEN'
+                                     ELSE slot_status
+                                   END,
+                    updated_at   = now()
+                WHERE slot_detail_id = @slot_detail_id
+                AND   tenant_code    = @tenant_code";
+
+                await db.ExecuteAsync(freeSlotSql,
+                    new { booking.slot_detail_id, tenant_code });
+
+                // ✅ Close out the linked OP too, if patient hasn't been seen yet
+                await _opCls.CloseOpForReschedule(booking_id, tenant_code);
+
+                return "Cancelled Successfully"; // internal marker only — checked by callers below, not shown to user
+            }
+            catch (Exception ex) { return ex.Message; }
         }
     }
 }

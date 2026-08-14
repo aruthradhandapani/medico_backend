@@ -1451,5 +1451,28 @@ AND b.tenant_code = @tenant_code
         AND   visit_status IN ('WAITING', 'IN_CONSULTATION')",
                 new { booking_id, tenant_code });
         }
+        // ─────────────────────────────────────────
+        // CLOSE OP FOR A RESCHEDULED BOOKING
+        // Called by AppointmentBookingClass right when the OLD booking is
+        // soft-deleted for a reschedule. Sets visit_status = RESCHEDULED on
+        // the linked OP — same guard as cancel: only if the patient hasn't
+        // been seen yet (WAITING or IN_CONSULTATION). A new OP gets created
+        // separately, at check-in, against the NEW booking — this method
+        // does not create anything.
+        // ─────────────────────────────────────────
+        public async Task CloseOpForReschedule(Guid booking_id, string tenant_code)
+        {
+            using IDbConnection db = new NpgsqlConnection(_db_conn);
+
+            await db.ExecuteAsync(@"
+        UPDATE op_registration
+        SET visit_status = 'RESCHEDULED',
+            updated_at   = now()
+        WHERE booking_id   = @booking_id
+        AND   tenant_code  = @tenant_code
+        AND   isdeleted    = false
+        AND   visit_status IN ('WAITING', 'IN_CONSULTATION')",
+                new { booking_id, tenant_code });
+        }
     }
 }
