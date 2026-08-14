@@ -1790,6 +1790,54 @@ long adjustmentlogcode)
             });
         }
     }
+     [HttpGet("getstockadjustment")]
+ public async Task<IActionResult> GetStockAdjustment(long adjustmentlogcode)
+ {
+     try
+     {
+         string tenantcode =
+             HttpContext.Items["TenantCode"]?.ToString()
+             ?? string.Empty;
+
+         if (string.IsNullOrEmpty(tenantcode))
+         {
+             return BadRequest(new
+             {
+                 status = false,
+                 message = "Tenant code not found."
+             });
+         }
+
+         var result = await itemclass.GetStockAdjustment(
+             adjustmentlogcode,
+             tenantcode
+         );
+
+         if (result == null)
+         {
+             return NotFound(new
+             {
+                 status = false,
+                 message = "Stock adjustment record not found."
+             });
+         }
+
+         return Ok(new
+         {
+             status = true,
+             message = "Stock adjustment retrieved successfully.",
+             data = result
+         });
+     }
+     catch (Exception ex)
+     {
+         return StatusCode(500, new
+         {
+             status = false,
+             message = ex.Message
+         });
+     }
+ }
     }
 }
     
