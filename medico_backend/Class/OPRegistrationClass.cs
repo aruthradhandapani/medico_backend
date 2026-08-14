@@ -1429,5 +1429,27 @@ AND b.tenant_code = @tenant_code
                 return await db.ExecuteScalarAsync<int>(sql, param, tx);
             }
         }
+        // ─────────────────────────────────────────
+        // CANCEL OP FOR A CANCELLED BOOKING
+        // Called by AppointmentBookingClass right after a booking is cancelled.
+        // Sets visit_status = CANCELLED on the linked OP — but only if the
+        // patient hasn't already been seen (WAITING or IN_CONSULTATION).
+        // A COMPLETED visit is left alone since the consultation already
+        // happened regardless of what the booking says now.
+        // ─────────────────────────────────────────
+        public async Task CancelOpForBooking(Guid booking_id, string tenant_code)
+        {
+            using IDbConnection db = new NpgsqlConnection(_db_conn);
+
+            await db.ExecuteAsync(@"
+        UPDATE op_registration
+        SET visit_status = 'CANCELLED',
+            updated_at   = now()
+        WHERE booking_id   = @booking_id
+        AND   tenant_code  = @tenant_code
+        AND   isdeleted    = false
+        AND   visit_status IN ('WAITING', 'IN_CONSULTATION')",
+                new { booking_id, tenant_code });
+        }
     }
 }
