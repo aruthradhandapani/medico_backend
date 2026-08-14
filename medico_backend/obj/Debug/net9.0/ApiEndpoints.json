@@ -10717,6 +10717,27 @@
   },
   {
     "ContainingType": "medico_backend.Controllers.ReportController",
+    "Method": "DailyBillReport",
+    "RelativePath": "api/Report/getdailybillreport",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "fromdate",
+        "Type": "System.DateTime",
+        "IsRequired": false
+      },
+      {
+        "Name": "todate",
+        "Type": "System.DateTime",
+        "IsRequired": false
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "medico_backend.Controllers.ReportController",
     "Method": "GetDischargeSummary",
     "RelativePath": "api/Report/getdischargesummary",
     "HttpMethod": "GET",
@@ -10778,6 +10799,48 @@
       {
         "Name": "periodtype",
         "Type": "System.String",
+        "IsRequired": false
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "medico_backend.Controllers.ReportController",
+    "Method": "GetDoctorwiseIpReport",
+    "RelativePath": "api/Report/getdoctorwiseip",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "fromdate",
+        "Type": "System.DateTime",
+        "IsRequired": false
+      },
+      {
+        "Name": "todate",
+        "Type": "System.DateTime",
+        "IsRequired": false
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "medico_backend.Controllers.ReportController",
+    "Method": "GetDoctorwiseOpReport",
+    "RelativePath": "api/Report/getdoctorwiseop",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "fromdate",
+        "Type": "System.DateTime",
+        "IsRequired": false
+      },
+      {
+        "Name": "todate",
+        "Type": "System.DateTime",
         "IsRequired": false
       }
     ],
@@ -10879,6 +10942,27 @@
   },
   {
     "ContainingType": "medico_backend.Controllers.ReportController",
+    "Method": "GetIpReport",
+    "RelativePath": "api/Report/getip",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "fromdate",
+        "Type": "System.DateTime",
+        "IsRequired": false
+      },
+      {
+        "Name": "todate",
+        "Type": "System.DateTime",
+        "IsRequired": false
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "medico_backend.Controllers.ReportController",
     "Method": "GetIPCasesheet",
     "RelativePath": "api/Report/getipcasesheet",
     "HttpMethod": "GET",
@@ -10893,6 +10977,27 @@
       {
         "Name": "isletterhead",
         "Type": "System.Nullable\u00601[[System.Boolean, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
+        "IsRequired": false
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "medico_backend.Controllers.ReportController",
+    "Method": "GetOpReport",
+    "RelativePath": "api/Report/getop",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "fromdate",
+        "Type": "System.DateTime",
+        "IsRequired": false
+      },
+      {
+        "Name": "todate",
+        "Type": "System.DateTime",
         "IsRequired": false
       }
     ],

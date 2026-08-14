@@ -4272,16 +4272,17 @@ WHERE lrd.requestguid::text = @requestguid::text
                         LEFT JOIN doctor_master dm ON (dm.dcode = lrm.dcode OR dm.dcode = ip.dcode OR dm.dcode = op.dcode)
                         LEFT JOIN mastertenant.user_master um ON um.user_code = lrm.usercode
                         LEFT JOIN public.bed_master bm ON bm.bedcode = ip.bedcode AND (bm.tenant_code = ip.tenant_code OR bm.tenant_code = lrm.tenant_code)
-                        WHERE (LOWER(lrm.requestguid::text) = LOWER(@requestGuid) OR lrm.requestguid::text = @requestGuid)
+                        WHERE (lrm.requestguid::text = @requestGuid OR LOWER(lrm.requestguid::text) = LOWER(@requestGuid))
                           AND (COALESCE(@tenant_code, '') = '' OR lrm.tenant_code IS NULL OR lrm.tenant_code = '' OR lrm.tenant_code = @tenant_code)
                           AND COALESCE(lrm.deleted, false) = false
                         LIMIT 1";
 
                 var header = await db.QueryFirstOrDefaultAsync<RawReportHeader>(
                     headerSql, 
-                    new { requestGuid, tenant_code = tenant_code ?? "" });
+                    new { requestGuid, tenant_code = tenant_code ?? "" },
+                    commandTimeout: 120);
 
-                // Fallback 0: Check lab_request_master by ip_id or opvisitid/sheet_id
+                // Fallback 0: Check lab_request_master by ip_id, opvisitid/sheet_id, requestsno, or custid
                 if (header == null)
                 {
                     string lrmAltHeaderSql = @"
@@ -4330,9 +4331,11 @@ WHERE lrd.requestguid::text = @requestguid::text
                         LEFT JOIN doctor_master dm ON (dm.dcode = lrm.dcode OR dm.dcode = ip.dcode OR dm.dcode = op.dcode)
                         LEFT JOIN mastertenant.user_master um ON um.user_code = lrm.usercode
                         LEFT JOIN public.bed_master bm ON bm.bedcode = ip.bedcode AND (bm.tenant_code = ip.tenant_code OR bm.tenant_code = lrm.tenant_code)
-                        WHERE (LOWER(lrm.ip_id::text) = LOWER(@requestGuid)
-                               OR LOWER(lrm.opvisitid) = LOWER(@requestGuid)
-                               OR LOWER(lrm.sheet_id) = LOWER(@requestGuid))
+                        WHERE (lrm.ip_id::text = @requestGuid
+                               OR lrm.opvisitid = @requestGuid
+                               OR lrm.sheet_id = @requestGuid
+                               OR lrm.requestsno::text = @requestGuid
+                               OR lrm.custid::text = @requestGuid)
                           AND (COALESCE(@tenant_code, '') = '' OR lrm.tenant_code IS NULL OR lrm.tenant_code = '' OR lrm.tenant_code = @tenant_code)
                           AND COALESCE(lrm.deleted, false) = false
                         ORDER BY lrm.requestdatetime DESC
@@ -4340,7 +4343,8 @@ WHERE lrd.requestguid::text = @requestguid::text
 
                     header = await db.QueryFirstOrDefaultAsync<RawReportHeader>(
                         lrmAltHeaderSql, 
-                        new { requestGuid, tenant_code = tenant_code ?? "" });
+                        new { requestGuid, tenant_code = tenant_code ?? "" },
+                        commandTimeout: 120);
                 }
 
                 // Fallback 1: Check IP Registration
@@ -4385,7 +4389,8 @@ WHERE lrd.requestguid::text = @requestguid::text
 
                     header = await db.QueryFirstOrDefaultAsync<RawReportHeader>(
                         ipHeaderSql, 
-                        new { requestGuid, tenant_code = tenant_code ?? "" });
+                        new { requestGuid, tenant_code = tenant_code ?? "" },
+                        commandTimeout: 120);
                 }
 
                 // Fallback 2: Check OP Registration
@@ -4429,7 +4434,8 @@ WHERE lrd.requestguid::text = @requestguid::text
 
                     header = await db.QueryFirstOrDefaultAsync<RawReportHeader>(
                         opHeaderSql, 
-                        new { requestGuid, tenant_code = tenant_code ?? "" });
+                        new { requestGuid, tenant_code = tenant_code ?? "" },
+                        commandTimeout: 120);
                 }
 
                 // Fallback 3: Check Customer Master directly
@@ -4466,7 +4472,8 @@ WHERE lrd.requestguid::text = @requestguid::text
 
                     header = await db.QueryFirstOrDefaultAsync<RawReportHeader>(
                         cmHeaderSql, 
-                        new { requestGuid, tenant_code = tenant_code ?? "" });
+                        new { requestGuid, tenant_code = tenant_code ?? "" },
+                        commandTimeout: 120);
                 }
 
                 // Fallback 4: Create default header object so request never fails with null
@@ -4549,7 +4556,7 @@ WHERE lrd.requestguid::text = @requestguid::text
                             OR LOWER(lrd.requestguid::text) = LOWER(@rGuid)
                             OR lrd.requestguid::text = @requestGuid
                             OR LOWER(lrd.requestguid::text) = LOWER(@requestGuid)
-                            OR (COALESCE(@ipIdStr, '') = '' AND COALESCE(@opIdStr, '') = '' AND @custId > 0 AND lrm.custid = @custId)
+                            OR (@custId > 0 AND lrm.custid = @custId)
                             OR (COALESCE(@ipIdStr, '') <> '' AND lrm.ip_id::text = @ipIdStr)
                             OR (COALESCE(@opIdStr, '') <> '' AND (lrm.opvisitid = @opIdStr OR lrm.sheet_id = @opIdStr))
                         )
@@ -4573,7 +4580,7 @@ WHERE lrd.requestguid::text = @requestguid::text
                             (COALESCE(@opIdStr, '') <> '' AND (oim.sheet_id::text = @opIdStr OR oim.op_id::text = @opIdStr OR cs.op_id::text = @opIdStr OR cs.sheet_id::text = @opIdStr))
                             OR (COALESCE(@ipIdStr, '') <> '' AND (oim.ip_id::text = @ipIdStr OR cs.ip_id::text = @ipIdStr))
                             OR (oim.sheet_id::text = @requestGuid OR oim.op_id::text = @requestGuid OR cs.op_id::text = @requestGuid OR cs.sheet_id::text = @requestGuid)
-                            OR (COALESCE(@ipIdStr, '') = '' AND COALESCE(@opIdStr, '') = '' AND @custId > 0 AND (oim.custid = @custId OR cs.custid = @custId))
+                            OR (@custId > 0 AND (oim.custid = @custId OR cs.custid = @custId))
                         )
                         AND (COALESCE(@tenant_code, '') = '' OR oid.tenant_code IS NULL OR oid.tenant_code = '' OR oid.tenant_code = @tenant_code)
                         AND COALESCE(oid.isdeleted, false) = false
@@ -4612,7 +4619,7 @@ WHERE lrd.requestguid::text = @requestguid::text
                             (COALESCE(@opIdStr, '') <> '' AND uc.opvisitid = @opIdStr)
                             OR (COALESCE(@ipIdStr, '') <> '' AND uc.ip_id::text = @ipIdStr)
                             OR (uc.opvisitid = @requestGuid OR uc.ip_id::text = @requestGuid)
-                            OR (COALESCE(@ipIdStr, '') = '' AND COALESCE(@opIdStr, '') = '' AND @custId > 0 AND uc.custid = @custId)
+                            OR (@custId > 0 AND uc.custid = @custId)
                         )
                         AND (COALESCE(@tenant_code, '') = '' OR uc.tenant_code IS NULL OR uc.tenant_code = '' OR uc.tenant_code = @tenant_code)
                         AND UPPER(uc.entrytype) IN ('INVESTIGATION', 'LAB', 'LABTEST', 'TEST')
@@ -4622,7 +4629,8 @@ WHERE lrd.requestguid::text = @requestguid::text
 
                 var labBillItems = (await db.QueryAsync<ConsolidatedBillItem>(
                     labBillsSql, 
-                    new { rGuid, requestGuid, custId, ipIdStr, opIdStr, tenant_code })).ToList();
+                    new { rGuid, requestGuid, custId, ipIdStr, opIdStr, tenant_code },
+                    commandTimeout: 120)).ToList();
 
                 var labBills = labBillItems.Any() ? new ConsolidatedBillCategory
                 {
@@ -4648,7 +4656,7 @@ WHERE lrd.requestguid::text = @requestguid::text
                         (COALESCE(@opIdStr, '') <> '' AND uc.opvisitid = @opIdStr)
                         OR (COALESCE(@ipIdStr, '') <> '' AND uc.ip_id::text = @ipIdStr)
                         OR (uc.opvisitid = @requestGuid OR uc.ip_id::text = @requestGuid)
-                        OR (COALESCE(@ipIdStr, '') = '' AND COALESCE(@opIdStr, '') = '' AND @custId > 0 AND uc.custid = @custId)
+                        OR (@custId > 0 AND uc.custid = @custId)
                     )
                     AND (COALESCE(@tenant_code, '') = '' OR uc.tenant_code IS NULL OR uc.tenant_code = '' OR uc.tenant_code = @tenant_code)
                     AND UPPER(uc.entrytype) = 'CONSULTATION'
@@ -4657,7 +4665,8 @@ WHERE lrd.requestguid::text = @requestguid::text
 
                 var consultationItems = (await db.QueryAsync<ConsolidatedBillItem>(
                     consultationSql, 
-                    new { opIdStr, ipIdStr, requestGuid, custId, tenant_code })).ToList();
+                    new { opIdStr, ipIdStr, requestGuid, custId, tenant_code },
+                    commandTimeout: 120)).ToList();
 
                 var consultation = consultationItems.Any() ? new ConsolidatedBillCategory
                 {
@@ -4683,7 +4692,7 @@ WHERE lrd.requestguid::text = @requestguid::text
                         (COALESCE(@opIdStr, '') <> '' AND uc.opvisitid = @opIdStr)
                         OR (COALESCE(@ipIdStr, '') <> '' AND uc.ip_id::text = @ipIdStr)
                         OR (uc.opvisitid = @requestGuid OR uc.ip_id::text = @requestGuid)
-                        OR (COALESCE(@ipIdStr, '') = '' AND COALESCE(@opIdStr, '') = '' AND @custId > 0 AND uc.custid = @custId)
+                        OR (@custId > 0 AND uc.custid = @custId)
                     )
                     AND (COALESCE(@tenant_code, '') = '' OR uc.tenant_code IS NULL OR uc.tenant_code = '' OR uc.tenant_code = @tenant_code)
                     AND (uc.entrytype IS NULL OR UPPER(uc.entrytype) NOT IN ('CONSULTATION', 'ROOMRENT', 'INVESTIGATION', 'LAB', 'LABTEST', 'TEST'))
@@ -4692,7 +4701,8 @@ WHERE lrd.requestguid::text = @requestguid::text
 
                 var investigationItems = (await db.QueryAsync<ConsolidatedBillItem>(
                     nurseChargesSql, 
-                    new { opIdStr, ipIdStr, requestGuid, custId, tenant_code })).ToList();
+                    new { opIdStr, ipIdStr, requestGuid, custId, tenant_code },
+                    commandTimeout: 120)).ToList();
 
                 var nurseCharges = investigationItems.Any() ? new ConsolidatedBillCategory
                 {
@@ -4719,7 +4729,7 @@ WHERE lrd.requestguid::text = @requestguid::text
                     WHERE (
                         (COALESCE(@ipIdStr, '') <> '' AND uc.ip_id::text = @ipIdStr)
                         OR (uc.ip_id::text = @requestGuid)
-                        OR (COALESCE(@ipIdStr, '') = '' AND @custId > 0 AND uc.custid = @custId)
+                        OR (@custId > 0 AND uc.custid = @custId)
                     )
                     AND (COALESCE(@tenant_code, '') = '' OR uc.tenant_code IS NULL OR uc.tenant_code = '' OR uc.tenant_code = @tenant_code)
                     AND UPPER(uc.entrytype) = 'ROOMRENT'
@@ -4738,11 +4748,13 @@ WHERE lrd.requestguid::text = @requestguid::text
 
                 var testGroupRates = (await db.QueryAsync<dynamic>(
                     testGroupRatesSql, 
-                    new { tenant_code })).ToList();
+                    new { tenant_code },
+                    commandTimeout: 120)).ToList();
 
                 var bedChargeItemsRaw = (await db.QueryAsync<ConsolidatedBillItem>(
                     bedChargesSql, 
-                    new { ipIdStr, requestGuid, custId, tenant_code })).ToList();
+                    new { ipIdStr, requestGuid, custId, tenant_code },
+                    commandTimeout: 120)).ToList();
 
                 var bedChargeItems = new List<ConsolidatedBillItem>();
                 var extraNurseItems = new List<ConsolidatedBillItem>();
@@ -4848,7 +4860,7 @@ WHERE lrd.requestguid::text = @requestguid::text
                             (COALESCE(@opIdStr, '') <> '' AND (opm.sheet_id::text = @opIdStr OR opm.op_id::text = @opIdStr OR cs.op_id::text = @opIdStr OR cs.sheet_id::text = @opIdStr))
                             OR (COALESCE(@ipIdStr, '') <> '' AND (opm.ip_id::text = @ipIdStr OR cs.ip_id::text = @ipIdStr))
                             OR (opm.sheet_id::text = @requestGuid OR opm.op_id::text = @requestGuid OR cs.op_id::text = @requestGuid OR cs.sheet_id::text = @requestGuid)
-                            OR (COALESCE(@ipIdStr, '') = '' AND COALESCE(@opIdStr, '') = '' AND @custId > 0 AND (opm.custid = @custId OR cs.custid = @custId))
+                            OR (@custId > 0 AND (opm.custid = @custId OR cs.custid = @custId))
                         )
                         AND (COALESCE(@tenant_code, '') = '' OR opd.tenant_code IS NULL OR opd.tenant_code = '' OR opd.tenant_code = @tenant_code)
                         AND COALESCE(opd.isdeleted, false) = false
@@ -4940,6 +4952,16 @@ WHERE lrd.requestguid::text = @requestguid::text
 
                 decimal rawTotal = header.TotalAmount != null ? Convert.ToDecimal(header.TotalAmount) : 0m;
                 decimal finalTotal = calcTotal > 0 ? calcTotal : rawTotal;
+
+                if (billSummaryList.Count == 0 && finalTotal > 0)
+                {
+                    billSummaryList.Add(new ConsolidatedBillSummaryItem
+                    {
+                        PrimaryCode = "100000",
+                        Particulars = "Hospital Service Charges",
+                        Amount = finalTotal
+                    });
+                }
 
                 decimal rawDiscount = header.DiscountAmount != null ? Convert.ToDecimal(header.DiscountAmount) : 0m;
                 decimal finalNet = finalTotal - rawDiscount;
@@ -5357,11 +5379,11 @@ WHERE lrd.requestguid::text = @requestguid::text
                             COALESCE(sm.unitcost, 0) AS unitcost,
                             COALESCE(sm.stockvalue, 0) AS stockvalue
                         FROM public.stock_master sm
-                        LEFT JOIN public.item_master im ON im.itemcode = sm.itemcode
-                        LEFT JOIN public.warehouse_master wm ON wm.warehousecode = sm.warehousecode
+                        LEFT JOIN public.item_master im ON im.itemcode::text = sm.itemcode::text
+                        LEFT JOIN public.warehouse_master wm ON wm.warehousecode::text = sm.warehousecode::text
                         WHERE COALESCE(sm.deleted, false) = false 
                           AND sm.tenantcode = @tenant_code
-                          AND (@warehousecode IS NULL OR @warehousecode = '' OR sm.warehousecode = CAST(NULLIF(@warehousecode, '') AS bigint))
+                          AND (COALESCE(@warehousecode, '') = '' OR sm.warehousecode::text = @warehousecode)
                         ORDER BY im.itemname, sm.batchno";
 
                     stockList = (await dbInv.QueryAsync<StockReportModel>(sqlStock, new { tenant_code, warehousecode })).ToList();
@@ -5430,29 +5452,65 @@ WHERE lrd.requestguid::text = @requestguid::text
                 using (IDbConnection dbInv = new NpgsqlConnection(inventoryConn))
                 {
                     string sqlSales = @"
-                        SELECT 
+                        SELECT DISTINCT ON (sm.salescode)
                             sm.salescode,
                             sm.billno,
                             sm.billdate,
                             sm.invoiceno,
                             sm.invoicedate,
+                            sm.patientid,
                             sm.patientname,
-                            sm.consultant,
+                            sm.salestype,
+                            COALESCE(
+                                NULLIF(sm.consultant, ''),
+                                NULLIF(sm.address, ''),
+                                ''
+                            ) AS consultant,
                             COALESCE(sm.grossamount, 0) AS grossamount,
                             COALESCE(sm.discountamount, 0) AS discountamount,
                             COALESCE(sm.taxamount, 0) AS taxamount,
                             COALESCE(sm.netamount, 0) AS netamount,
                             sm.paymentmode,
                             sm.paymentstatus,
-                            wm.warehousename
+                            CASE 
+                                WHEN LOWER(COALESCE(sm.paymentstatus, '')) = 'paid' THEN COALESCE(sm.netamount, 0) 
+                                ELSE 0 
+                            END AS paidamount,
+                            CASE 
+                                WHEN LOWER(COALESCE(sm.paymentstatus, '')) = 'paid' THEN 0 
+                                ELSE COALESCE(sm.netamount, 0) 
+                            END AS balanceamount,
+                            COALESCE(
+                                NULLIF(wm.warehousename, ''),
+                                NULLIF(wm2.warehousename, ''),
+                                NULLIF(sm.warehousefield, ''),
+                                'Main Store'
+                            ) AS warehousename
                         FROM public.sales_master sm
-                        LEFT JOIN public.warehouse_master wm ON wm.warehousecode = sm.warehousecode
+                        LEFT JOIN public.warehouse_master wm 
+                               ON (wm.warehousecode::text = sm.warehousecode::text OR wm.warehousecode::text = sm.warehousefield::text OR wm.warehousename = sm.warehousefield)
+                              AND wm.tenantcode = sm.tenantcode
+                        LEFT JOIN public.sales_detail sd 
+                               ON sd.salescode = sm.salescode AND sd.tenantcode = sm.tenantcode
+                        LEFT JOIN public.warehouse_master wm2 
+                               ON wm2.warehousecode::text = sd.warehousecode::text AND wm2.tenantcode = sd.tenantcode
                         WHERE COALESCE(sm.deleted, false) = false 
                           AND sm.tenantcode = @tenant_code
                           AND sm.billdate >= @fromdate 
                           AND sm.billdate < @todate + INTERVAL '1 day'
-                          AND (@warehousecode IS NULL OR @warehousecode = '' OR sm.warehousecode = CAST(NULLIF(@warehousecode, '') AS bigint))
-                        ORDER BY sm.billdate DESC";
+                          AND (
+                                COALESCE(@warehousecode, '') = ''
+                             OR COALESCE(@warehousecode, '') = 'null'
+                             OR COALESCE(@warehousecode, '') = 'undefined'
+                             OR COALESCE(@warehousecode, '') = 'all'
+                             OR sm.warehousecode::text = @warehousecode
+                             OR sm.warehousefield::text = @warehousecode
+                             OR sd.warehousecode::text = @warehousecode
+                             OR LOWER(wm.warehousename) = LOWER(@warehousecode)
+                             OR LOWER(wm2.warehousename) = LOWER(@warehousecode)
+                             OR LOWER(wm.shortname) = LOWER(@warehousecode)
+                          )
+                        ORDER BY sm.salescode, sm.billdate DESC";
 
                     salesList = (await dbInv.QueryAsync<SalesReportModel>(sqlSales, new { fromdate, todate, tenant_code, warehousecode })).ToList();
                 }
@@ -5489,7 +5547,7 @@ WHERE lrd.requestguid::text = @requestguid::text
                     CompanyEmail = (string?)(companyInfo?.contact_email),
                     fromdate = fromdate,
                     todate = todate,
-                    reporttype = "Sales Master Report"
+                    reporttype = "Sales Report"
                 };
 
                 var client = _httpClientFactory.CreateClient("ReportServer");
@@ -5508,6 +5566,746 @@ WHERE lrd.requestguid::text = @requestguid::text
             catch (Exception ex)
             {
                 Console.WriteLine($"Error in ReportClass.SalesReportPDF: {ex.Message}");
+                throw;
+            }
+        }
+
+        public async Task<string?> DailyBillReportPDF(DateTime fromdate, DateTime todate, string tenant_code)
+        {
+            try
+            {
+                using IDbConnection db = new NpgsqlConnection(_conn);
+
+                string sql = @"
+                    SELECT
+                        lrm.requestdatetime                         AS date,
+                        COALESCE(cm.custcode, '')                   AS custcode,
+                        CONCAT(
+                            lrm.name, 
+                            CASE 
+                                WHEN COALESCE(lrm.ageyears, '') <> '' 
+                                THEN CONCAT('-', lrm.ageyears, ' Yrs/', COALESCE(LEFT(lrm.gender, 1), '')) 
+                                ELSE '' 
+                            END
+                        )                                           AS patientname,
+                        COALESCE(dm.name, 'Self')                   AS referral,
+                        COALESCE(
+                            (
+                                SELECT STRING_AGG(COALESCE(lrd.item_name, tm.name, ''), ', ')
+                                FROM lab_request_details lrd
+                                LEFT JOIN test_master tm ON tm.tcode = lrd.tcode
+                                WHERE lrd.requestguid = lrm.requestguid
+                                  AND COALESCE(lrd.isdeleted, false) = false
+                            ),
+                            ''
+                        )                                           AS testnames,
+                        COALESCE(lrm.totalamount, 0)                AS totalamount,
+                        COALESCE(lrm.paidamount, 0)                 AS paidamount,
+                        COALESCE(lrm.totalamount - COALESCE(lrm.paidamount, 0), 0) AS balanceamount
+                    FROM lab_request_master lrm
+                    LEFT JOIN customerdb.customer_master cm ON cm.custid = lrm.custid
+                    LEFT JOIN doctor_master dm ON dm.dcode = lrm.dcode
+                    WHERE lrm.tenant_code = @tenant_code
+                      AND COALESCE(lrm.deleted, false) = false
+                      AND lrm.requestdatetime >= @fromdate
+                      AND lrm.requestdatetime < @todate + INTERVAL '1 day'
+                    ORDER BY lrm.requestdatetime;
+                ";
+
+                var rows = (await db.QueryAsync<DailyBillReportModel>(
+                    sql,
+                    new { fromdate, todate, tenant_code }))
+                    .ToList();
+
+                var companyInfo = await db.QueryFirstOrDefaultAsync<Tenant>(
+                    @"SELECT legal_name, address_line1, contact_number, contact_email
+                      FROM mastertenant.tenants
+                      WHERE tenant_code = @tenant_code",
+                    new { tenant_code });
+
+                var payload = new DailyBillReportRequest
+                {
+                    statements = rows,
+                    fromdate = fromdate,
+                    todate = todate,
+                    reportTitle = "BILLS",
+                    CompanyName = companyInfo?.legal_name,
+                    CompanyAddress = companyInfo?.address_line1,
+                    CompanyContactNo = companyInfo?.contact_number,
+                    CompanyEmail = companyInfo?.contact_email
+                };
+
+                var client = _httpClientFactory.CreateClient("ReportServer");
+                var response = await client.PostAsync(
+                    "/api/Statement/GetDailyBillReport",
+                    new StringContent(
+                        System.Text.Json.JsonSerializer.Serialize(payload),
+                        Encoding.UTF8,
+                        "application/json"));
+
+                response.EnsureSuccessStatusCode();
+                return await response.Content.ReadAsStringAsync();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error in ReportClass.DailyBillReportPDF: {ex.Message}");
+                throw;
+            }
+        }
+
+        public async Task<List<OpAndIpPatientDto>> GetOpPatientsAsync(
+            string tenant_code, 
+            DateTime? fromDate = null, 
+            DateTime? toDate = null, 
+            string? search = null)
+        {
+            try
+            {
+                using IDbConnection db = new NpgsqlConnection(_conn);
+
+                string sql = @"
+                    SELECT 
+                        'OP' AS Type,
+                        op.op_id::text AS RequestGuid,
+                        COALESCE(NULLIF(op.op_no, ''), op.op_id::text) AS Id,
+                        COALESCE(op.custid, 0) AS CustId,
+                        COALESCE(NULLIF(cm.custcode::text, ''), NULLIF(op.custid::text, ''), '') AS PatientCode,
+                        COALESCE(NULLIF(cm.name, ''), 'Patient') AS PatientName,
+                        CONCAT(COALESCE(cm.ageyears, 0), ' Y ', COALESCE(cm.agemonths, 0), ' M') AS Age,
+                        COALESCE(NULLIF(cm.gender, ''), '') AS Gender,
+                        COALESCE(NULLIF(cm.mobile, ''), NULLIF(cm.phone, ''), '') AS MobileNo,
+                        COALESCE(NULLIF(dm.doctorfullname, ''), NULLIF(dm.name, ''), 'SELF') AS DoctorName,
+                        COALESCE(op.visit_date, NOW()) AS VisitDate,
+                        NULL::timestamp AS DischargeDate,
+                        '-' AS BedNo
+                    FROM op_registration op
+                    LEFT JOIN customerdb.customer_master cm ON cm.custid = op.custid
+                    LEFT JOIN doctor_master dm ON dm.dcode = op.dcode
+                    WHERE (COALESCE(@tenant_code, '') = '' OR op.tenant_code IS NULL OR op.tenant_code = '' OR op.tenant_code = @tenant_code)
+                      AND (@fromDate IS NULL OR op.visit_date >= @fromDate)
+                      AND (@toDate IS NULL OR op.visit_date <= @toDate)
+                      AND (@search IS NULL OR @search = '' 
+                           OR LOWER(cm.name) LIKE LOWER(CONCAT('%', @search, '%'))
+                           OR LOWER(cm.custcode::text) LIKE LOWER(CONCAT('%', @search, '%'))
+                           OR LOWER(op.op_no) LIKE LOWER(CONCAT('%', @search, '%'))
+                           OR LOWER(cm.mobile) LIKE LOWER(CONCAT('%', @search, '%')))
+                    ORDER BY op.visit_date DESC";
+
+                var list = (await db.QueryAsync<OpAndIpPatientDto>(
+                    sql, 
+                    new { tenant_code, fromDate, toDate, search }, 
+                    commandTimeout: 120)).ToList();
+
+                return list;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error in ReportClass.GetOpPatientsAsync: {ex.Message}");
+                return new List<OpAndIpPatientDto>();
+            }
+        }
+
+        public async Task<List<OpAndIpPatientDto>> GetIpPatientsAsync(
+            string tenant_code, 
+            DateTime? fromDate = null, 
+            DateTime? toDate = null, 
+            string? search = null)
+        {
+            try
+            {
+                using IDbConnection db = new NpgsqlConnection(_conn);
+
+                string sql = @"
+                    SELECT 
+                        'IP' AS Type,
+                        ip.ip_id::text AS RequestGuid,
+                        COALESCE(NULLIF(ip.ip_no, ''), ip.ip_id::text) AS Id,
+                        COALESCE(ip.custid, 0) AS CustId,
+                        COALESCE(NULLIF(cm.custcode::text, ''), NULLIF(ip.custid::text, ''), '') AS PatientCode,
+                        COALESCE(NULLIF(cm.name, ''), 'Patient') AS PatientName,
+                        CONCAT(COALESCE(cm.ageyears, 0), ' Y ', COALESCE(cm.agemonths, 0), ' M') AS Age,
+                        COALESCE(NULLIF(cm.gender, ''), '') AS Gender,
+                        COALESCE(NULLIF(cm.mobile, ''), NULLIF(cm.phone, ''), '') AS MobileNo,
+                        COALESCE(NULLIF(dm.doctorfullname, ''), NULLIF(dm.name, ''), 'SELF') AS DoctorName,
+                        COALESCE(ip.admitdate, NOW()) AS VisitDate,
+                        ip.dischargedate AS DischargeDate,
+                        COALESCE(bm.bedname, ip.bedcode::text, '-') AS BedNo
+                    FROM ip_registration ip
+                    LEFT JOIN customerdb.customer_master cm ON cm.custid = ip.custid
+                    LEFT JOIN doctor_master dm ON dm.dcode = ip.dcode
+                    LEFT JOIN public.bed_master bm ON bm.bedcode = ip.bedcode AND bm.tenant_code = ip.tenant_code
+                    WHERE (COALESCE(@tenant_code, '') = '' OR ip.tenant_code IS NULL OR ip.tenant_code = '' OR ip.tenant_code = @tenant_code)
+                      AND (@fromDate IS NULL OR ip.admitdate >= @fromDate)
+                      AND (@toDate IS NULL OR ip.admitdate <= @toDate)
+                      AND (@search IS NULL OR @search = '' 
+                           OR LOWER(cm.name) LIKE LOWER(CONCAT('%', @search, '%'))
+                           OR LOWER(cm.custcode::text) LIKE LOWER(CONCAT('%', @search, '%'))
+                           OR LOWER(ip.ip_no) LIKE LOWER(CONCAT('%', @search, '%'))
+                           OR LOWER(cm.mobile) LIKE LOWER(CONCAT('%', @search, '%')))
+                    ORDER BY ip.admitdate DESC";
+
+                var list = (await db.QueryAsync<OpAndIpPatientDto>(
+                    sql, 
+                    new { tenant_code, fromDate, toDate, search }, 
+                    commandTimeout: 120)).ToList();
+
+                return list;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error in ReportClass.GetIpPatientsAsync: {ex.Message}");
+                return new List<OpAndIpPatientDto>();
+            }
+        }
+
+        public async Task<string> GetOpReportPDF(DateTime fromdate, DateTime todate, string tenant_code)
+        {
+            try
+            {
+                using IDbConnection db = new NpgsqlConnection(_conn);
+
+                string sql = @"
+                    SELECT 
+                        COALESCE(op.visit_date, NOW()) AS date,
+                        COALESCE(NULLIF(cm.custcode::text, ''), NULLIF(op.custid::text, ''), '') AS custcode,
+                        COALESCE(NULLIF(cm.name, ''), 'Patient') AS patientname,
+                        COALESCE(NULLIF(dm.doctorfullname, ''), NULLIF(dm.name, ''), 'SELF') AS referral,
+                        COALESCE(
+                            NULLIF(
+                                CONCAT_WS(', ',
+                                    (
+                                        SELECT STRING_AGG(DISTINCT COALESCE(NULLIF(tm.name, ''), NULLIF(dm_uc.doctorfullname, ''), NULLIF(dm_uc.name, ''), uc.tcode::text), ', ')
+                                        FROM unbilledcharges uc
+                                        LEFT JOIN test_master tm ON tm.tcode::text = uc.tcode::text
+                                        LEFT JOIN doctor_master dm_uc ON dm_uc.dcode::text = uc.tcode::text
+                                        WHERE uc.opvisitid = op.op_id::text
+                                          AND COALESCE(uc.billedstatus, false) = false
+                                    ),
+                                    (
+                                        SELECT STRING_AGG(DISTINCT tm.name, ', ')
+                                        FROM lab_request_master lrm
+                                        JOIN lab_request_details lrd ON lrd.requestguid = lrm.requestguid
+                                        JOIN test_master tm ON tm.tcode = lrd.tcode
+                                        WHERE (lrm.opvisitid = op.op_id::text OR lrm.sheet_id = op.op_id::text)
+                                          AND COALESCE(lrm.deleted, false) = false
+                                          AND COALESCE(lrd.isdeleted, false) = false
+                                    )
+                                ), ''
+                            ),
+                            'OP Consultation & Services'
+                        ) AS testnames,
+                        COALESCE(
+                            NULLIF((
+                                SELECT SUM(amt) FROM (
+                                    SELECT SUM(CASE WHEN uc.amount = 0 THEN COALESCE(uc.quantity, 1) * COALESCE(uc.rate, 0) ELSE uc.amount END) AS amt
+                                    FROM unbilledcharges uc WHERE uc.opvisitid = op.op_id::text
+                                    UNION ALL
+                                    SELECT SUM(COALESCE(lrm.totalamount, 0)) AS amt
+                                    FROM lab_request_master lrm WHERE (lrm.opvisitid = op.op_id::text OR lrm.sheet_id = op.op_id::text) AND COALESCE(lrm.deleted, false) = false
+                                ) t
+                            ), 0),
+                            COALESCE(NULLIF(dm.opcharge, 0), 250)
+                        ) AS totalamount,
+                        COALESCE(
+                            (
+                                SELECT SUM(amt) FROM (
+                                    SELECT SUM(COALESCE(lrm.paidamount, 0)) AS amt
+                                    FROM lab_request_master lrm WHERE (lrm.opvisitid = op.op_id::text OR lrm.sheet_id = op.op_id::text) AND COALESCE(lrm.deleted, false) = false
+                                    UNION ALL
+                                    SELECT SUM(COALESCE(rm.amountpaid, 0)) AS amt
+                                    FROM receipt_master rm WHERE rm.opvisitid = op.op_id::text AND COALESCE(rm.deleted, false) = false
+                                ) t
+                            ), 0
+                        ) AS paidamount,
+                        GREATEST(0,
+                            COALESCE(
+                                NULLIF((
+                                    SELECT SUM(amt) FROM (
+                                        SELECT SUM(CASE WHEN uc.amount = 0 THEN COALESCE(uc.quantity, 1) * COALESCE(uc.rate, 0) ELSE uc.amount END) AS amt
+                                        FROM unbilledcharges uc WHERE uc.opvisitid = op.op_id::text
+                                        UNION ALL
+                                        SELECT SUM(COALESCE(lrm.totalamount, 0)) AS amt
+                                        FROM lab_request_master lrm WHERE (lrm.opvisitid = op.op_id::text OR lrm.sheet_id = op.op_id::text) AND COALESCE(lrm.deleted, false) = false
+                                    ) t
+                                ), 0),
+                                COALESCE(NULLIF(dm.opcharge, 0), 250)
+                            ) - 
+                            COALESCE(
+                                (
+                                    SELECT SUM(amt) FROM (
+                                        SELECT SUM(COALESCE(lrm.paidamount, 0)) AS amt
+                                        FROM lab_request_master lrm WHERE (lrm.opvisitid = op.op_id::text OR lrm.sheet_id = op.op_id::text) AND COALESCE(lrm.deleted, false) = false
+                                        UNION ALL
+                                        SELECT SUM(COALESCE(rm.amountpaid, 0)) AS amt
+                                        FROM receipt_master rm WHERE rm.opvisitid = op.op_id::text AND COALESCE(rm.deleted, false) = false
+                                    ) t
+                                ), 0
+                            )
+                        ) AS balanceamount
+                    FROM op_registration op
+                    LEFT JOIN customerdb.customer_master cm ON cm.custid = op.custid
+                    LEFT JOIN doctor_master dm ON dm.dcode = op.dcode
+                    WHERE (COALESCE(@tenant_code, '') = '' OR op.tenant_code IS NULL OR op.tenant_code = '' OR op.tenant_code = @tenant_code)
+                      AND op.visit_date >= @fromdate
+                      AND op.visit_date < @todate + INTERVAL '1 day'
+                      AND COALESCE(op.isdeleted, false) = false
+                    ORDER BY op.visit_date;
+                ";
+
+                var rows = (await db.QueryAsync<DailyBillReportModel>(
+                    sql,
+                    new { fromdate, todate, tenant_code },
+                    commandTimeout: 120))
+                    .ToList();
+
+                var companyInfo = await db.QueryFirstOrDefaultAsync<Tenant>(
+                    @"SELECT legal_name, address_line1, contact_number, contact_email
+                      FROM mastertenant.tenants
+                      WHERE tenant_code = @tenant_code",
+                    new { tenant_code },
+                    commandTimeout: 120);
+
+                var payload = new DailyBillReportRequest
+                {
+                    statements = rows,
+                    fromdate = fromdate,
+                    todate = todate,
+                    reportTitle = "OP LIST",
+                    CompanyName = companyInfo?.legal_name,
+                    CompanyAddress = companyInfo?.address_line1,
+                    CompanyContactNo = companyInfo?.contact_number,
+                    CompanyEmail = companyInfo?.contact_email
+                };
+
+                var client = _httpClientFactory.CreateClient("ReportServer");
+                var response = await client.PostAsync(
+                    "/api/Statement/GetDailyBillReport",
+                    new StringContent(
+                        System.Text.Json.JsonSerializer.Serialize(payload),
+                        Encoding.UTF8,
+                        "application/json"));
+
+                response.EnsureSuccessStatusCode();
+                return await response.Content.ReadAsStringAsync();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error in ReportClass.GetOpReportPDF: {ex.Message}");
+                throw;
+            }
+        }
+
+        public async Task<string> GetIpReportPDF(DateTime fromdate, DateTime todate, string tenant_code)
+        {
+            try
+            {
+                using IDbConnection db = new NpgsqlConnection(_conn);
+
+                string sql = @"
+                    SELECT 
+                        COALESCE(ip.admitdate, NOW()) AS date,
+                        COALESCE(NULLIF(cm.custcode::text, ''), NULLIF(ip.custid::text, ''), '') AS custcode,
+                        COALESCE(NULLIF(cm.name, ''), 'Patient') AS patientname,
+                        COALESCE(NULLIF(dm.doctorfullname, ''), NULLIF(dm.name, ''), 'SELF') AS referral,
+                        COALESCE(
+                            NULLIF(
+                                CONCAT_WS(', ',
+                                    (
+                                        SELECT STRING_AGG(DISTINCT COALESCE(NULLIF(tm.name, ''), NULLIF(rm.name, ''), NULLIF(bm_uc.bedname, ''), uc.tcode::text), ', ')
+                                        FROM unbilledcharges uc
+                                        LEFT JOIN test_master tm ON tm.tcode::text = uc.tcode::text
+                                        LEFT JOIN public.roomtype_master rm ON rm.rmtcode = uc.tcode AND rm.tenant_code = uc.tenant_code
+                                        LEFT JOIN public.bed_master bm_uc ON bm_uc.bedcode = uc.bedcode AND bm_uc.tenant_code = uc.tenant_code
+                                        WHERE uc.ip_id::text = ip.ip_id::text
+                                          AND COALESCE(uc.billedstatus, false) = false
+                                    ),
+                                    (
+                                        SELECT STRING_AGG(DISTINCT tm.name, ', ')
+                                        FROM lab_request_master lrm
+                                        JOIN lab_request_details lrd ON lrd.requestguid = lrm.requestguid
+                                        JOIN test_master tm ON tm.tcode = lrd.tcode
+                                        WHERE lrm.ip_id::text = ip.ip_id::text
+                                          AND COALESCE(lrm.deleted, false) = false
+                                          AND COALESCE(lrd.isdeleted, false) = false
+                                    )
+                                ), ''
+                            ),
+                            CONCAT_WS(' - ', 'IP Services & Room', NULLIF(bm.bedname, ''))
+                        ) AS testnames,
+                        COALESCE(
+                            NULLIF((
+                                SELECT SUM(amt) FROM (
+                                    SELECT SUM(CASE WHEN uc.amount = 0 THEN COALESCE(uc.quantity, 1) * COALESCE(uc.rate, 0) ELSE uc.amount END) AS amt
+                                    FROM unbilledcharges uc WHERE uc.ip_id::text = ip.ip_id::text
+                                    UNION ALL
+                                    SELECT SUM(COALESCE(lrm.totalamount, 0)) AS amt
+                                    FROM lab_request_master lrm WHERE lrm.ip_id::text = ip.ip_id::text AND COALESCE(lrm.deleted, false) = false
+                                ) t
+                            ), 0),
+                            COALESCE(ip.insurance_approved_amount, 1000)
+                        ) AS totalamount,
+                        COALESCE(
+                            (
+                                SELECT SUM(amt) FROM (
+                                    SELECT SUM(COALESCE(lrm.paidamount, 0)) AS amt
+                                    FROM lab_request_master lrm WHERE lrm.ip_id::text = ip.ip_id::text AND COALESCE(lrm.deleted, false) = false
+                                    UNION ALL
+                                    SELECT SUM(COALESCE(ra.advanceamount, 0)) AS amt
+                                    FROM receipt_advances ra WHERE ra.custid = ip.custid AND COALESCE(ra.deleted, false) = false
+                                ) t
+                            ), 0
+                        ) AS paidamount,
+                        GREATEST(0,
+                            COALESCE(
+                                NULLIF((
+                                    SELECT SUM(amt) FROM (
+                                        SELECT SUM(CASE WHEN uc.amount = 0 THEN COALESCE(uc.quantity, 1) * COALESCE(uc.rate, 0) ELSE uc.amount END) AS amt
+                                        FROM unbilledcharges uc WHERE uc.ip_id::text = ip.ip_id::text
+                                        UNION ALL
+                                        SELECT SUM(COALESCE(lrm.totalamount, 0)) AS amt
+                                        FROM lab_request_master lrm WHERE lrm.ip_id::text = ip.ip_id::text AND COALESCE(lrm.deleted, false) = false
+                                    ) t
+                                ), 0),
+                                COALESCE(ip.insurance_approved_amount, 1000)
+                            ) - 
+                            COALESCE(
+                                (
+                                    SELECT SUM(amt) FROM (
+                                        SELECT SUM(COALESCE(lrm.paidamount, 0)) AS amt
+                                        FROM lab_request_master lrm WHERE lrm.ip_id::text = ip.ip_id::text AND COALESCE(lrm.deleted, false) = false
+                                        UNION ALL
+                                        SELECT SUM(COALESCE(ra.advanceamount, 0)) AS amt
+                                        FROM receipt_advances ra WHERE ra.custid = ip.custid AND COALESCE(ra.deleted, false) = false
+                                    ) t
+                                ), 0
+                            )
+                        ) AS balanceamount
+                    FROM ip_registration ip
+                    LEFT JOIN customerdb.customer_master cm ON cm.custid = ip.custid
+                    LEFT JOIN doctor_master dm ON dm.dcode = ip.dcode
+                    LEFT JOIN public.bed_master bm ON bm.bedcode = ip.bedcode AND bm.tenant_code = ip.tenant_code
+                    WHERE (COALESCE(@tenant_code, '') = '' OR ip.tenant_code IS NULL OR ip.tenant_code = '' OR ip.tenant_code = @tenant_code)
+                      AND ip.admitdate >= @fromdate
+                      AND ip.admitdate < @todate + INTERVAL '1 day'
+                      AND COALESCE(ip.deleted, false) = false
+                    ORDER BY ip.admitdate;
+                ";
+
+                var rows = (await db.QueryAsync<DailyBillReportModel>(
+                    sql,
+                    new { fromdate, todate, tenant_code },
+                    commandTimeout: 120))
+                    .ToList();
+
+                var companyInfo = await db.QueryFirstOrDefaultAsync<Tenant>(
+                    @"SELECT legal_name, address_line1, contact_number, contact_email
+                      FROM mastertenant.tenants
+                      WHERE tenant_code = @tenant_code",
+                    new { tenant_code },
+                    commandTimeout: 120);
+
+                var payload = new DailyBillReportRequest
+                {
+                    statements = rows,
+                    fromdate = fromdate,
+                    todate = todate,
+                    reportTitle = "IP LIST",
+                    CompanyName = companyInfo?.legal_name,
+                    CompanyAddress = companyInfo?.address_line1,
+                    CompanyContactNo = companyInfo?.contact_number,
+                    CompanyEmail = companyInfo?.contact_email
+                };
+
+                var client = _httpClientFactory.CreateClient("ReportServer");
+                var response = await client.PostAsync(
+                    "/api/Statement/GetDailyBillReport",
+                    new StringContent(
+                        System.Text.Json.JsonSerializer.Serialize(payload),
+                        Encoding.UTF8,
+                        "application/json"));
+
+                response.EnsureSuccessStatusCode();
+                return await response.Content.ReadAsStringAsync();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error in ReportClass.GetIpReportPDF: {ex.Message}");
+                throw;
+            }
+        }
+
+        public async Task<string> GetDoctorwiseOpReportPDF(DateTime fromdate, DateTime todate, string tenant_code)
+        {
+            try
+            {
+                using IDbConnection db = new NpgsqlConnection(_conn);
+
+                string sql = @"
+                    SELECT 
+                        COALESCE(op.visit_date, NOW()) AS date,
+                        COALESCE(NULLIF(cm.custcode::text, ''), NULLIF(op.custid::text, ''), '') AS custcode,
+                        COALESCE(NULLIF(cm.name, ''), 'Patient') AS patientname,
+                        COALESCE(NULLIF(dm.doctorfullname, ''), NULLIF(dm.name, ''), 'SELF') AS referral,
+                        COALESCE(
+                            NULLIF(
+                                CONCAT_WS(', ',
+                                    (
+                                        SELECT STRING_AGG(DISTINCT COALESCE(NULLIF(tm.name, ''), NULLIF(dm_uc.doctorfullname, ''), NULLIF(dm_uc.name, ''), uc.tcode::text), ', ')
+                                        FROM unbilledcharges uc
+                                        LEFT JOIN test_master tm ON tm.tcode::text = uc.tcode::text
+                                        LEFT JOIN doctor_master dm_uc ON dm_uc.dcode::text = uc.tcode::text
+                                        WHERE uc.opvisitid = op.op_id::text
+                                          AND COALESCE(uc.billedstatus, false) = false
+                                    ),
+                                    (
+                                        SELECT STRING_AGG(DISTINCT tm.name, ', ')
+                                        FROM lab_request_master lrm
+                                        JOIN lab_request_details lrd ON lrd.requestguid = lrm.requestguid
+                                        JOIN test_master tm ON tm.tcode = lrd.tcode
+                                        WHERE (lrm.opvisitid = op.op_id::text OR lrm.sheet_id = op.op_id::text)
+                                          AND COALESCE(lrm.deleted, false) = false
+                                          AND COALESCE(lrd.isdeleted, false) = false
+                                    )
+                                ), ''
+                            ),
+                            'OP Consultation & Services'
+                        ) AS testnames,
+                        COALESCE(
+                            NULLIF((
+                                SELECT SUM(amt) FROM (
+                                    SELECT SUM(CASE WHEN uc.amount = 0 THEN COALESCE(uc.quantity, 1) * COALESCE(uc.rate, 0) ELSE uc.amount END) AS amt
+                                    FROM unbilledcharges uc WHERE uc.opvisitid = op.op_id::text
+                                    UNION ALL
+                                    SELECT SUM(COALESCE(lrm.totalamount, 0)) AS amt
+                                    FROM lab_request_master lrm WHERE (lrm.opvisitid = op.op_id::text OR lrm.sheet_id = op.op_id::text) AND COALESCE(lrm.deleted, false) = false
+                                ) t
+                            ), 0),
+                            COALESCE(NULLIF(dm.opcharge, 0), 250)
+                        ) AS totalamount,
+                        COALESCE(
+                            (
+                                SELECT SUM(amt) FROM (
+                                    SELECT SUM(COALESCE(lrm.paidamount, 0)) AS amt
+                                    FROM lab_request_master lrm WHERE (lrm.opvisitid = op.op_id::text OR lrm.sheet_id = op.op_id::text) AND COALESCE(lrm.deleted, false) = false
+                                    UNION ALL
+                                    SELECT SUM(COALESCE(rm.amountpaid, 0)) AS amt
+                                    FROM receipt_master rm WHERE rm.opvisitid = op.op_id::text AND COALESCE(rm.deleted, false) = false
+                                ) t
+                            ), 0
+                        ) AS paidamount,
+                        GREATEST(0,
+                            COALESCE(
+                                NULLIF((
+                                    SELECT SUM(amt) FROM (
+                                        SELECT SUM(CASE WHEN uc.amount = 0 THEN COALESCE(uc.quantity, 1) * COALESCE(uc.rate, 0) ELSE uc.amount END) AS amt
+                                        FROM unbilledcharges uc WHERE uc.opvisitid = op.op_id::text
+                                        UNION ALL
+                                        SELECT SUM(COALESCE(lrm.totalamount, 0)) AS amt
+                                        FROM lab_request_master lrm WHERE (lrm.opvisitid = op.op_id::text OR lrm.sheet_id = op.op_id::text) AND COALESCE(lrm.deleted, false) = false
+                                    ) t
+                                ), 0),
+                                COALESCE(NULLIF(dm.opcharge, 0), 250)
+                            ) - 
+                            COALESCE(
+                                (
+                                    SELECT SUM(amt) FROM (
+                                        SELECT SUM(COALESCE(lrm.paidamount, 0)) AS amt
+                                        FROM lab_request_master lrm WHERE (lrm.opvisitid = op.op_id::text OR lrm.sheet_id = op.op_id::text) AND COALESCE(lrm.deleted, false) = false
+                                        UNION ALL
+                                        SELECT SUM(COALESCE(rm.amountpaid, 0)) AS amt
+                                        FROM receipt_master rm WHERE rm.opvisitid = op.op_id::text AND COALESCE(rm.deleted, false) = false
+                                    ) t
+                                ), 0
+                            )
+                        ) AS balanceamount
+                    FROM op_registration op
+                    LEFT JOIN customerdb.customer_master cm ON cm.custid = op.custid
+                    LEFT JOIN doctor_master dm ON dm.dcode = op.dcode
+                    WHERE (COALESCE(@tenant_code, '') = '' OR op.tenant_code IS NULL OR op.tenant_code = '' OR op.tenant_code = @tenant_code)
+                      AND op.visit_date >= @fromdate
+                      AND op.visit_date < @todate + INTERVAL '1 day'
+                      AND COALESCE(op.isdeleted, false) = false
+                    ORDER BY dm.doctorfullname, op.visit_date;
+                ";
+
+                var rows = (await db.QueryAsync<DailyBillReportModel>(
+                    sql,
+                    new { fromdate, todate, tenant_code },
+                    commandTimeout: 120))
+                    .ToList();
+
+                var companyInfo = await db.QueryFirstOrDefaultAsync<Tenant>(
+                    @"SELECT legal_name, address_line1, contact_number, contact_email
+                      FROM mastertenant.tenants
+                      WHERE tenant_code = @tenant_code",
+                    new { tenant_code },
+                    commandTimeout: 120);
+
+                var payload = new DailyBillReportRequest
+                {
+                    statements = rows,
+                    fromdate = fromdate,
+                    todate = todate,
+                    reportTitle = "Doctor OP List",
+                    CompanyName = companyInfo?.legal_name,
+                    CompanyAddress = companyInfo?.address_line1,
+                    CompanyContactNo = companyInfo?.contact_number,
+                    CompanyEmail = companyInfo?.contact_email
+                };
+
+                var client = _httpClientFactory.CreateClient("ReportServer");
+                var response = await client.PostAsync(
+                    "/api/Statement/GetDailyBillReport",
+                    new StringContent(
+                        System.Text.Json.JsonSerializer.Serialize(payload),
+                        Encoding.UTF8,
+                        "application/json"));
+
+                response.EnsureSuccessStatusCode();
+                return await response.Content.ReadAsStringAsync();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error in ReportClass.GetDoctorwiseOpReportPDF: {ex.Message}");
+                throw;
+            }
+        }
+
+        public async Task<string> GetDoctorwiseIpReportPDF(DateTime fromdate, DateTime todate, string tenant_code)
+        {
+            try
+            {
+                using IDbConnection db = new NpgsqlConnection(_conn);
+
+                string sql = @"
+                    SELECT 
+                        COALESCE(ip.admitdate, NOW()) AS date,
+                        COALESCE(NULLIF(cm.custcode::text, ''), NULLIF(ip.custid::text, ''), '') AS custcode,
+                        COALESCE(NULLIF(cm.name, ''), 'Patient') AS patientname,
+                        COALESCE(NULLIF(dm.doctorfullname, ''), NULLIF(dm.name, ''), 'SELF') AS referral,
+                        COALESCE(
+                            NULLIF(
+                                CONCAT_WS(', ',
+                                    (
+                                        SELECT STRING_AGG(DISTINCT COALESCE(NULLIF(tm.name, ''), NULLIF(rm.name, ''), NULLIF(bm_uc.bedname, ''), uc.tcode::text), ', ')
+                                        FROM unbilledcharges uc
+                                        LEFT JOIN test_master tm ON tm.tcode::text = uc.tcode::text
+                                        LEFT JOIN public.roomtype_master rm ON rm.rmtcode = uc.tcode AND rm.tenant_code = uc.tenant_code
+                                        LEFT JOIN public.bed_master bm_uc ON bm_uc.bedcode = uc.bedcode AND bm_uc.tenant_code = uc.tenant_code
+                                        WHERE uc.ip_id::text = ip.ip_id::text
+                                          AND COALESCE(uc.billedstatus, false) = false
+                                    ),
+                                    (
+                                        SELECT STRING_AGG(DISTINCT tm.name, ', ')
+                                        FROM lab_request_master lrm
+                                        JOIN lab_request_details lrd ON lrd.requestguid = lrm.requestguid
+                                        JOIN test_master tm ON tm.tcode = lrd.tcode
+                                        WHERE lrm.ip_id::text = ip.ip_id::text
+                                          AND COALESCE(lrm.deleted, false) = false
+                                          AND COALESCE(lrd.isdeleted, false) = false
+                                    )
+                                ), ''
+                            ),
+                            CONCAT_WS(' - ', 'IP Services & Room', NULLIF(bm.bedname, ''))
+                        ) AS testnames,
+                        COALESCE(
+                            NULLIF((
+                                SELECT SUM(amt) FROM (
+                                    SELECT SUM(CASE WHEN uc.amount = 0 THEN COALESCE(uc.quantity, 1) * COALESCE(uc.rate, 0) ELSE uc.amount END) AS amt
+                                    FROM unbilledcharges uc WHERE uc.ip_id::text = ip.ip_id::text
+                                    UNION ALL
+                                    SELECT SUM(COALESCE(lrm.totalamount, 0)) AS amt
+                                    FROM lab_request_master lrm WHERE lrm.ip_id::text = ip.ip_id::text AND COALESCE(lrm.deleted, false) = false
+                                ) t
+                            ), 0),
+                            COALESCE(ip.insurance_approved_amount, 1000)
+                        ) AS totalamount,
+                        COALESCE(
+                            (
+                                SELECT SUM(amt) FROM (
+                                    SELECT SUM(COALESCE(lrm.paidamount, 0)) AS amt
+                                    FROM lab_request_master lrm WHERE lrm.ip_id::text = ip.ip_id::text AND COALESCE(lrm.deleted, false) = false
+                                    UNION ALL
+                                    SELECT SUM(COALESCE(ra.advanceamount, 0)) AS amt
+                                    FROM receipt_advances ra WHERE ra.custid = ip.custid AND COALESCE(ra.deleted, false) = false
+                                ) t
+                            ), 0
+                        ) AS paidamount,
+                        GREATEST(0,
+                            COALESCE(
+                                NULLIF((
+                                    SELECT SUM(amt) FROM (
+                                        SELECT SUM(CASE WHEN uc.amount = 0 THEN COALESCE(uc.quantity, 1) * COALESCE(uc.rate, 0) ELSE uc.amount END) AS amt
+                                        FROM unbilledcharges uc WHERE uc.ip_id::text = ip.ip_id::text
+                                        UNION ALL
+                                        SELECT SUM(COALESCE(lrm.totalamount, 0)) AS amt
+                                        FROM lab_request_master lrm WHERE lrm.ip_id::text = ip.ip_id::text AND COALESCE(lrm.deleted, false) = false
+                                    ) t
+                                ), 0),
+                                COALESCE(ip.insurance_approved_amount, 1000)
+                            ) - 
+                            COALESCE(
+                                (
+                                    SELECT SUM(amt) FROM (
+                                        SELECT SUM(COALESCE(lrm.paidamount, 0)) AS amt
+                                        FROM lab_request_master lrm WHERE lrm.ip_id::text = ip.ip_id::text AND COALESCE(lrm.deleted, false) = false
+                                        UNION ALL
+                                        SELECT SUM(COALESCE(ra.advanceamount, 0)) AS amt
+                                        FROM receipt_advances ra WHERE ra.custid = ip.custid AND COALESCE(ra.deleted, false) = false
+                                    ) t
+                                ), 0
+                            )
+                        ) AS balanceamount
+                    FROM ip_registration ip
+                    LEFT JOIN customerdb.customer_master cm ON cm.custid = ip.custid
+                    LEFT JOIN doctor_master dm ON dm.dcode = ip.dcode
+                    LEFT JOIN public.bed_master bm ON bm.bedcode = ip.bedcode AND bm.tenant_code = ip.tenant_code
+                    WHERE (COALESCE(@tenant_code, '') = '' OR ip.tenant_code IS NULL OR ip.tenant_code = '' OR ip.tenant_code = @tenant_code)
+                      AND ip.admitdate >= @fromdate
+                      AND ip.admitdate < @todate + INTERVAL '1 day'
+                      AND COALESCE(ip.deleted, false) = false
+                    ORDER BY dm.doctorfullname, ip.admitdate;
+                ";
+
+                var rows = (await db.QueryAsync<DailyBillReportModel>(
+                    sql,
+                    new { fromdate, todate, tenant_code },
+                    commandTimeout: 120))
+                    .ToList();
+
+                var companyInfo = await db.QueryFirstOrDefaultAsync<Tenant>(
+                    @"SELECT legal_name, address_line1, contact_number, contact_email
+                      FROM mastertenant.tenants
+                      WHERE tenant_code = @tenant_code",
+                    new { tenant_code },
+                    commandTimeout: 120);
+
+                var payload = new DailyBillReportRequest
+                {
+                    statements = rows,
+                    fromdate = fromdate,
+                    todate = todate,
+                    reportTitle = "Doctor IP List",
+                    CompanyName = companyInfo?.legal_name,
+                    CompanyAddress = companyInfo?.address_line1,
+                    CompanyContactNo = companyInfo?.contact_number,
+                    CompanyEmail = companyInfo?.contact_email
+                };
+
+                var client = _httpClientFactory.CreateClient("ReportServer");
+                var response = await client.PostAsync(
+                    "/api/Statement/GetDailyBillReport",
+                    new StringContent(
+                        System.Text.Json.JsonSerializer.Serialize(payload),
+                        Encoding.UTF8,
+                        "application/json"));
+
+                response.EnsureSuccessStatusCode();
+                return await response.Content.ReadAsStringAsync();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error in ReportClass.GetDoctorwiseIpReportPDF: {ex.Message}");
                 throw;
             }
         }

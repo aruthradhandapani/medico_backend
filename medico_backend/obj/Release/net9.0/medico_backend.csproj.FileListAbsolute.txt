@@ -108,3 +108,4 @@ d:\medico_backend\medico_backend\obj\Release\net9.0\refint\medico_backend.dll
 d:\medico_backend\medico_backend\obj\Release\net9.0\medico_backend.pdb
 d:\medico_backend\medico_backend\obj\Release\net9.0\medico_backend.genruntimeconfig.cache
 d:\medico_backend\medico_backend\obj\Release\net9.0\ref\medico_backend.dll
+D:\medico_backend\medico_backend\obj\Release\net9.0\staticwebassets.upToDateCheck.txt

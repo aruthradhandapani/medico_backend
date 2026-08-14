@@ -106,6 +106,13 @@ namespace medico_backend.Controllers
             return Ok(res);
         }
 
+        [HttpGet("getdailybillreport")]
+        public async Task<IActionResult> DailyBillReport([FromQuery] DateTime fromdate, [FromQuery] DateTime todate)
+        {
+            var res = await _reportClass.DailyBillReportPDF(fromdate, todate, T);
+            return Ok(res);
+        }
+
         [HttpGet("getreferralreceipt")]
         public async Task<IActionResult> ReferralReceipt([FromQuery] Guid receiptguid, [FromQuery] bool? isletterhead = false)
         {
@@ -234,6 +241,46 @@ namespace medico_backend.Controllers
                 return BadRequest(new { success = false, message = "tenant_code header required" });
 
             var res = await _reportClass.SalesReportPDF(fromdate, todate, T, warehousecode);
+            return Ok(res);
+        }
+
+        [HttpGet("getdoctorwiseop")]
+        public async Task<IActionResult> GetDoctorwiseOpReport([FromQuery] DateTime fromdate, [FromQuery] DateTime todate)
+        {
+            if (string.IsNullOrWhiteSpace(T))
+                return BadRequest(new { success = false, message = "tenant_code header required" });
+
+            var res = await _reportClass.GetDoctorwiseOpReportPDF(fromdate, todate, T);
+            return Ok(res);
+        }
+
+        [HttpGet("getdoctorwiseip")]
+        public async Task<IActionResult> GetDoctorwiseIpReport([FromQuery] DateTime fromdate, [FromQuery] DateTime todate)
+        {
+            if (string.IsNullOrWhiteSpace(T))
+                return BadRequest(new { success = false, message = "tenant_code header required" });
+
+            var res = await _reportClass.GetDoctorwiseIpReportPDF(fromdate, todate, T);
+            return Ok(res);
+        }
+
+        [HttpGet("getop")]
+        public async Task<IActionResult> GetOpReport([FromQuery] DateTime fromdate, [FromQuery] DateTime todate)
+        {
+            if (string.IsNullOrWhiteSpace(T))
+                return BadRequest(new { success = false, message = "tenant_code header required" });
+
+            var res = await _reportClass.GetOpReportPDF(fromdate, todate, T);
+            return Ok(res);
+        }
+
+        [HttpGet("getip")]
+        public async Task<IActionResult> GetIpReport([FromQuery] DateTime fromdate, [FromQuery] DateTime todate)
+        {
+            if (string.IsNullOrWhiteSpace(T))
+                return BadRequest(new { success = false, message = "tenant_code header required" });
+
+            var res = await _reportClass.GetIpReportPDF(fromdate, todate, T);
             return Ok(res);
         }
     }

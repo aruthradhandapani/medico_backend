@@ -1,0 +1,6 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<parameters>
+  <parameter name="IIS Web Application Name" description="" value="/MedicoAPI" tags="IisApp">
+    <parameterEntry kind="ProviderPath" scope="IisApp" match="^D:\\medico_backend\\medico_backend\\obj\\Release\\net9\.0\\PubTmp\\Out\\$" />
+  </parameter>
+</parameters>

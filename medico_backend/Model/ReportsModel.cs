@@ -1254,4 +1254,47 @@ namespace medico_backend.Model
         public string? TestCategory { get; set; }
         public decimal Quantity { get; set; }
     }
+
+    public class DailyBillReportModel
+    {
+        public DateTime date { get; set; }
+        public string custcode { get; set; }
+        public string patientname { get; set; }
+        public string? referral { get; set; }
+        public string? testnames { get; set; }
+        public decimal totalamount { get; set; }
+        public decimal paidamount { get; set; }
+        public decimal balanceamount { get; set; }
+    }
+
+    public class DailyBillReportRequest
+    {
+        public IList<DailyBillReportModel>? statements { get; set; }
+        public byte[]? LogoImage { get; set; }
+        public string? BranchName { get; set; }
+        public string? CompanyName { get; set; }
+        public string? CompanyAddress { get; set; }
+        public string? CompanyContactNo { get; set; }
+        public string? CompanyEmail { get; set; }
+        public DateTime? fromdate { get; set; }
+        public DateTime? todate { get; set; }
+        public string? reportTitle { get; set; }
+    }
+
+    public class OpAndIpPatientDto
+    {
+        public string Type { get; set; } = ""; // "OP" or "IP"
+        public string RequestGuid { get; set; } = "";
+        public string Id { get; set; } = ""; // op_no or ip_no
+        public decimal CustId { get; set; }
+        public string PatientCode { get; set; } = ""; // custcode
+        public string PatientName { get; set; } = "";
+        public string Age { get; set; } = "";
+        public string Gender { get; set; } = "";
+        public string MobileNo { get; set; } = "";
+        public string DoctorName { get; set; } = "";
+        public DateTime VisitDate { get; set; } // Visit date or Admit date
+        public DateTime? DischargeDate { get; set; }
+        public string BedNo { get; set; } = "";
+    }
 }

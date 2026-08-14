@@ -39,12 +39,16 @@ namespace medico_backend.Model
         public DateTime billdate { get; set; }
         public string? invoiceno { get; set; }
         public DateTime? invoicedate { get; set; }
+        public string? patientid { get; set; }
         public string? patientname { get; set; }
+        public string? salestype { get; set; }
         public string? consultant { get; set; }
         public decimal grossamount { get; set; }
         public decimal discountamount { get; set; }
         public decimal taxamount { get; set; }
         public decimal netamount { get; set; }
+        public decimal paidamount { get; set; }
+        public decimal balanceamount { get; set; }
         public string? paymentmode { get; set; }
         public string? paymentstatus { get; set; }
         public string? warehousename { get; set; }
