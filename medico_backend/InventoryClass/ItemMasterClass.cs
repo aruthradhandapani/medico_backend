@@ -4106,6 +4106,51 @@ AND tenantcode = @tenantcode;";
                 return $"Error : {ex.Message}";
             }
         }
+public async Task<stock_adjustment_log?> GetStockAdjustment(
+    long adjustmentlogcode,
+    string tenantcode)
+{
+    using IDbConnection db = new NpgsqlConnection(con);
+
+    string query = @"
+        SELECT
+            adjustmentlogcode,
+            stockcode,
+            itemcode,
+            warehousecode,
+            branchcode,
+            locationcode,
+            batchno,
+            beforeqty,
+            adjustedqty,
+            afterqty,
+            unitcost,
+            stockvalue,
+            adjustmenttype,
+            adjustmentreason,
+            remarks,
+            adjustmentdate,
+            adjustedby,
+            isactive,
+            deleted,
+            createddate,
+            modifieddate,
+            tenantcode,
+            companycode
+        FROM public.stock_adjustment_log
+        WHERE adjustmentlogcode = @adjustmentlogcode
+          AND tenantcode = @tenantcode
+          AND deleted = false;";
+
+    return await db.QueryFirstOrDefaultAsync<stock_adjustment_log>(
+        query,
+        new
+        {
+            adjustmentlogcode,
+            tenantcode
+        }
+    );
+}
         // ─── PHARMACY QUEUE (prescription → pharmacy dispensing) ───────────────────────
 
         public async Task<string> ReceivePrescription(ReceivePrescriptionRequest req, string tenant_code)
