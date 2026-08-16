@@ -3260,7 +3260,7 @@ WHERE stockcode=@stockcode;";
         // ─── PURCHASE RETURN ──────────────────────────────────────────────────────────
 
         public async Task<IEnumerable<purchase_return_lookup_result>> GetPurchaseReturnLookup(
-    long itemcode, string? batchno, string tenantcode)
+     long itemcode, string? batchno, string tenantcode)
         {
             using IDbConnection db = new NpgsqlConnection(con);
 
@@ -3279,13 +3279,19 @@ WHERE stockcode=@stockcode;";
         pd.rate,
         pd.receivedqty,
         COALESCE(pd.returnedqty, 0) AS returnedqty,
-        (pd.receivedqty - COALESCE(pd.returnedqty, 0)) AS availableqty,
+        COALESCE(stk.closingstock, 0) AS availableqty,
         im.packsize,
         pd.warehousecode
     FROM public.purchase_detail pd
     JOIN public.purchase_master pm ON pm.purchasecode = pd.purchasecode
     LEFT JOIN public.item_master im ON im.itemcode = pd.itemcode
     LEFT JOIN public.vendor_master v ON v.vendorcode = pm.vendorcode
+    LEFT JOIN public.stock_master stk
+        ON stk.itemcode      = pd.itemcode
+       AND stk.batchno       = pd.batchno
+       AND stk.warehousecode = pd.warehousecode
+       AND stk.tenantcode    = pd.tenantcode
+       AND stk.deleted       = false
     WHERE pd.itemcode = @itemcode
       AND (@batchno IS NULL OR pd.batchno = @batchno)
       AND pm.deleted = false
@@ -3305,52 +3311,57 @@ WHERE stockcode=@stockcode;";
             try
             {
                 // ==========================
-                // 1) Pull purchase_detail row (explicit columns — dates stored as text)
+                // 1) Pull purchase_detail row (for rate / audit fields)
                 // ==========================
                 var detail = await db.QueryFirstOrDefaultAsync<purchase_detail>(@"
     SELECT
-        purchasedetailcode,
-        purchasecode,
-        itemcode,
-        quantity,
-        freequantity,
-        uomcode,
-        rate,
-        discountpercentage,
-        discountamount,
-        taxpercentage,
-        taxamount,
-        amount,
-        totalamount,
-        batchno,
+        purchasedetailcode, purchasecode, itemcode, quantity, freequantity,
+        uomcode, rate, discountpercentage, discountamount, taxpercentage, taxamount,
+        amount, totalamount, batchno,
         manufacturingdate::timestamp AS manufacturingdate,
         expirydate::timestamp AS expirydate,
-        orderedqty,
-        receivedqty,
-        rejectedqty,
+        orderedqty, receivedqty, rejectedqty,
         COALESCE(returnedqty, 0) AS returnedqty,
-        warehousecode,
-        packaging,
-        manufacturercode,
-        tenantcode
+        warehousecode, packaging, manufacturercode, tenantcode
     FROM public.purchase_detail
     WHERE purchasedetailcode = @purchasedetailcode
       AND tenantcode = @tenantcode;",
-    new { request.purchasedetailcode, request.tenantcode }, transaction);
+                    new { request.purchasedetailcode, request.tenantcode }, transaction);
 
                 if (detail == null)
                     throw new Exception("Purchase detail not found");
 
                 decimal totalqty = request.returnqty * request.packsize;
-                decimal availableqty = detail.receivedqty - detail.returnedqty;
 
-                if (totalqty > availableqty)
-                    throw new Exception($"Cannot return {totalqty}; only {availableqty} available");
+                // ==========================
+                // 1b) Validate against ACTUAL stock (same source the lookup screen shows)
+                // ==========================
+                var stock = await db.QueryFirstOrDefaultAsync<stock_master>(@"
+    SELECT stockcode, closingstock, unitcost
+    FROM public.stock_master
+    WHERE itemcode = @itemcode
+      AND batchno = @batchno
+      AND tenantcode = @tenantcode
+      AND deleted = false
+      AND (@warehousecode IS NULL OR warehousecode = @warehousecode);",
+                    new
+                    {
+                        request.itemcode,
+                        request.batchno,
+                        request.tenantcode,
+                        request.warehousecode
+                    }, transaction);
+
+                if (stock == null)
+                    throw new Exception($"Stock not found for item {request.itemcode}, batch {request.batchno}");
+
+                if (totalqty > stock.closingstock)
+                    throw new Exception($"Cannot return {totalqty}; only {stock.closingstock} available");
 
                 decimal amount = totalqty * detail.rate;
 
                 // ==========================
-                // 2) Update purchase_detail.returnedqty
+                // 2) Update purchase_detail.returnedqty (audit trail against the batch line)
                 // ==========================
                 await db.ExecuteAsync(@"
             UPDATE public.purchase_detail
@@ -3359,26 +3370,16 @@ WHERE stockcode=@stockcode;";
                     new { totalqty, request.purchasedetailcode }, transaction);
 
                 // ==========================
-                // 3) Update stock_master (reduce closing stock, track return qty)
+                // 3) Update stock_master by stockcode (exact row we validated against)
                 // ==========================
                 await db.ExecuteAsync(@"
             UPDATE public.stock_master
             SET returnqty    = COALESCE(returnqty,0) + @totalqty,
-                closingstock = COALESCE(closingstock,0) - @totalqty,
-                stockvalue   = (COALESCE(closingstock,0) - @totalqty) * unitcost,
+                closingstock = closingstock - @totalqty,
+                stockvalue   = (closingstock - @totalqty) * unitcost,
                 modifieddate = CURRENT_TIMESTAMP
-            WHERE itemcode = @itemcode
-              AND batchno = @batchno
-              AND tenantcode = @tenantcode
-              AND (@warehousecode IS NULL OR warehousecode = @warehousecode);",
-                    new
-                    {
-                        totalqty,
-                        request.itemcode,
-                        request.batchno,
-                        request.tenantcode,
-                        request.warehousecode
-                    }, transaction);
+            WHERE stockcode = @stockcode;",
+                    new { totalqty, stockcode = stock.stockcode }, transaction);
 
                 // ==========================
                 // 4) Insert the return record
@@ -3435,138 +3436,111 @@ WHERE stockcode=@stockcode;";
 
             try
             {
+                // ==========================
+                // 1) Pull sales_detail row (for rate / audit fields)
+                // ==========================
                 var detail = await db.QueryFirstOrDefaultAsync<sales_detail>(@"
 SELECT
-    salesdetailcode,
-    salescode,
-    itemcode,
-    quantity,
-    freequantity,
-    uomcode,
-    rate,
-    discountpercentage,
-    discountamount,
-    taxpercentage,
-    taxamount,
-    amount,
-    totalamount,
-    batchno,
-    manufacturingdate,
-    expirydate,
-    soldqty,
-    COALESCE(returnedqty,0) AS returnedqty,
-    warehousecode,
-    tenantcode
+    salesdetailcode, salescode, itemcode, quantity, freequantity, uomcode, rate,
+    discountpercentage, discountamount, taxpercentage, taxamount,
+    amount, totalamount, batchno, manufacturingdate, expirydate,
+    soldqty, COALESCE(returnedqty,0) AS returnedqty,
+    warehousecode, tenantcode
 FROM public.sales_detail
-WHERE salesdetailcode=@salesdetailcode
-AND tenantcode=@tenantcode;",
-            new
-            {
-                request.salesdetailcode,
-                request.tenantcode
-            }, transaction);
+WHERE salesdetailcode = @salesdetailcode
+  AND tenantcode = @tenantcode;",
+                    new { request.salesdetailcode, request.tenantcode }, transaction);
 
                 if (detail == null)
                     throw new Exception("Sales detail not found.");
 
                 decimal totalqty = request.returnqty * request.packsize;
 
-                decimal availableqty = detail.soldqty - detail.returnedqty;
+                // ==========================
+                // 1b) Validate against ACTUAL stock (same source the lookup screen shows)
+                // ==========================
+                var stock = await db.QueryFirstOrDefaultAsync<stock_master>(@"
+    SELECT stockcode, closingstock, unitcost
+    FROM public.stock_master
+    WHERE itemcode = @itemcode
+      AND batchno = @batchno
+      AND tenantcode = @tenantcode
+      AND deleted = false
+      AND (@warehousecode IS NULL OR warehousecode = @warehousecode);",
+                    new
+                    {
+                        request.itemcode,
+                        request.batchno,
+                        request.tenantcode,
+                        request.warehousecode
+                    }, transaction);
 
-                if (totalqty > availableqty)
-                    throw new Exception($"Cannot return {totalqty}. Only {availableqty} available.");
+                if (stock == null)
+                    throw new Exception($"Stock not found for item {request.itemcode}, batch {request.batchno}");
+
+                if (totalqty > stock.closingstock)
+                    throw new Exception($"Cannot return {totalqty}. Only {stock.closingstock} available.");
 
                 decimal amount = totalqty * detail.rate;
 
+                // ==========================
+                // 2) Update sales_detail.returnedqty (audit trail against the sold line)
+                // ==========================
                 await db.ExecuteAsync(@"
 UPDATE public.sales_detail
 SET returnedqty = COALESCE(returnedqty,0) + @totalqty
-WHERE salesdetailcode=@salesdetailcode;",
-                new
-                {
-                    totalqty,
-                    request.salesdetailcode
-                }, transaction);
+WHERE salesdetailcode = @salesdetailcode;",
+                    new { totalqty, request.salesdetailcode }, transaction);
 
+                // ==========================
+                // 3) Update stock_master by stockcode (exact row we validated against)
+                // ==========================
                 await db.ExecuteAsync(@"
 UPDATE public.stock_master
 SET
-    returnqty = COALESCE(returnqty,0) + @totalqty,
-    closingstock = COALESCE(closingstock,0) + @totalqty,
-    stockvalue = (COALESCE(closingstock,0) + @totalqty) * unitcost,
+    returnqty    = COALESCE(returnqty,0) + @totalqty,
+    closingstock = closingstock + @totalqty,
+    stockvalue   = (closingstock + @totalqty) * unitcost,
     modifieddate = CURRENT_TIMESTAMP
-WHERE itemcode=@itemcode
-AND batchno=@batchno
-AND tenantcode=@tenantcode
-AND (@warehousecode IS NULL OR warehousecode=@warehousecode);",
-                new
-                {
-                    totalqty,
-                    request.itemcode,
-                    request.batchno,
-                    request.tenantcode,
-                    request.warehousecode
-                }, transaction);
+WHERE stockcode = @stockcode;",
+                    new { totalqty, stockcode = stock.stockcode }, transaction);
 
+                // ==========================
+                // 4) Insert the return record
+                // ==========================
                 long returncode = await db.ExecuteScalarAsync<long>(@"
 INSERT INTO public.sales_return_master
 (
-    salesdetailcode,
-    salescode,
-    itemcode,
-    customercode,
-    batchno,
-    returnqty,
-    packsize,
-    totalqty,
-    rate,
-    amount,
-    warehousecode,
-    remarks,
-    isactive,
-    deleted,
-    createddate,
-    usercode,
-    tenantcode
+    salesdetailcode, salescode, itemcode, customercode, batchno,
+    returnqty, packsize, totalqty, rate, amount,
+    warehousecode, remarks,
+    isactive, deleted, createddate, usercode, tenantcode
 )
 VALUES
 (
-    @salesdetailcode,
-    @salescode,
-    @itemcode,
-    @customercode,
-    @batchno,
-    @returnqty,
-    @packsize,
-    @totalqty,
-    @rate,
-    @amount,
-    @warehousecode,
-    @remarks,
-    true,
-    false,
-    CURRENT_TIMESTAMP,
-    @usercode,
-    @tenantcode
+    @salesdetailcode, @salescode, @itemcode, @customercode, @batchno,
+    @returnqty, @packsize, @totalqty, @rate, @amount,
+    @warehousecode, @remarks,
+    true, false, CURRENT_TIMESTAMP, @usercode, @tenantcode
 )
 RETURNING salesreturncode;",
-                new
-                {
-                    request.salesdetailcode,
-                    request.salescode,
-                    request.itemcode,
-                    request.customercode,
-                    request.batchno,
-                    request.returnqty,
-                    request.packsize,
-                    totalqty,
-                    rate = detail.rate,
-                    amount,
-                    request.warehousecode,
-                    request.remarks,
-                    request.usercode,
-                    request.tenantcode
-                }, transaction);
+                    new
+                    {
+                        request.salesdetailcode,
+                        request.salescode,
+                        request.itemcode,
+                        request.customercode,
+                        request.batchno,
+                        request.returnqty,
+                        request.packsize,
+                        totalqty,
+                        rate = detail.rate,
+                        amount,
+                        request.warehousecode,
+                        request.remarks,
+                        request.usercode,
+                        request.tenantcode
+                    }, transaction);
 
                 transaction.Commit();
 
@@ -3579,7 +3553,7 @@ RETURNING salesreturncode;",
             }
         }
         public async Task<IEnumerable<sales_return_lookup_result>> GetSalesReturnLookup(
-long itemcode, string? batchno, string tenantcode)
+    long itemcode, string? batchno, string tenantcode)
         {
             using IDbConnection db = new NpgsqlConnection(con);
 
@@ -3597,7 +3571,7 @@ SELECT
     sd.rate,
     sd.quantity AS deliveredqty,
     COALESCE(sd.returnedqty, 0) AS returnedqty,
-    (sd.quantity - COALESCE(sd.returnedqty, 0)) AS availableqty,
+    COALESCE(stk.closingstock, 0) AS availableqty,
     im.packsize,
     sd.warehousecode
 FROM public.sales_detail sd
@@ -3605,6 +3579,12 @@ INNER JOIN public.sales_master sm
     ON sm.salescode = sd.salescode
 LEFT JOIN public.item_master im
     ON im.itemcode = sd.itemcode
+LEFT JOIN public.stock_master stk
+    ON stk.itemcode      = sd.itemcode
+   AND stk.batchno       = sd.batchno
+   AND stk.warehousecode = sd.warehousecode
+   AND stk.tenantcode    = sd.tenantcode
+   AND stk.deleted       = false
 WHERE sd.itemcode = @itemcode
   AND (@batchno IS NULL OR sd.batchno = @batchno)
   AND sm.deleted = false
@@ -3612,13 +3592,7 @@ WHERE sd.itemcode = @itemcode
 ORDER BY sd.salesdetailcode DESC;";
 
             return await db.QueryAsync<sales_return_lookup_result>(
-                query,
-                new
-                {
-                    itemcode,
-                    batchno,
-                    tenantcode
-                });
+                query, new { itemcode, batchno, tenantcode });
         }
         public async Task<string> InsertStockAdjustment(stock_adjustment_request request)
         {
