@@ -85,50 +85,99 @@ namespace medico_backend.Class
 
         // ── Fetch pending unbilled charges for the billing screen ──
         public async Task<List<UnbilledChargeRow>> GetUnbilledByVisit(
-    string? opvisitid, string? ip_id, string tenant_code)
+            string? opvisitid, string? ip_id, string tenant_code)
         {
             using var db = GetConnection();
+            db.Open();   // ✅ explicit open, same as GetAllOpList
+
             var rows = await db.QueryAsync<UnbilledChargeRow>(
-                @"SELECT * FROM unbilledcharges
-          WHERE ((@opvisitid IS NOT NULL AND opvisitid = @opvisitid)
-                 OR (@ip_id IS NOT NULL AND ip_id = CAST(@ip_id AS uuid)))
-          AND tenant_code = @tenant_code
-          AND (billedstatus = false OR billedstatus IS NULL)
-          ORDER BY chargedate",
-                new { opvisitid, ip_id, tenant_code });
+                @"SELECT
+              u.*,
+              CASE
+                  WHEN u.billedstatus = true
+                   AND lrm.requestguid IS NOT NULL
+                   AND (COALESCE(lrm.totalamount, 0) - COALESCE(lrm.paidamount, 0)) <= 0.05
+                  THEN true
+                  ELSE false
+              END AS paid_status
+          FROM unbilledcharges u
+          LEFT JOIN lab_request_master lrm
+                 ON  lrm.requestguid = u.billid
+                 AND lrm.tenant_code = u.tenant_code
+                 AND COALESCE(lrm.isdeleted, false) = false
+                 AND COALESCE(lrm.deleted,   false) = false
+          WHERE ((@opvisitid IS NOT NULL AND u.opvisitid = @opvisitid)
+                 OR (@ip_id IS NOT NULL AND u.ip_id = CAST(@ip_id AS uuid)))
+          AND u.tenant_code = @tenant_code
+          AND (u.billedstatus = false OR u.billedstatus IS NULL)
+          ORDER BY u.chargedate",
+                new { opvisitid, ip_id, tenant_code },
+                commandTimeout: 60   // ✅ same timeout bump as GetAllOpList
+            );
             return rows.ToList();
         }
 
         public async Task<List<UnbilledChargeRow>> GetUnbilledByCustomer(decimal custid, string tenant_code)
         {
             using var db = GetConnection();
+            db.Open();
+
             var rows = await db.QueryAsync<UnbilledChargeRow>(
-                @"SELECT * FROM unbilledcharges
-                  WHERE custid = @custid AND tenant_code = @tenant_code
-                  AND (billedstatus = false OR billedstatus IS NULL)
-                  ORDER BY chargedate",
-                new { custid, tenant_code });
+                @"SELECT
+              u.*,
+              CASE
+                  WHEN u.billedstatus = true
+                   AND lrm.requestguid IS NOT NULL
+                   AND (COALESCE(lrm.totalamount, 0) - COALESCE(lrm.paidamount, 0)) <= 0.05
+                  THEN true
+                  ELSE false
+              END AS paid_status
+          FROM unbilledcharges u
+          LEFT JOIN lab_request_master lrm
+                 ON  lrm.requestguid = u.billid
+                 AND lrm.tenant_code = u.tenant_code
+                 AND COALESCE(lrm.isdeleted, false) = false
+                 AND COALESCE(lrm.deleted,   false) = false
+          WHERE u.custid = @custid AND u.tenant_code = @tenant_code
+          AND (u.billedstatus = false OR u.billedstatus IS NULL)
+          ORDER BY u.chargedate",
+                new { custid, tenant_code },
+                commandTimeout: 60
+            );
             return rows.ToList();
         }
 
-        // ── Mark charges billed (called inside HmsBillingClass.CreateBill's own tx) ──
-        public async Task MarkAsBilled(
-            IDbConnection db, IDbTransaction tx,
-            List<string> unbilledIds, string billno, string billid, string tenant_code)
+        // ── Get all unbilled charges for a tenant, optionally narrowed by op_id or ip_id ──
+        public async Task<List<UnbilledChargeRow>> GetAllUnbilled(
+            string tenant_code, string? op_id = null, Guid? ip_id = null)
         {
-            if (unbilledIds == null || !unbilledIds.Any()) return;
+            using var db = GetConnection();
+            db.Open();
 
-            await db.ExecuteAsync(
-                @"UPDATE unbilledcharges
-                  SET billedstatus   = true,
-                      billno         = @billno,
-                      billid         = @billid,
-                      billeddate     = @now,
-                      billedquantity = quantity,
-                      billedamount   = amount
-                  WHERE unbilledid = ANY(@ids) AND tenant_code = @tenant_code",
-                new { billno, billid, now = DateTime.UtcNow, ids = unbilledIds.ToArray(), tenant_code },
-                tx);
+            var rows = await db.QueryAsync<UnbilledChargeRow>(
+                @"SELECT
+              u.*,
+              CASE
+                  WHEN u.billedstatus = true
+                   AND lrm.requestguid IS NOT NULL
+                   AND (COALESCE(lrm.totalamount, 0) - COALESCE(lrm.paidamount, 0)) <= 0.05
+                  THEN true
+                  ELSE false
+              END AS paid_status
+          FROM unbilledcharges u
+          LEFT JOIN lab_request_master lrm
+                 ON  lrm.requestguid = u.billid
+                 AND lrm.tenant_code = u.tenant_code
+                 AND COALESCE(lrm.isdeleted, false) = false
+                 AND COALESCE(lrm.deleted,   false) = false
+          WHERE u.tenant_code = @tenant_code
+          AND (@op_id IS NULL OR u.opvisitid = @op_id)
+          AND (@ip_id IS NULL OR u.ip_id = @ip_id)
+          ORDER BY u.chargedate",
+                new { tenant_code, op_id, ip_id },
+                commandTimeout: 60
+            );
+            return rows.ToList();
         }
         public async Task AddInvestigationChargeRow(
     IDbConnection db, string? op_id, Guid? ip_id, decimal custid, string tenant_code,
@@ -404,19 +453,6 @@ namespace medico_backend.Class
                 new { ip_id, tenant_code });
             return (outstandingBalance ?? 0) <= 0.05;   // matches the 0.05 tolerance used elsewhere in HmsBillingClass
         }
-        // ── Get all unbilled charges for a tenant, optionally narrowed by op_id or ip_id ──
-        public async Task<List<UnbilledChargeRow>> GetAllUnbilled(
-            string tenant_code, string? op_id = null, Guid? ip_id = null)
-        {
-            using var db = GetConnection();
-            var rows = await db.QueryAsync<UnbilledChargeRow>(
-                @"SELECT * FROM unbilledcharges
-          WHERE tenant_code = @tenant_code
-          AND (@op_id IS NULL OR opvisitid = @op_id)
-          AND (@ip_id IS NULL OR ip_id = @ip_id)
-          ORDER BY chargedate",
-                new { tenant_code, op_id, ip_id });
-            return rows.ToList();
-        }        
+              
     }
 }
