@@ -302,70 +302,104 @@ namespace medico_backend.Class
 
         // ─────────────────────────────────────────
         // GET ALL OP LIST (with optional filters)
+        // Optimized + Paid Status + TIMING INSTRUMENTATION
         // ─────────────────────────────────────────
         public async Task<List<OpRegistrationListModel>> GetAllOpList(
-    string tenant_code, int? dcode = null, DateOnly? from_date = null,
-    DateOnly? to_date = null, string? visit_status = null)
+            string tenant_code,
+            int? dcode = null,
+            DateOnly? from_date = null,
+            DateOnly? to_date = null,
+            string? visit_status = null)
         {
+            var totalSw = System.Diagnostics.Stopwatch.StartNew();
+            var sw = System.Diagnostics.Stopwatch.StartNew();
+
             using IDbConnection db = new NpgsqlConnection(_db_conn);
+            db.Open();
+            //Console.WriteLine($"[TIMING][GetAllOpList] db.Open(): {sw.ElapsedMilliseconds}ms");
+            sw.Restart();
 
             string sql = @"
-        SELECT
-            o.*,
-            c.name AS patient_name,
-            c.mobile,
-            c.isvip,
-            cs.refer_to_ip,
-            uc.billedstatus AS unbilled_status,
-            dm.name AS doctor_name,
-            sd.slot_start_time,
-            sd.slot_end_time
-        FROM op_registration o
-        LEFT JOIN customerdb.customer_master c ON c.custid = o.custid
-        LEFT JOIN doctor_master dm
-               ON dm.dcode       = o.dcode
-              AND dm.tenant_code = o.tenant_code
-              AND dm.deleted     = false
-        LEFT JOIN doctor_appointment_slot_details sd
-               ON sd.slot_detail_id = o.slot_detail_id
-              AND sd.tenant_code    = o.tenant_code
-        LEFT JOIN LATERAL (
-            SELECT refer_to_ip
-            FROM   op_case_sheet
-            WHERE  op_case_sheet.op_id       = o.op_id
-            AND    op_case_sheet.tenant_code = o.tenant_code
-            AND    op_case_sheet.isdeleted   = false
-            ORDER  BY op_case_sheet.created_at DESC
-            LIMIT  1
-        ) cs ON true
-        LEFT JOIN LATERAL (
-            SELECT billedstatus
-            FROM   unbilledcharges
-            WHERE  unbilledcharges.opvisitid   = o.op_id::text
-            AND    unbilledcharges.entrytype   = 'CONSULTATION'
-            AND    unbilledcharges.tenant_code = o.tenant_code
-            ORDER  BY unbilledcharges.chargedate DESC
-            LIMIT  1
-        ) uc ON true
-        WHERE o.isdeleted = false
-        AND o.tenant_code = @tenant_code
-        AND (@dcode IS NULL OR o.dcode = @dcode)
-        AND (@from_date IS NULL OR o.visit_date >= @from_date)
-        AND (@to_date IS NULL OR o.visit_date <= @to_date)
-        AND (@visit_status IS NULL OR o.visit_status = @visit_status)
-        ORDER BY o.visit_date DESC, o.queue_no, o.token_no";
+SELECT
+    o.op_id, o.op_no, o.booking_id, o.booking_no, o.slot_detail_id,
+    o.custid, o.dcode, o.department_code, o.visit_type, o.reg_type,
+    o.visit_date, o.token_no, o.queue_no, o.visit_status, o.notes,
+    o.is_direct_walkin, o.duty_dcode, o.transferred_to_dcode, o.transfer_reason,
+    o.is_dressing, o.tenant_code, o.isdeleted, o.created_at, o.updated_at,
+    cl.name AS patient_name,
+    cl.mobile,
+    cl.isvip,
+    cs.refer_to_ip,
+    uc.billedstatus AS unbilled_status,
+    CASE
+        WHEN uc.billedstatus = true
+         AND lrm.requestguid IS NOT NULL
+         AND (COALESCE(lrm.totalamount, 0) - COALESCE(lrm.paidamount, 0)) <= 0.05
+        THEN true ELSE false
+    END AS paid_status,
+    dm.name AS doctor_name,
+    sd.slot_start_time,
+    sd.slot_end_time
+FROM op_registration o
+LEFT JOIN customerdb.customer_master cl
+       ON cl.custid = o.custid AND cl.deleted = false
+LEFT JOIN doctor_master dm
+       ON dm.dcode = o.dcode AND dm.tenant_code = o.tenant_code AND dm.deleted = false
+LEFT JOIN doctor_appointment_slot_details sd
+       ON sd.slot_detail_id = o.slot_detail_id AND sd.tenant_code = o.tenant_code
+LEFT JOIN LATERAL (
+    SELECT refer_to_ip
+    FROM op_case_sheet
+    WHERE op_case_sheet.op_id = o.op_id
+    AND op_case_sheet.tenant_code = o.tenant_code
+    AND op_case_sheet.isdeleted = false
+    ORDER BY created_at DESC LIMIT 1
+) cs ON true
+LEFT JOIN LATERAL (
+    SELECT billedstatus, billid
+    FROM unbilledcharges
+    WHERE unbilledcharges.opvisitid = o.op_id::text
+    AND unbilledcharges.entrytype = 'CONSULTATION'
+    AND unbilledcharges.tenant_code = o.tenant_code
+    ORDER BY chargedate DESC LIMIT 1
+) uc ON true
+LEFT JOIN lab_request_master lrm
+       ON lrm.requestguid = uc.billid
+      AND lrm.tenant_code = o.tenant_code
+      AND COALESCE(lrm.isdeleted, false) = false
+      AND COALESCE(lrm.deleted, false) = false
+WHERE o.isdeleted = false
+AND o.tenant_code = @tenant_code
+AND (@dcode IS NULL OR o.dcode = @dcode)
+AND (@from_date IS NULL OR o.visit_date >= @from_date)
+AND (@to_date IS NULL OR o.visit_date < @to_date + INTERVAL '1 day')
+AND (@visit_status IS NULL OR o.visit_status = @visit_status)
+ORDER BY o.visit_date DESC, o.queue_no, o.token_no";
 
-            var res = await db.QueryAsync<OpRegistrationListModel>(sql, new
-            {
-                tenant_code,
-                dcode,
-                from_date = from_date.HasValue ? from_date.Value.ToDateTime(TimeOnly.MinValue) : (DateTime?)null,
-                to_date = to_date.HasValue ? to_date.Value.ToDateTime(TimeOnly.MinValue) : (DateTime?)null,
-                visit_status = visit_status?.ToUpper()
-            });
+            var res = await db.QueryAsync<OpRegistrationListModel>(
+                sql,
+                new
+                {
+                    tenant_code,
+                    dcode,
+                    from_date = from_date.HasValue ? from_date.Value.ToDateTime(TimeOnly.MinValue) : (DateTime?)null,
+                    to_date = to_date.HasValue ? to_date.Value.ToDateTime(TimeOnly.MinValue) : (DateTime?)null,
+                    visit_status = string.IsNullOrWhiteSpace(visit_status) ? null : visit_status.ToUpper()
+                },
+                commandTimeout: 60
+            );
 
-            return res.ToList();
+            //Console.WriteLine($"[TIMING][GetAllOpList] db.QueryAsync (execute + read all rows): {sw.ElapsedMilliseconds}ms");
+            sw.Restart();
+
+            var list = res.ToList();
+            //Console.WriteLine($"[TIMING][GetAllOpList] .ToList() materialize: {sw.ElapsedMilliseconds}ms");
+
+            //Console.WriteLine($"[TIMING][GetAllOpList] TOTAL: {totalSw.ElapsedMilliseconds}ms, rows={list.Count}");
+
+            return list;
         }
+
 
         // Used only by GetAllOpList — same shape as OpRegistrationModel
         // plus the joined patient display fields.
@@ -382,6 +416,7 @@ namespace medico_backend.Class
             // ✅ NEW — from unbilledcharges, CONSULTATION entry for this op_id
             // true = billed, false = unbilled, null = no consultation charge row found
             public bool? unbilled_status { get; set; }
+            public bool? paid_status { get; set; }
 
             // ✅ NEW — from doctor_master
             public string? doctor_name { get; set; }
@@ -1444,6 +1479,29 @@ AND b.tenant_code = @tenant_code
             await db.ExecuteAsync(@"
         UPDATE op_registration
         SET visit_status = 'CANCELLED',
+            updated_at   = now()
+        WHERE booking_id   = @booking_id
+        AND   tenant_code  = @tenant_code
+        AND   isdeleted    = false
+        AND   visit_status IN ('WAITING', 'IN_CONSULTATION')",
+                new { booking_id, tenant_code });
+        }
+        // ─────────────────────────────────────────
+        // CLOSE OP FOR A RESCHEDULED BOOKING
+        // Called by AppointmentBookingClass right when the OLD booking is
+        // soft-deleted for a reschedule. Sets visit_status = RESCHEDULED on
+        // the linked OP — same guard as cancel: only if the patient hasn't
+        // been seen yet (WAITING or IN_CONSULTATION). A new OP gets created
+        // separately, at check-in, against the NEW booking — this method
+        // does not create anything.
+        // ─────────────────────────────────────────
+        public async Task CloseOpForReschedule(Guid booking_id, string tenant_code)
+        {
+            using IDbConnection db = new NpgsqlConnection(_db_conn);
+
+            await db.ExecuteAsync(@"
+        UPDATE op_registration
+        SET visit_status = 'RESCHEDULED',
             updated_at   = now()
         WHERE booking_id   = @booking_id
         AND   tenant_code  = @tenant_code

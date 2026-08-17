@@ -435,4 +435,5 @@ namespace medico_backend.Model
         public string TestName { get; set; }
         public string Result { get; set; }
     }
+
 }
