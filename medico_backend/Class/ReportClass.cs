@@ -6309,5 +6309,107 @@ WHERE lrd.requestguid::text = @requestguid::text
                 throw;
             }
         }
+        public async Task<string?> GetPharmacyBillAsync(string billNo, string tenantCode, string orientation = "portrait")
+        {
+            try
+            {
+                var inventoryConn = _config.GetConnectionString("inventory_conn");
+                if (string.IsNullOrEmpty(inventoryConn))
+                    throw new Exception("Inventory connection string is not configured.");
+
+                using IDbConnection db = new NpgsqlConnection(inventoryConn);
+                
+                var response = new PharmacyBillResponse();
+
+                // Get Header & Footer preferences from main DB
+                using (IDbConnection mainDb = new NpgsqlConnection(_conn))
+                {
+                    var labSettings = await mainDb.QueryFirstOrDefaultAsync<dynamic>(
+                        "SELECT show_pharmacy_header_footer_image FROM lab_settings WHERE tenant_code = @tenantCode",
+                        new { tenantCode });
+
+                    response.ShowHeaderFooter = labSettings?.show_pharmacy_header_footer_image ?? true;
+
+                    if (response.ShowHeaderFooter)
+                    {
+                        var tenant = await mainDb.QueryFirstOrDefaultAsync<dynamic>(
+                            "SELECT logo_url FROM mastertenant.tenants WHERE tenant_code = @tenantCode",
+                            new { tenantCode });
+
+                        response.HeaderImagePath = tenant?.logo_url;
+                        response.FooterImagePath = tenant?.footer_url;
+                    }
+                    
+                    var companyInfo = await mainDb.QueryFirstOrDefaultAsync<dynamic>(@"
+                        SELECT
+                            legal_name,
+                            COALESCE(address_line1,  '') AS address_line1,
+                            COALESCE(contact_number, '') AS contact_number,
+                            COALESCE(contact_email,  '') AS contact_email,
+                            COALESCE(gst_number,     '') AS gst_number
+                        FROM mastertenant.tenants
+                        WHERE tenant_code = @tenantCode", 
+                        new { tenantCode });
+                        
+                    response.LabName = companyInfo?.legal_name ?? string.Empty;
+                    response.BranchName = ""; // Or fetch branch name if necessary
+                    response.Address = companyInfo?.address_line1 ?? string.Empty;
+                    response.MobileNo = companyInfo?.contact_number ?? string.Empty;
+                    response.Email = companyInfo?.contact_email ?? string.Empty;
+                    response.GSTNo = companyInfo?.gst_number ?? string.Empty;
+                    response.logo = null;
+                    response.isletterhead = labSettings?.show_pharmacy_header_footer_image ?? true;
+                    
+                    response.billauthorizedby = response.LabName;
+                    response.billauthorizesignature = null;
+                    response.Orientation = orientation;
+                }
+
+                // Query Sales Master
+                string sqlMaster = @"
+                    SELECT 
+                        salescode, billno, billdate, invoiceno, invoicedate, customercode, 
+                        grossamount, discountamount, taxamount, netamount, paymentmode, 
+                        paymentstatus, currencycode, isactive, deleted, remarks, createddate, 
+                        modifieddate, usercode, tenantcode, branchcode, companycode, ordercode, 
+                        salestype, warehousecode, warehousefield, patientid, patientname, address, consultant
+                    FROM sales_master
+                    WHERE billno = @billNo AND tenantcode = @tenantCode AND COALESCE(deleted, false) = false";
+
+                var master = await db.QueryFirstOrDefaultAsync<SalesMasterModel>(sqlMaster, new { billNo, tenantCode });
+                
+                if (master == null)
+                    return null;
+
+                response.BillDetails = master;
+
+                // Query Sales Details
+                string sqlDetails = @"
+                    SELECT 
+                        sd.salesdetailcode, sd.salescode, sd.itemcode, sd.quantity, sd.freequantity, 
+                        sd.uomcode, sd.rate, sd.discountpercentage, sd.discountamount, sd.taxpercentage, 
+                        sd.taxamount, sd.amount, sd.totalamount, sd.batchno, sd.manufacturingdate, 
+                        sd.expirydate, sd.warehousecode, sd.tenantcode, sd.soldqty, sd.returnedqty,
+                        im.itemname
+                    FROM sales_detail sd
+                    LEFT JOIN item_master im ON sd.itemcode = im.itemcode
+                    WHERE sd.salescode = @SalesCode AND sd.tenantcode = @tenantCode";
+
+                var details = await db.QueryAsync<SalesDetailModel>(sqlDetails, new { SalesCode = master.salescode, tenantCode });
+                response.Items = details.ToList();
+
+                var json = JsonSerializer.Serialize(response);
+                var content = new StringContent(json, Encoding.UTF8, "application/json");
+                var apiResponse = await client.PostAsync("/api/Statement/GetPharmacyBill", content);
+                
+                apiResponse.EnsureSuccessStatusCode();
+                return await apiResponse.Content.ReadAsStringAsync();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error in ReportClass.GetPharmacyBillAsync: {ex.Message}");
+                throw;
+            }
+        }
     }
 }

@@ -283,5 +283,21 @@ namespace medico_backend.Controllers
             var res = await _reportClass.GetIpReportPDF(fromdate, todate, T);
             return Ok(res);
         }
+        [HttpGet("getpharmacybill")]
+        public async Task<IActionResult> GetPharmacyBill([FromQuery] string billNo, [FromQuery] string? orientation = "portrait")
+        {
+            if (string.IsNullOrWhiteSpace(T))
+                return BadRequest(new { success = false, message = "tenant_code header required" });
+
+            if (string.IsNullOrEmpty(billNo))
+                return BadRequest(new { success = false, message = "BillNo is required." });
+
+            var res = await _reportClass.GetPharmacyBillAsync(billNo, T, orientation ?? "portrait");
+            
+            if (res == null)
+                return NotFound(new { success = false, message = "Pharmacy bill not found." });
+                
+            return Ok(res);
+        }
     }
 }

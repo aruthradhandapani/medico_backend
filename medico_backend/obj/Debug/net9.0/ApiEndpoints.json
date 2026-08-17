@@ -5997,6 +5997,22 @@
   },
   {
     "ContainingType": "medico_backend.InventoryController.ItemMasterController",
+    "Method": "GetStockAdjustment",
+    "RelativePath": "api/ItemMaster/getstockadjustment",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "adjustmentlogcode",
+        "Type": "System.Int64",
+        "IsRequired": false
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "medico_backend.InventoryController.ItemMasterController",
     "Method": "GetStockByCode",
     "RelativePath": "api/ItemMaster/getstockbycode",
     "HttpMethod": "GET",
@@ -7246,6 +7262,11 @@
         "IsRequired": false
       },
       {
+        "Name": "show_pharmacy_header_footer_image",
+        "Type": "System.Nullable\u00601[[System.Boolean, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
+        "IsRequired": false
+      },
+      {
         "Name": "use_labsetting_signatures",
         "Type": "System.Nullable\u00601[[System.Boolean, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
         "IsRequired": false
@@ -8184,6 +8205,11 @@
       },
       {
         "Name": "show_dischargesummary_header_footer_image",
+        "Type": "System.Nullable\u00601[[System.Boolean, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
+        "IsRequired": false
+      },
+      {
+        "Name": "show_pharmacy_header_footer_image",
         "Type": "System.Nullable\u00601[[System.Boolean, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
         "IsRequired": false
       },
@@ -11086,6 +11112,27 @@
       },
       {
         "Name": "periodtype",
+        "Type": "System.String",
+        "IsRequired": false
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "medico_backend.Controllers.ReportController",
+    "Method": "GetPharmacyBill",
+    "RelativePath": "api/Report/getpharmacybill",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "billNo",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "orientation",
         "Type": "System.String",
         "IsRequired": false
       }

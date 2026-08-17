@@ -1,0 +1,13 @@
+{
+  "version": 2,
+  "dgSpecHash": "EnS+jpi+BnQ=",
+  "success": true,
+  "projectFilePath": "D:\\medico_backend\\DbUpdate\\DbUpdate.csproj",
+  "expectedPackageFiles": [
+    "C:\\Users\\elang\\.nuget\\packages\\dapper\\2.1.79\\dapper.2.1.79.nupkg.sha512",
+    "C:\\Users\\elang\\.nuget\\packages\\microsoft.extensions.dependencyinjection.abstractions\\10.0.0\\microsoft.extensions.dependencyinjection.abstractions.10.0.0.nupkg.sha512",
+    "C:\\Users\\elang\\.nuget\\packages\\microsoft.extensions.logging.abstractions\\10.0.0\\microsoft.extensions.logging.abstractions.10.0.0.nupkg.sha512",
+    "C:\\Users\\elang\\.nuget\\packages\\npgsql\\10.0.3\\npgsql.10.0.3.nupkg.sha512"
+  ],
+  "logs": []
+}

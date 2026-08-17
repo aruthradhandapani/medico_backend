@@ -1297,4 +1297,91 @@ namespace medico_backend.Model
         public DateTime? DischargeDate { get; set; }
         public string BedNo { get; set; } = "";
     }
+
+    public class PharmacyBillResponse
+    {
+        public SalesMasterModel BillDetails { get; set; } = new();
+        public List<SalesDetailModel> Items { get; set; } = new();
+        public string? HeaderImagePath { get; set; }
+        public string? FooterImagePath { get; set; }
+        public bool ShowHeaderFooter { get; set; }
+        
+        // Company info
+        public string? LabName { get; set; }
+        public string? BranchName { get; set; }
+        public string? Address { get; set; }
+        public string? MobileNo { get; set; }
+        public string? Email { get; set; }
+        public string? GSTNo { get; set; }
+        public byte[]? logo { get; set; }
+        public bool isletterhead { get; set; }
+        
+        // Footer signature
+        public string? billauthorizedby { get; set; }
+        public byte[]? billauthorizesignature { get; set; }
+
+        // Layout
+        public string? Orientation { get; set; } = "portrait"; // "portrait" or "landscape"
+    }
+
+    public class SalesMasterModel
+    {
+        public long salescode { get; set; }
+        public string? billno { get; set; }
+        public DateTime billdate { get; set; }
+        public string? invoiceno { get; set; }
+        public DateTime? invoicedate { get; set; }
+        public long? customercode { get; set; }
+        public decimal? grossamount { get; set; }
+        public decimal? discountamount { get; set; }
+        public decimal? taxamount { get; set; }
+        public decimal? netamount { get; set; }
+        public string? paymentmode { get; set; }
+        public string? paymentstatus { get; set; }
+        public string? currencycode { get; set; }
+        public bool? isactive { get; set; }
+        public bool? deleted { get; set; }
+        public string? remarks { get; set; }
+        public DateTime? createddate { get; set; }
+        public DateTime? modifieddate { get; set; }
+        public long? usercode { get; set; }
+        public string? tenantcode { get; set; }
+        public string? branchcode { get; set; }
+        public string? companycode { get; set; }
+        public long? ordercode { get; set; }
+        public string? salestype { get; set; }
+        public string? warehousecode { get; set; }
+        public string? warehousefield { get; set; }
+        public string? patientid { get; set; }
+        public string? patientname { get; set; }
+        public string? address { get; set; }
+        public string? consultant { get; set; }
+    }
+
+    public class SalesDetailModel
+    {
+        public long salesdetailcode { get; set; }
+        public long salescode { get; set; }
+        public long itemcode { get; set; }
+        public decimal? quantity { get; set; }
+        public decimal? freequantity { get; set; }
+        public long? uomcode { get; set; }
+        public decimal? rate { get; set; }
+        public decimal? discountpercentage { get; set; }
+        public decimal? discountamount { get; set; }
+        public decimal? taxpercentage { get; set; }
+        public decimal? taxamount { get; set; }
+        public decimal? amount { get; set; }
+        public decimal? totalamount { get; set; }
+        public string? batchno { get; set; }
+        public DateTime? manufacturingdate { get; set; }
+        public DateTime? expirydate { get; set; }
+        public long? warehousecode { get; set; }
+        public string? tenantcode { get; set; }
+        public decimal? soldqty { get; set; }
+        public decimal returnedqty { get; set; }
+        
+        // Joined field from item master
+        public string? itemname { get; set; }
+    }
 }
