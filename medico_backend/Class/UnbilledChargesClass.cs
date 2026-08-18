@@ -453,6 +453,60 @@ namespace medico_backend.Class
                 new { ip_id, tenant_code });
             return (outstandingBalance ?? 0) <= 0.05;   // matches the 0.05 tolerance used elsewhere in HmsBillingClass
         }
-              
+        // ── Update a pending unbilled charge (e.g. correct amount before billing) ──
+        public async Task<string> UpdateUnbilledCharge(UpdateUnbilledChargeRequest req, string tenant_code)
+        {
+            try
+            {
+                using var db = GetConnection();
+
+                var existing = await db.QueryFirstOrDefaultAsync<UnbilledChargeRow>(
+                    @"SELECT * FROM unbilledcharges
+              WHERE unbilledid = @unbilledid AND tenant_code = @tenant_code",
+                    new { req.unbilledid, tenant_code });
+
+                if (existing == null)
+                    return "Unbilled charge not found";
+
+                if (existing.billedstatus == true)
+                    return "Cannot update a charge that has already been billed";
+
+                double newRate = req.rate ?? existing.rate ?? 0;
+                double newQuantity = req.quantity ?? existing.quantity ?? 0;
+
+                // If amount not explicitly passed, recalc from rate * quantity
+                double newAmount = req.amount ?? (newRate * newQuantity);
+
+                existing.rate = newRate;
+                existing.quantity = newQuantity;
+                existing.amount = newAmount;
+                existing.discount = req.discount ?? existing.discount;
+                existing.charityamount = req.charityamount ?? existing.charityamount;
+
+                int rows = await db.ExecuteAsync(
+                    @"UPDATE unbilledcharges
+              SET rate = @rate,
+                  quantity = @quantity,
+                  amount = @amount,
+                  discount = @discount,
+                  charityamount = @charityamount
+              WHERE unbilledid = @unbilledid
+              AND   tenant_code = @tenant_code
+              AND   (billedstatus = false OR billedstatus IS NULL)",
+                    new
+                    {
+                        existing.rate,
+                        existing.quantity,
+                        existing.amount,
+                        existing.discount,
+                        existing.charityamount,
+                        existing.unbilledid,
+                        tenant_code
+                    });
+
+                return rows > 0 ? $"Success|UnbilledId:{existing.unbilledid}|Amount:{existing.amount}" : "Update failed";
+            }
+            catch (Exception ex) { return ex.Message; }
+        }
     }
 }

@@ -108,5 +108,22 @@ namespace medico_backend.Controllers
             var data = await cls.GetAllUnbilled(tenant, op_id, ip_id);
             return Ok(data);
         }
+        // POST api/UnbilledCharges/update
+        [HttpPost("update")]
+        public async Task<IActionResult> Update([FromBody] UpdateUnbilledChargeRequest req)
+        {
+            var tenant = Request.Headers["tenant_code"].ToString();
+            if (string.IsNullOrWhiteSpace(tenant))
+                return BadRequest("tenant_code header is required");
+            if (string.IsNullOrWhiteSpace(req.unbilledid))
+                return BadRequest("unbilledid is required");
+
+            var res = await cls.UpdateUnbilledCharge(req, tenant);
+
+            if (!res.StartsWith("Success"))
+                return BadRequest(new { message = res });
+
+            return Ok(new { message = res });
+        }
     }
 }
