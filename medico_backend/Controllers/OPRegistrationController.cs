@@ -150,5 +150,16 @@ namespace medico_backend.Controllers
             var res = await cls.DressingRegistration(req, tenant);
             return Ok(res);
         }
+        [HttpPost("cancel")]
+        public async Task<IActionResult> Cancel([FromBody] CancelOpRequest req)
+        {
+            var tenant = Request.Headers["tenant_code"].ToString();
+            var res = await cls.CancelOp(req, tenant);
+
+            if (!res.StartsWith("Success", StringComparison.OrdinalIgnoreCase))
+                return BadRequest(new { message = res });
+
+            return Ok(new { message = res });
+        }
     }
 }

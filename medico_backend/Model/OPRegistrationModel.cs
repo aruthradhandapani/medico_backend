@@ -64,7 +64,7 @@ namespace medico_backend.Model
             public decimal? sugar_level { get; set; }
             public int? pain_scale { get; set; }
             public decimal? waist_cm { get; set; }          
-            public decimal? hip_cm { get; set; }            
+            public decimal? hip_cm { get; set; }              
 
             // ── Clinical Examination ──────────────────────
             public string? pedal_oedema { get; set; }       
@@ -147,8 +147,13 @@ namespace medico_backend.Model
             public decimal custid { get; set; }
             public int dcode { get; set; }
             public int? department_code { get; set; }
-            public Guid? slot_detail_id { get; set; }   
+            public Guid? slot_detail_id { get; set; }
             public string? notes { get; set; }
+        }
+        public class CancelOpRequest
+        {
+            public Guid op_id { get; set; }
+            public string? cancel_reason { get; set; }
         }
     }
 }
