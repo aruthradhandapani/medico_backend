@@ -51,6 +51,16 @@ namespace medico_backend.Model
         public double? quantity { get; set; }
         public double? rate { get; set; }
         public double? amount { get; set; }
-        public string? item_name { get; set; }   
+        public string? item_name { get; set; }
+    }
+    // ── Request DTO for updating an unbilled charge ──────────────
+    public class UpdateUnbilledChargeRequest
+    {
+        public string unbilledid { get; set; } = string.Empty;
+        public double? rate { get; set; }
+        public double? quantity { get; set; }
+        public double? amount { get; set; }        // if omitted, recalculated from rate * quantity when both are supplied
+        public double? discount { get; set; }
+        public double? charityamount { get; set; }
     }
 }

@@ -1509,5 +1509,55 @@ AND b.tenant_code = @tenant_code
         AND   visit_status IN ('WAITING', 'IN_CONSULTATION')",
                 new { booking_id, tenant_code });
         }
+        // ─────────────────────────────────────────
+        // CANCEL OP REGISTRATION
+        // Separate from UpdateVisitStatus so cancel-specific
+        // rules (blocked states, reason capture) live in one place.
+        // ─────────────────────────────────────────
+        public async Task<string> CancelOp(CancelOpRequest req, string tenant_code)
+        {
+            try
+            {
+                using IDbConnection db = new NpgsqlConnection(_db_conn);
+
+                var op = await db.QueryFirstOrDefaultAsync<OpRegistrationModel>(
+                    @"SELECT * FROM op_registration
+              WHERE op_id      = @op_id
+              AND   tenant_code = @tenant_code
+              AND   isdeleted   = false",
+                    new { req.op_id, tenant_code });
+
+                if (op == null)
+                    return "OP Registration not found";
+
+                if (op.visit_status == "COMPLETED")
+                    return "Cannot cancel a completed visit";
+
+                if (op.visit_status == "CANCELLED")
+                    return "Visit is already cancelled";
+
+                if (op.visit_status == "TRANSFERRED")
+                    return "Cannot cancel a transferred visit";
+
+                string notes = string.IsNullOrWhiteSpace(req.cancel_reason)
+                    ? op.notes ?? string.Empty
+                    : string.IsNullOrWhiteSpace(op.notes)
+                        ? $"Cancelled. Reason: {req.cancel_reason}"
+                        : $"{op.notes} | Cancelled. Reason: {req.cancel_reason}";
+
+                string sql = @"UPDATE op_registration
+                   SET visit_status = 'CANCELLED',
+                       notes        = @notes,
+                       updated_at   = now()
+                   WHERE op_id      = @op_id
+                   AND   tenant_code = @tenant_code
+                   AND   isdeleted   = false";
+
+                int rows = await db.ExecuteAsync(sql, new { req.op_id, notes, tenant_code });
+
+                return rows > 0 ? "Success" : "Cancel failed";
+            }
+            catch (Exception ex) { return ex.Message; }
+        }
     }
 }
