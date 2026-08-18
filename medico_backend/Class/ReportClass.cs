@@ -5228,44 +5228,86 @@ WHERE lrd.requestguid::text = @requestguid::text
             Guid requestguid, 
             bool includeMedicines, 
             string tenant_code, 
-            bool? isletterhead = false)
+            bool? isletterhead = false,
+            Guid? op_id = null)
         {
             try
             {
                 using IDbConnection db = new NpgsqlConnection(_conn);
 
-                // Resolve ip_id if requestguid is for a lab request or case sheet linked to an IP admission
+                // Resolve the ID to use: op_id (explicit OP), ip_id (IP patient), or requestguid fallback
                 string resolvedIpId = requestguid.ToString();
 
-                // 1. Try to resolve from lab_request_master
-                string resolveIpSql = @"
-                    SELECT ip_id::text 
-                    FROM lab_request_master 
-                    WHERE (requestguid::text = @requestguidStr) 
-                      AND (COALESCE(@tenant_code, '') = '' OR tenant_code = @tenant_code)
-                      AND ip_id IS NOT NULL 
-                    LIMIT 1";
-                string ipIdStr = await db.QueryFirstOrDefaultAsync<string>(resolveIpSql, new { requestguidStr = requestguid.ToString(), tenant_code });
-                if (!string.IsNullOrEmpty(ipIdStr))
+                // If op_id is explicitly provided, skip resolution and use it directly
+                if (op_id.HasValue && op_id.Value != Guid.Empty)
                 {
-                    resolvedIpId = ipIdStr;
+                    resolvedIpId = op_id.Value.ToString();
                 }
                 else
                 {
-                    // 2. Try to resolve from op_case_sheet
-                    string resolveIpFromSheetSql = @"
+                    // 1. Try to resolve from lab_request_master (IP path)
+                    string resolveIpSql = @"
                         SELECT ip_id::text 
-                        FROM op_case_sheet 
-                        WHERE (sheet_id::text = @requestguidStr)
+                        FROM lab_request_master 
+                        WHERE (requestguid::text = @requestguidStr) 
                           AND (COALESCE(@tenant_code, '') = '' OR tenant_code = @tenant_code)
                           AND ip_id IS NOT NULL 
                         LIMIT 1";
-                    string ipIdFromSheet = await db.QueryFirstOrDefaultAsync<string>(resolveIpFromSheetSql, new { requestguidStr = requestguid.ToString(), tenant_code });
-                    if (!string.IsNullOrEmpty(ipIdFromSheet))
+                    string ipIdStr = await db.QueryFirstOrDefaultAsync<string>(resolveIpSql, new { requestguidStr = requestguid.ToString(), tenant_code });
+                    if (!string.IsNullOrEmpty(ipIdStr))
                     {
-                        resolvedIpId = ipIdFromSheet;
+                        resolvedIpId = ipIdStr;
+                    }
+                    else
+                    {
+                        // 2. Try to resolve from op_case_sheet (IP path via sheet)
+                        string resolveIpFromSheetSql = @"
+                            SELECT ip_id::text 
+                            FROM op_case_sheet 
+                            WHERE (sheet_id::text = @requestguidStr)
+                              AND (COALESCE(@tenant_code, '') = '' OR tenant_code = @tenant_code)
+                              AND ip_id IS NOT NULL 
+                            LIMIT 1";
+                        string ipIdFromSheet = await db.QueryFirstOrDefaultAsync<string>(resolveIpFromSheetSql, new { requestguidStr = requestguid.ToString(), tenant_code });
+                        if (!string.IsNullOrEmpty(ipIdFromSheet))
+                        {
+                            resolvedIpId = ipIdFromSheet;
+                        }
+                        else
+                        {
+                            // 3. Try to resolve as OP registration directly (OP patient path)
+                            string resolveOpSql = @"
+                                SELECT op_id::text 
+                                FROM op_registration 
+                                WHERE (LOWER(op_id::text) = LOWER(@requestguidStr) OR op_no = @requestguidStr)
+                                  AND (COALESCE(@tenant_code, '') = '' OR tenant_code = @tenant_code)
+                                LIMIT 1";
+                            string opIdFromReg = await db.QueryFirstOrDefaultAsync<string>(resolveOpSql, new { requestguidStr = requestguid.ToString(), tenant_code });
+                            if (!string.IsNullOrEmpty(opIdFromReg))
+                            {
+                                resolvedIpId = opIdFromReg;
+                            }
+                            else
+                            {
+                                // 4. Try to resolve op_id from lab_request_master (OP path via opvisitid/sheet_id)
+                                string resolveOpFromLrmSql = @"
+                                    SELECT COALESCE(NULLIF(opvisitid, ''), NULLIF(sheet_id, '')) AS op_id_str
+                                    FROM lab_request_master 
+                                    WHERE (requestguid::text = @requestguidStr) 
+                                      AND (COALESCE(@tenant_code, '') = '' OR tenant_code = @tenant_code)
+                                      AND ip_id IS NULL
+                                      AND (opvisitid IS NOT NULL OR sheet_id IS NOT NULL)
+                                    LIMIT 1";
+                                string opIdFromLrm = await db.QueryFirstOrDefaultAsync<string>(resolveOpFromLrmSql, new { requestguidStr = requestguid.ToString(), tenant_code });
+                                if (!string.IsNullOrEmpty(opIdFromLrm))
+                                {
+                                    resolvedIpId = opIdFromLrm;
+                                }
+                            }
+                        }
                     }
                 }
+
 
                 // Verify bill data exists
                 var billData = await GetConsolidatedBillDataAsync(

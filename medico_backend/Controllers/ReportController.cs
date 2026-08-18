@@ -215,12 +215,13 @@ namespace medico_backend.Controllers
         public async Task<IActionResult> GetConsolidatedBill(
             [FromQuery] Guid requestguid, 
             [FromQuery] bool includeMedicines = true, 
-            [FromQuery] bool? isletterhead = false)
+            [FromQuery] bool? isletterhead = false,
+            [FromQuery] Guid? op_id = null)
         {
             if (string.IsNullOrWhiteSpace(T))
                 return BadRequest(new { success = false, message = "tenant_code header required" });
 
-            var res = await _reportClass.ConsolidatedBillPDF(requestguid, includeMedicines, T, isletterhead);
+            var res = await _reportClass.ConsolidatedBillPDF(requestguid, includeMedicines, T, isletterhead, op_id);
             return Ok(res);
         }
 
