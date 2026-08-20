@@ -327,7 +327,7 @@ SELECT
     o.custid, o.dcode, o.department_code, o.visit_type, o.reg_type,
     o.visit_date, o.token_no, o.queue_no, o.visit_status, o.notes,
     o.is_direct_walkin, o.duty_dcode, o.transferred_to_dcode, o.transfer_reason,
-    o.is_dressing, o.tenant_code, o.isdeleted, o.created_at, o.updated_at,
+    o.is_dressing, o.tenant_code, o.isdeleted, o.created_at, o.updated_at,o.service_id,
     cl.name AS patient_name,
     cl.mobile,
     cl.isvip,
