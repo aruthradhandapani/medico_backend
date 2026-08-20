@@ -19,7 +19,7 @@ namespace medico_backend.Model
             public string visit_type { get; set; } = "NEWVISIT";
             public string reg_type { get; set; } = "WALKIN";    
             public DateOnly visit_date { get; set; }
-            public int? token_no { get; set; }
+            public string? token_no { get; set; }   
             public int? queue_no { get; set; }
             public string visit_status { get; set; } = "WAITING";
             public string? notes { get; set; }
@@ -34,7 +34,8 @@ namespace medico_backend.Model
             public int? transferred_to_dcode { get; set; }
             public string? transfer_reason { get; set; }
             public bool is_dressing { get; set; } = false;
-            
+            public int? service_id { get; set; }
+
         }
 
         [Table("patient_vitals")]
@@ -109,6 +110,7 @@ namespace medico_backend.Model
             public Guid? slot_detail_id { get; set; }
             public string visit_type { get; set; } = "NEWVISIT";
             public string? notes { get; set; }
+            public int? service_id { get; set; }
         }
 
         // Transfer to another doctor after duty doctor consultation
@@ -154,6 +156,15 @@ namespace medico_backend.Model
         {
             public Guid op_id { get; set; }
             public string? cancel_reason { get; set; }
+        }
+        public class ServiceRegistrationRequest
+        {
+            public decimal custid { get; set; }
+            public int dcode { get; set; }
+            public int service_id { get; set; }
+            public int? department_code { get; set; }
+            public Guid? slot_detail_id { get; set; }
+            public string? notes { get; set; }
         }
     }
 }

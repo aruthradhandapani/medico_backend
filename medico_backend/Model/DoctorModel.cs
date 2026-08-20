@@ -118,6 +118,7 @@ namespace Medico_Backend.Model
         public bool showmobile { get; set; } = true;
 
         public long? group_id { get; set; }
+        public string? token_prefix { get; set; }
         public bool? override_flat_opcharge { get; set; } // true = ignore tenant's age-wise split for this doctor
     }
 }

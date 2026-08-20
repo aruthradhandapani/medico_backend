@@ -161,5 +161,12 @@ namespace medico_backend.Controllers
 
             return Ok(new { message = res });
         }
+        [HttpPost("service-registration")]
+        public async Task<IActionResult> ServiceRegistration([FromBody] ServiceRegistrationRequest req)
+        {
+            var tenant = Request.Headers["tenant_code"].ToString();
+            var res = await cls.ServiceRegistration(req, tenant);
+            return Ok(res);
+        }
     }
 }
