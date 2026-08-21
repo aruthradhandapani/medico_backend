@@ -6,11 +6,6 @@ public class LabSettingModel
     public class lab_settings
     {
 
-        public bool? show_dischargesummary_header_footer_image { get; set; }
-        public bool? show_op_casesheet_header_footer_image { get; set; }
-        public bool? show_casesheet_header_footer_image { get; set; }
-        public bool? show_ip_casesheet_header_footer_image { get; set; }
-
         [ExplicitKey]
         public Guid lsid { get; set; }
 
@@ -41,73 +36,6 @@ public class LabSettingModel
         public bool? paid_amount { get; set; } = true;
         public bool? discount_amount { get; set; } = true;
         public bool? balance_amount { get; set; } = true;
-
-        // Show Name and Age in Single Row (default false)
-        public bool? show_name_age_single_row { get; set; } = false;
-
-        // Align results row to top on Routine Lab Report
-        public bool? result_row_align_top { get; set; } = false;
-
-        // Cash Bill Signature Config: "dynamic" (user who created bill), "fixed" (fixed lab setting signature), "empty" / "manual" (manual signature gap)
-        public string? bill_signature_type { get; set; } = "empty";
-        public string? bill_fixed_signature_path { get; set; }
-        public string? bill_fixed_signature_name { get; set; }
-
-        [Write(false)]
-        public string? billsignaturetype
-        {
-            get => bill_signature_type;
-            set => bill_signature_type = value;
-        }
-
-        [Write(false)]
-        public string? bill_fixed_signature
-        {
-            get => bill_fixed_signature_path;
-            set => bill_fixed_signature_path = value;
-        }
-
-        [Write(false)]
-        public string? bill_signature
-        {
-            get => bill_fixed_signature_path;
-            set => bill_fixed_signature_path = value;
-        }
-
-        [Write(false)]
-        public bool? align_results_top
-        {
-            get => result_row_align_top;
-            set => result_row_align_top = value;
-        }
-
-        [Write(false)]
-        public bool? results_align_top
-        {
-            get => result_row_align_top;
-            set => result_row_align_top = value;
-        }
-
-        [Write(false)]
-        public bool? show_name_and_age_in_single_row
-        {
-            get => show_name_age_single_row;
-            set => show_name_age_single_row = value;
-        }
-
-        [Write(false)]
-        public bool? show_name_and_age_single_row
-        {
-            get => show_name_age_single_row;
-            set => show_name_age_single_row = value;
-        }
-
-        [Write(false)]
-        public bool? show_name_age_in_single_row
-        {
-            get => show_name_age_single_row;
-            set => show_name_age_single_row = value;
-        }
 
         // Routine Report Authorization Signees Config
         public bool? auth1_show { get; set; } = true;
@@ -276,11 +204,13 @@ public class LabSettingModel
         public int? bh_code { get; set; }
         public bool? counterset_setting { get; set; }
         public bool? ref_by { get; set; }
+
+        // Critical Value Arrow Indication on Routine Report
+        public bool? critical_value_indication { get; set; } = true;
         // ✅ NEW — general HMS toggles, moved here instead of a separate settings table
         public bool? is_slot_required { get; set; } = true;   // false = walk-in registration without picking a slot
         public bool? op_age_wise_split { get; set; } = false; // true = doctor's OP charge is split by age slab
         public bool? show_all_customers { get; set; } = false;
-        // Critical Value Arrow Indication on Routine Report
-        public bool? critical_value_indication { get; set; } = true;
+
     }
 }
