@@ -280,5 +280,7 @@ public class LabSettingModel
         public bool? is_slot_required { get; set; } = true;   // false = walk-in registration without picking a slot
         public bool? op_age_wise_split { get; set; } = false; // true = doctor's OP charge is split by age slab
         public bool? show_all_customers { get; set; } = false;
+        // Critical Value Arrow Indication on Routine Report
+        public bool? critical_value_indication { get; set; } = true;
     }
 }
