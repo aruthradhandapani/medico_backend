@@ -276,8 +276,9 @@ public class LabSettingModel
         public int? bh_code { get; set; }
         public bool? counterset_setting { get; set; }
         public bool? ref_by { get; set; }
-
-        // Critical Value Arrow Indication on Routine Report
-        public bool? critical_value_indication { get; set; } = true;
+        // ✅ NEW — general HMS toggles, moved here instead of a separate settings table
+        public bool? is_slot_required { get; set; } = true;   // false = walk-in registration without picking a slot
+        public bool? op_age_wise_split { get; set; } = false; // true = doctor's OP charge is split by age slab
+        public bool? show_all_customers { get; set; } = false;
     }
 }

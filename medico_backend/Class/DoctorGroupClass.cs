@@ -20,6 +20,21 @@ namespace Medico_Backend.Class
             try
             {
                 using IDbConnection db = new NpgsqlConnection(db_conn);
+                if (!string.IsNullOrWhiteSpace(data.token_prefix))
+                {
+                    data.token_prefix = data.token_prefix.Trim().ToUpper();
+
+                    bool exists = await db.ExecuteScalarAsync<bool>(
+                        @"SELECT EXISTS(
+                      SELECT 1 FROM doctor_group_master
+                      WHERE tenant_code = @tenant_code
+                      AND   token_prefix = @token_prefix
+                      AND   is_deleted = false)",
+                        new { data.tenant_code, data.token_prefix });
+
+                    if (exists)
+                        return $"Token prefix '{data.token_prefix}' is already used by another group";
+                }
                 data.entereddate = DateTime.UtcNow;
                 data.ibsdate = DateTime.UtcNow;
                 data.is_deleted = false;

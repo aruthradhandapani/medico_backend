@@ -15,7 +15,7 @@ namespace Medico_Backend.Model
         // "GROUP" = shared token across all doctors in the group
         // "DOCTOR" = each doctor gets their own independent token sequence
         public string token_type { get; set; } = "GROUP";
-
+        public string? token_prefix { get; set; }
         public int display_order { get; set; } = 1;
 
         public bool is_active { get; set; } = true;

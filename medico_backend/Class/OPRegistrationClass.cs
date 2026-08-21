@@ -97,8 +97,10 @@ namespace medico_backend.Class
                 using var tx = db.BeginTransaction();
                 try
                 {
-                    data.token_no = await GenerateNextTokenNo(
-    db, tx, data.dcode, data.slot_detail_id, data.reg_type, data.tenant_code!);
+                    var (tokenNo, seq) = await GenerateNextTokenNo(
+        db, tx, data.dcode, data.slot_detail_id, data.reg_type, data.tenant_code!);
+                    data.token_no = tokenNo;
+                    data.queue_no = seq;
 
                     data.op_id = Guid.NewGuid();
                     data.op_no = await GenerateOpNo(db, data.tenant_code!);   // see note below
@@ -325,7 +327,7 @@ SELECT
     o.custid, o.dcode, o.department_code, o.visit_type, o.reg_type,
     o.visit_date, o.token_no, o.queue_no, o.visit_status, o.notes,
     o.is_direct_walkin, o.duty_dcode, o.transferred_to_dcode, o.transfer_reason,
-    o.is_dressing, o.tenant_code, o.isdeleted, o.created_at, o.updated_at,
+    o.is_dressing, o.tenant_code, o.isdeleted, o.created_at, o.updated_at,o.service_id,
     cl.name AS patient_name,
     cl.mobile,
     cl.isvip,
@@ -529,21 +531,15 @@ ORDER BY o.visit_date DESC, o.queue_no, o.token_no";
             return await db.QueryFirstOrDefaultAsync<PatientVitalsModel>(
                 sql, new { vital_id, tenant_code });
         }
-        // ─────────────────────────────────────────
-        // DIRECT WALK-IN REGISTRATION
-        // Flow 1: Patient knows doctor → pass dcode
-        // Flow 2: Patient doesn't know → pass duty_dcode (assigned at reception)
-        // ─────────────────────────────────────────
         public async Task<string> DirectWalkinRegistration(
-     DirectWalkinRequest req,
-     string tenant_code)
+    DirectWalkinRequest req,
+    string tenant_code)
         {
             try
             {
                 using IDbConnection db = new NpgsqlConnection(_db_conn);
                 db.Open();
 
-                // Determine doctor
                 int assignedDcode = req.dcode.HasValue && req.dcode > 0
                     ? req.dcode.Value
                     : (req.duty_dcode.HasValue && req.duty_dcode > 0
@@ -553,6 +549,26 @@ ORDER BY o.visit_date DESC, o.queue_no, o.token_no";
                 if (assignedDcode == 0)
                     return "Either dcode or duty_dcode is required";
 
+                // ── NEW: resolve service, same lookup ServiceRegistration uses ──
+                ServiceTypeModel? svc = null;
+                bool isDressing = false;
+                if (req.service_id.HasValue && req.service_id > 0)
+                {
+                    svc = await db.QueryFirstOrDefaultAsync<ServiceTypeModel>(
+                        @"SELECT * FROM service_type_master
+                  WHERE service_id = @service_id AND tenant_code = @tenant_code AND deleted = false",
+                        new { req.service_id, tenant_code });
+
+                    if (svc == null)
+                        return $"Service id {req.service_id} not configured for this tenant";
+
+                    isDressing = string.Equals(svc.service_name?.Trim(), "Dressing", StringComparison.OrdinalIgnoreCase);
+                }
+
+                string visitType = svc != null
+                    ? svc.service_name
+                    : (string.IsNullOrWhiteSpace(req.visit_type) ? "NEWVISIT" : req.visit_type.ToUpper());
+
                 bool slotRequired = await db.ExecuteScalarAsync<bool?>(
                     @"SELECT is_slot_required FROM lab_settings
               WHERE tenant_code = @tenant_code AND deleted = false
@@ -561,7 +577,6 @@ ORDER BY o.visit_date DESC, o.queue_no, o.token_no";
 
                 if (!slotRequired)
                 {
-                    // NO-SLOT MODE — just the doctor, no slot validation/quota at all
                     var noSlotData = new OpRegistrationModel
                     {
                         op_id = Guid.NewGuid(),
@@ -570,7 +585,7 @@ ORDER BY o.visit_date DESC, o.queue_no, o.token_no";
                         dcode = assignedDcode,
                         department_code = req.department_code,
                         slot_detail_id = null,
-                        visit_type = string.IsNullOrWhiteSpace(req.visit_type) ? "NEWVISIT" : req.visit_type.ToUpper(),
+                        visit_type = visitType,
                         reg_type = "WALKIN",
                         visit_date = DateOnly.FromDateTime(
                             TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, TimeZoneInfo.FindSystemTimeZoneById("Asia/Kolkata"))),
@@ -578,6 +593,8 @@ ORDER BY o.visit_date DESC, o.queue_no, o.token_no";
                         notes = req.notes,
                         is_direct_walkin = true,
                         duty_dcode = req.duty_dcode,
+                        is_dressing = isDressing,          // NEW
+                        service_id = req.service_id,       // NEW
                         tenant_code = tenant_code,
                         isdeleted = false,
                         created_at = DateTime.SpecifyKind(DateTime.UtcNow, DateTimeKind.Utc),
@@ -588,20 +605,22 @@ ORDER BY o.visit_date DESC, o.queue_no, o.token_no";
                     {
                         try
                         {
-                            int noSlotToken = await GenerateNextTokenNo(
-                             db, tx, assignedDcode, null, "WALKIN", tenant_code);
+                            var (noSlotToken, noSlotSeq) = await GenerateNextTokenNo(
+                                db, tx, assignedDcode, null, "WALKIN", tenant_code, service_id: req.service_id);
                             noSlotData.token_no = noSlotToken;
-                            noSlotData.queue_no = noSlotToken;
+                            noSlotData.queue_no = noSlotSeq;
 
                             await db.ExecuteAsync(@"
                         INSERT INTO op_registration
                         (op_id, op_no, custid, dcode, department_code, slot_detail_id, visit_type,
                          reg_type, visit_date, token_no, queue_no, visit_status, notes,
-                         is_direct_walkin, duty_dcode, tenant_code, isdeleted, created_at, updated_at)
+                         is_direct_walkin, duty_dcode, is_dressing, service_id,
+                         tenant_code, isdeleted, created_at, updated_at)
                         VALUES
                         (@op_id, @op_no, @custid, @dcode, @department_code, @slot_detail_id, @visit_type,
                          @reg_type, @visit_date, @token_no, @queue_no, @visit_status, @notes,
-                         @is_direct_walkin, @duty_dcode, @tenant_code, @isdeleted, @created_at, @updated_at)",
+                         @is_direct_walkin, @duty_dcode, @is_dressing, @service_id,
+                         @tenant_code, @isdeleted, @created_at, @updated_at)",
                                 new
                                 {
                                     noSlotData.op_id,
@@ -619,6 +638,8 @@ ORDER BY o.visit_date DESC, o.queue_no, o.token_no";
                                     noSlotData.notes,
                                     noSlotData.is_direct_walkin,
                                     noSlotData.duty_dcode,
+                                    noSlotData.is_dressing,
+                                    noSlotData.service_id,
                                     noSlotData.tenant_code,
                                     noSlotData.isdeleted,
                                     noSlotData.created_at,
@@ -634,9 +655,11 @@ ORDER BY o.visit_date DESC, o.queue_no, o.token_no";
                         }
                     }
 
-                    var (noSlotTcode, noSlotRate, noSlotAmount) = await GetDoctorConsultationFee(db, assignedDcode, tenant_code, req.custid);
-
-                    Console.WriteLine($"[UNBILL-DEBUG][DirectWalkin-NoSlot] op_id={noSlotData.op_id} custid={noSlotData.custid} tcode={noSlotTcode} rate={noSlotRate} amount={noSlotAmount}");
+                    int? noSlotTcode; double noSlotRate; double noSlotAmount;
+                    if (svc != null)
+                        (noSlotTcode, noSlotRate, noSlotAmount) = await GetServiceCharge(db, svc.service_name, tenant_code);
+                    else
+                        (noSlotTcode, noSlotRate, noSlotAmount) = await GetDoctorConsultationFee(db, assignedDcode, tenant_code, req.custid);
 
                     await _unbilledCls.AddConsultationCharge(new AddUnbilledConsultationRequest
                     {
@@ -648,9 +671,8 @@ ORDER BY o.visit_date DESC, o.queue_no, o.token_no";
                         quantity = 1
                     }, tenant_code);
 
-                    Console.WriteLine($"[UNBILL-DEBUG][DirectWalkin-NoSlot] AddConsultationCharge call completed for op_id={noSlotData.op_id}");
-
-                    return $"Success|OpNo:{noSlotData.op_no}|OpId:{noSlotData.op_id}|Token:{noSlotData.token_no}";
+                    return $"Success|OpNo:{noSlotData.op_no}|OpId:{noSlotData.op_id}|Token:{noSlotData.token_no}" +
+                           (svc != null ? $"|ServiceId:{req.service_id}" : "");
                 }
 
                 // slotRequired == true → validate slot
@@ -692,44 +714,47 @@ ORDER BY o.visit_date DESC, o.queue_no, o.token_no";
                     dcode = assignedDcode,
                     department_code = req.department_code,
                     slot_detail_id = slot.slot_detail_id,
-                    visit_type = string.IsNullOrWhiteSpace(req.visit_type)
-                        ? "NEWVISIT"
-                        : req.visit_type.ToUpper(),
+                    visit_type = visitType,
                     reg_type = "WALKIN",
                     visit_date = slot.appointment_date,
                     visit_status = "WAITING",
                     notes = req.notes,
                     is_direct_walkin = true,
                     duty_dcode = req.duty_dcode,
+                    is_dressing = isDressing,          // NEW
+                    service_id = req.service_id,       // NEW
                     tenant_code = tenant_code,
                     isdeleted = false,
                     created_at = DateTime.SpecifyKind(DateTime.UtcNow, DateTimeKind.Utc),
                     updated_at = DateTime.SpecifyKind(DateTime.UtcNow, DateTimeKind.Utc)
                 };
 
-                int token;
+                string token;
 
                 using (var tx = db.BeginTransaction())
                 {
                     try
                     {
-                        token = await GenerateNextTokenNo(
-                        db, tx, assignedDcode, slot.slot_detail_id, "WALKIN", tenant_code);
-                        data.token_no = token;
-                        data.queue_no = token;
+                        var (tokenStr, seq) = await GenerateNextTokenNo(
+                            db, tx, assignedDcode, slot.slot_detail_id, "WALKIN", tenant_code, service_id: req.service_id);
+                        token = tokenStr;
+                        data.token_no = tokenStr;
+                        data.queue_no = seq;
 
                         await db.ExecuteAsync(@"
                     INSERT INTO op_registration
                     (
                         op_id, op_no, custid, dcode, department_code, slot_detail_id,
                         visit_type, reg_type, visit_date, token_no, queue_no, visit_status,
-                        notes, is_direct_walkin, duty_dcode, tenant_code, isdeleted, created_at, updated_at
+                        notes, is_direct_walkin, duty_dcode, is_dressing, service_id,
+                        tenant_code, isdeleted, created_at, updated_at
                     )
                     VALUES
                     (
                         @op_id, @op_no, @custid, @dcode, @department_code, @slot_detail_id,
                         @visit_type, @reg_type, @visit_date, @token_no, @queue_no, @visit_status,
-                        @notes, @is_direct_walkin, @duty_dcode, @tenant_code, @isdeleted, @created_at, @updated_at
+                        @notes, @is_direct_walkin, @duty_dcode, @is_dressing, @service_id,
+                        @tenant_code, @isdeleted, @created_at, @updated_at
                     )",
                             new
                             {
@@ -748,6 +773,8 @@ ORDER BY o.visit_date DESC, o.queue_no, o.token_no";
                                 data.notes,
                                 data.is_direct_walkin,
                                 data.duty_dcode,
+                                data.is_dressing,
+                                data.service_id,
                                 data.tenant_code,
                                 data.isdeleted,
                                 data.created_at,
@@ -763,24 +790,22 @@ ORDER BY o.visit_date DESC, o.queue_no, o.token_no";
                     }
                 }
 
-                // ── Auto-add consultation fee to unbilledcharges ─────
-                var (feeTcode, feeRate, feeAmount) = await GetDoctorConsultationFee(db, assignedDcode, tenant_code, req.custid);
-
-                Console.WriteLine($"[UNBILL-DEBUG][DirectWalkin-Slot] op_id={data.op_id} custid={data.custid} tcode={feeTcode} rate={feeRate} amount={feeAmount}");
+                int? feeTcode2; double feeRate2; double feeAmount2;
+                if (svc != null)
+                    (feeTcode2, feeRate2, feeAmount2) = await GetServiceCharge(db, svc.service_name, tenant_code);
+                else
+                    (feeTcode2, feeRate2, feeAmount2) = await GetDoctorConsultationFee(db, assignedDcode, tenant_code, req.custid);
 
                 await _unbilledCls.AddConsultationCharge(new AddUnbilledConsultationRequest
                 {
                     op_id = data.op_id.ToString(),
                     custid = data.custid,
-                    tcode = feeTcode,
-                    rate = feeRate,
-                    amount = feeAmount,
+                    tcode = feeTcode2,
+                    rate = feeRate2,
+                    amount = feeAmount2,
                     quantity = 1
                 }, tenant_code);
 
-                Console.WriteLine($"[UNBILL-DEBUG][DirectWalkin-Slot] AddConsultationCharge call completed for op_id={data.op_id}");
-
-                // Update slot counters
                 await db.ExecuteAsync(@"
             UPDATE doctor_appointment_slot_details
             SET
@@ -791,7 +816,6 @@ ORDER BY o.visit_date DESC, o.queue_no, o.token_no";
               AND tenant_code = @tenant_code",
                     new { slot_detail_id = slot.slot_detail_id, tenant_code });
 
-                // Mark slot FULL if reached capacity
                 await db.ExecuteAsync(@"
             UPDATE doctor_appointment_slot_details
             SET slot_status = 'FULL'
@@ -800,7 +824,8 @@ ORDER BY o.visit_date DESC, o.queue_no, o.token_no";
               AND tenant_code = @tenant_code",
                     new { slot_detail_id = slot.slot_detail_id, tenant_code });
 
-                return $"Success|OpNo:{data.op_no}|OpId:{data.op_id}|Token:{token}";
+                return $"Success|OpNo:{data.op_no}|OpId:{data.op_id}|Token:{token}" +
+                       (svc != null ? $"|ServiceId:{req.service_id}" : "");
             }
             catch (Exception ex)
             {
@@ -867,15 +892,16 @@ ORDER BY o.visit_date DESC, o.queue_no, o.token_no";
                         return "Slot capacity reached";
                 }
 
-                int newToken;
+                string newToken;
                 OpRegistrationModel newOp;
 
                 using (var tx = db.BeginTransaction())
                 {
                     try
                     {
-                        newToken = await GenerateNextTokenNo(
-                        db, tx, req.transfer_to_dcode, slot?.slot_detail_id, op.reg_type, tenant_code);
+                        var (tokenStr, seq) = await GenerateNextTokenNo(
+            db, tx, req.transfer_to_dcode, slot?.slot_detail_id, op.reg_type, tenant_code);
+                        newToken = tokenStr;
 
                         // Mark old OP as transferred (same tx)
                         await db.ExecuteAsync(
@@ -900,7 +926,7 @@ ORDER BY o.visit_date DESC, o.queue_no, o.token_no";
                             reg_type = op.reg_type,
                             visit_date = req.visit_date,
                             token_no = newToken,
-                            queue_no = newToken,
+                            queue_no = seq,  // ← newToken is now string, queue_no is int  // use the int from the tuple, not newToken
                             visit_status = "WAITING",
                             notes = $"Transferred from OP# {op.op_no}. Reason: {req.transfer_reason}",
                             is_direct_walkin = op.is_direct_walkin,
@@ -1207,13 +1233,17 @@ AND b.tenant_code = @tenant_code
                 if (!slotRequired)
                 {
                     // NO-SLOT MODE — token restarts at 1 daily, counted only among dressing rows
-                    int dressingToken = await db.ExecuteScalarAsync<int>(
-                        @"SELECT COALESCE(MAX(token_no), 0) + 1
+                    int dressingSeq = await db.ExecuteScalarAsync<int>(
+                        @"SELECT COALESCE(MAX(
+                      NULLIF(regexp_replace(token_no, '\D', '', 'g'), '')::int
+                  ), 0) + 1
                   FROM op_registration
                   WHERE tenant_code = @tenant_code AND isdeleted = false
                   AND is_dressing = true
                   AND visit_date = (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata')::date",
                         new { dcode = req.dcode, tenant_code });
+
+                    string dressingToken = $"D{dressingSeq}";
 
                     var noSlotData = new OpRegistrationModel
                     {
@@ -1226,8 +1256,8 @@ AND b.tenant_code = @tenant_code
                         visit_type = "DRESSING",
                         reg_type = "WALKIN",
                         visit_date = DateOnly.FromDateTime(DateTime.UtcNow),
-                        token_no = dressingToken,
-                        queue_no = dressingToken,
+                        token_no = dressingToken,   // "D1", "D2", ...
+                        queue_no = dressingSeq,     // plain int, unchanged
                         is_dressing = true,
                         visit_status = "WAITING",
                         notes = req.notes,
@@ -1270,7 +1300,7 @@ AND b.tenant_code = @tenant_code
                             noSlotData.updated_at
                         });
 
-                    return $"Success|OpNo:{noSlotData.op_no}|OpId:{noSlotData.op_id}|Token:{dressingToken}";
+                    return $"Success|OpNo:{noSlotData.op_no}|OpId:{noSlotData.op_id}|Token:{noSlotData.token_no}";
                 }
 
                 // SLOT-REQUIRED MODE — same slot validation as DirectWalkinRegistration
@@ -1304,7 +1334,8 @@ AND b.tenant_code = @tenant_code
                 if (slot.booked_count >= slot.max_patients)
                     return "Slot capacity reached";
 
-                int slotToken = slot.booked_count + 1;
+                int slotSeq = slot.booked_count + 1;
+                string slotToken = $"D{slotSeq}";
 
                 var data = new OpRegistrationModel
                 {
@@ -1317,8 +1348,8 @@ AND b.tenant_code = @tenant_code
                     visit_type = "DRESSING",
                     reg_type = "WALKIN",
                     visit_date = slot.appointment_date,
-                    token_no = slotToken,
-                    queue_no = slotToken,
+                    token_no = slotToken,   // "D1", "D2", ...
+                    queue_no = slotSeq,     // plain int, unchanged
                     is_dressing = true,
                     visit_status = "WAITING",
                     notes = req.notes,
@@ -1378,27 +1409,69 @@ AND b.tenant_code = @tenant_code
               AND tenant_code = @tenant_code",
                     new { slot_detail_id = slot.slot_detail_id, tenant_code });
 
-                return $"Success|OpNo:{data.op_no}|OpId:{data.op_id}|Token:{slotToken}";
+                return $"Success|OpNo:{data.op_no}|OpId:{data.op_id}|Token:{data.token_no}";
             }
             catch (Exception ex)
             {
                 return ex.Message;
             }
         }
-        // ─────────────────────────────────────────
-        // GENERATE NEXT TOKEN NO — race-safe via pg_advisory_xact_lock
-        // SLOT MODE  → pulls from the reserved online/walkin range on the slot
-        // NO-SLOT MODE → doctor+date daily counter (unchanged)
-        // ─────────────────────────────────────────
-        private async Task<int> GenerateNextTokenNo(
-            IDbConnection db, IDbTransaction tx,
-            int dcode, Guid? slot_detail_id, string reg_type, string tenant_code)
+        private async Task<(string token_no, int seq)> GenerateNextTokenNo(
+    IDbConnection db, IDbTransaction tx,
+    int dcode, Guid? slot_detail_id, string reg_type, string tenant_code,
+    int? service_id = null)   // ✅ was string? service_code
         {
             string bookingType = string.IsNullOrWhiteSpace(reg_type) ? "WALKIN" : reg_type.ToUpper();
 
+            string? prefix;
+            bool sharedSequence;
+            long? groupId = null;
+
+            if (service_id == null)
+            {
+                // ── EXISTING OP LOGIC — unchanged ──────────────────
+                var groupRow = await db.QueryFirstOrDefaultAsync(
+                    @"SELECT dm.group_id, dm.token_prefix AS doctor_prefix,
+                     dgm.token_type, dgm.token_prefix AS group_prefix
+              FROM   doctor_master dm
+              LEFT JOIN doctor_group_master dgm
+                     ON dgm.group_id     = dm.group_id
+                    AND dgm.tenant_code  = dm.tenant_code
+                    AND dgm.is_deleted   = false
+                    AND dgm.is_active    = true
+              WHERE  dm.dcode       = @dcode
+              AND    dm.tenant_code = @tenant_code
+              AND    dm.deleted     = false",
+                    new { dcode, tenant_code }, tx);
+
+                groupId = groupRow?.group_id;
+                string tokenType = (string)(groupRow?.token_type ?? "DOCTOR");
+                prefix = (groupId.HasValue && tokenType == "GROUP")
+                    ? (string?)groupRow?.group_prefix
+                    : (string?)groupRow?.doctor_prefix;
+
+                sharedSequence = groupId.HasValue && tokenType == "GROUP";
+            }
+            else
+            {
+                // ── service_type_master by id ──────────────────────
+                var svc = await db.QueryFirstOrDefaultAsync<ServiceTypeModel>(
+                    @"SELECT * FROM service_type_master
+              WHERE service_id = @service_id AND tenant_code = @tenant_code AND deleted = false",
+                    new { service_id, tenant_code }, tx);
+
+                if (svc == null)
+                    throw new Exception($"Service id {service_id} not configured for this tenant");
+
+                prefix = svc.token_prefix;
+                sharedSequence = svc.scope != "DOCTOR";
+            }
+
+            int seq;
+
             if (slot_detail_id.HasValue && slot_detail_id != Guid.Empty)
             {
-                // ── SLOT MODE ────────────────────────────────
+                // ── SLOT MODE — unchanged ────────────────────────────
                 string lockKey = $"SLOT:{tenant_code}:{slot_detail_id}";
                 await db.ExecuteAsync("SELECT pg_advisory_xact_lock(hashtext(@lockKey))",
                     new { lockKey }, tx);
@@ -1422,47 +1495,107 @@ AND b.tenant_code = @tenant_code
                 {
                     if (row.walkin_token_start == null || row.walkin_token_end == null)
                         throw new Exception("Walk-in token range not configured on this slot");
-
                     start = (int)row.walkin_token_start;
                     end = (int)row.walkin_token_end;
                     used = (int)row.walkin_count;
                 }
-                else // ONLINE / WHATSAPP → online range
+                else
                 {
                     if (row.online_token_start == null || row.online_token_end == null)
                         throw new Exception("Online token range not configured on this slot");
-
                     start = (int)row.online_token_start;
                     end = (int)row.online_token_end;
                     used = (int)row.online_count;
                 }
 
-                int next = bookingType == "WALKIN"
-    ? start + used
-    : start + used - 1;
-                if (next > end)
+                seq = bookingType == "WALKIN" ? start + used : start + used - 1;
+                if (seq > end)
                     throw new Exception($"{bookingType} token quota exhausted for this slot");
-
-                return next;
             }
             else
             {
-                // ── NO-SLOT MODE — doctor-wise, restarts daily ──
-                string lockKey = $"DCODE:{tenant_code}:{dcode}";
-                string sql = @"SELECT COALESCE(MAX(token_no), 0) + 1
-                FROM   op_registration
-                WHERE  dcode        = @dcode
-                AND    tenant_code  = @tenant_code
-                AND    isdeleted    = false
-                AND    COALESCE(is_dressing, false) = false
-                AND    visit_date   = (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata')::date";
-                var param = new { dcode, tenant_code };
+                string lockKey;
+                string sql;
+                object param;
+
+                if (service_id == null && sharedSequence)
+                {
+                    // GROUP MODE — OP only, unchanged
+                    lockKey = $"GROUP:{tenant_code}:{groupId}";
+
+                    sql = @"SELECT COALESCE(MAX(
+                        NULLIF(regexp_replace(o.token_no, '\D', '', 'g'), '')::int
+                    ), 0) + 1
+                    FROM   op_registration o
+                    JOIN   doctor_master d
+                           ON d.dcode = o.dcode AND d.tenant_code = o.tenant_code
+                    WHERE  d.group_id    = @groupId
+                    AND    o.tenant_code = @tenant_code
+                    AND    o.isdeleted   = false
+                    AND    COALESCE(o.is_dressing, false) = false
+                    AND    o.visit_date  = (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata')::date";
+
+                    param = new { groupId, tenant_code };
+                }
+                else if (service_id == null)
+                {
+                    // INDIVIDUAL MODE — OP only, unchanged
+                    lockKey = $"DCODE:{tenant_code}:{dcode}";
+
+                    sql = @"SELECT COALESCE(MAX(
+                        NULLIF(regexp_replace(token_no, '\D', '', 'g'), '')::int
+                    ), 0) + 1
+                    FROM   op_registration
+                    WHERE  dcode        = @dcode
+                    AND    tenant_code  = @tenant_code
+                    AND    isdeleted    = false
+                    AND    COALESCE(is_dressing, false) = false
+                    AND    visit_date   = (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata')::date";
+
+                    param = new { dcode, tenant_code };
+                }
+                else if (sharedSequence)
+                {
+                    // TENANT-scope service (e.g. DRESSING)
+                    lockKey = $"SVC:{tenant_code}:{service_id}";
+
+                    sql = @"SELECT COALESCE(MAX(
+                        NULLIF(regexp_replace(token_no, '\D', '', 'g'), '')::int
+                    ), 0) + 1
+                    FROM   op_registration
+                    WHERE  service_id  = @service_id
+                    AND    tenant_code = @tenant_code
+                    AND    isdeleted   = false
+                    AND    visit_date  = (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata')::date";
+
+                    param = new { service_id, tenant_code };
+                }
+                else
+                {
+                    // DOCTOR-scope service
+                    lockKey = $"SVC:{tenant_code}:{service_id}:{dcode}";
+
+                    sql = @"SELECT COALESCE(MAX(
+                        NULLIF(regexp_replace(token_no, '\D', '', 'g'), '')::int
+                    ), 0) + 1
+                    FROM   op_registration
+                    WHERE  service_id  = @service_id
+                    AND    dcode       = @dcode
+                    AND    tenant_code = @tenant_code
+                    AND    isdeleted   = false
+                    AND    visit_date  = (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata')::date";
+
+                    param = new { service_id, dcode, tenant_code };
+                }
 
                 await db.ExecuteAsync("SELECT pg_advisory_xact_lock(hashtext(@lockKey))",
                     new { lockKey }, tx);
 
-                return await db.ExecuteScalarAsync<int>(sql, param, tx);
+                seq = await db.ExecuteScalarAsync<int>(sql, param, tx);
             }
+
+            string tokenNo = string.IsNullOrWhiteSpace(prefix) ? seq.ToString() : $"{prefix}{seq}";
+            return (tokenNo, seq);
         }
         // ─────────────────────────────────────────
         // CANCEL OP FOR A CANCELLED BOOKING
@@ -1558,6 +1691,289 @@ AND b.tenant_code = @tenant_code
                 return rows > 0 ? "Success" : "Cancel failed";
             }
             catch (Exception ex) { return ex.Message; }
+        }
+        private async Task<(long? group_id, string token_type, string? prefix)> GetDoctorGroupInfo(
+    IDbConnection db, IDbTransaction tx, int dcode, string tenant_code)
+        {
+            var row = await db.QueryFirstOrDefaultAsync(
+                @"SELECT dm.group_id, dgm.token_type, dgm.short_name, dgm.group_name
+          FROM   doctor_master dm
+          LEFT JOIN doctor_group_master dgm
+                 ON dgm.group_id     = dm.group_id
+                AND dgm.tenant_code  = dm.tenant_code
+                AND dgm.is_deleted   = false
+                AND dgm.is_active    = true
+          WHERE  dm.dcode       = @dcode
+          AND    dm.tenant_code = @tenant_code
+          AND    dm.deleted     = false",
+                new { dcode, tenant_code }, tx);
+
+            if (row == null || row.group_id == null)
+                return (null, "DOCTOR", null);   // no group at all → individual
+
+            string tokenType = (string)(row.token_type ?? "DOCTOR");
+            string? prefix = (string?)row.short_name ?? (string?)row.group_name;
+
+            return ((long?)row.group_id, tokenType, prefix);
+        }
+        private async Task<(int? tcode, double rate, double amount)> GetServiceCharge(
+    IDbConnection db, string service_name, string tenant_code)
+        {
+            var test = await db.QueryFirstOrDefaultAsync(
+                @"SELECT tcode, amount FROM test_master
+          WHERE TRIM(tenant_code) = TRIM(@tenant_code)
+          AND   deleted     = false
+          AND   name ILIKE @name_pattern
+          ORDER BY tcode
+          LIMIT 1",
+                new { tenant_code, name_pattern = $"{service_name}%" });
+
+            if (test == null)
+            {
+                Console.WriteLine($"[SVC-FEE-DEBUG] No test_master match for '{service_name}' — returning 0");
+                return (null, 0, 0);
+            }
+
+            int tcode = (int)test.tcode;
+            double amount = test.amount != null ? (double)test.amount : 0;
+
+            Console.WriteLine($"[SVC-FEE-DEBUG] service='{service_name}' tcode={tcode} amount={amount}");
+
+            return (tcode, amount, amount);
+        }
+        public async Task<string> ServiceRegistration(ServiceRegistrationRequest req, string tenant_code)
+        {
+            try
+            {
+                using IDbConnection db = new NpgsqlConnection(_db_conn);
+                db.Open();
+
+                if (req.dcode == 0)
+                    return "dcode is required";
+
+                if (req.service_id <= 0)
+                    return "service_id is required";
+
+                var svc = await db.QueryFirstOrDefaultAsync<ServiceTypeModel>(
+                    @"SELECT * FROM service_type_master
+              WHERE service_id = @service_id AND tenant_code = @tenant_code AND deleted = false",
+                    new { req.service_id, tenant_code });
+
+                if (svc == null)
+                    return $"Service id {req.service_id} not configured for this tenant";
+
+                bool isDressing = string.Equals(svc.service_name?.Trim(), "Dressing", StringComparison.OrdinalIgnoreCase);
+
+                bool slotRequired = await db.ExecuteScalarAsync<bool?>(
+                    @"SELECT is_slot_required FROM lab_settings
+              WHERE tenant_code = @tenant_code AND deleted = false
+              ORDER BY (bh_code IS NULL) LIMIT 1",
+                    new { tenant_code }) ?? true;
+
+                if (!slotRequired)
+                {
+                    var noSlotData = new OpRegistrationModel
+                    {
+                        op_id = Guid.NewGuid(),
+                        op_no = await GenerateOpNo(db, tenant_code),
+                        custid = req.custid,
+                        dcode = req.dcode,
+                        department_code = req.department_code,
+                        slot_detail_id = null,
+                        visit_type = svc.service_name,
+                        reg_type = "WALKIN",
+                        visit_date = DateOnly.FromDateTime(
+                            TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, TimeZoneInfo.FindSystemTimeZoneById("Asia/Kolkata"))),
+                        visit_status = "WAITING",
+                        notes = req.notes,
+                        is_direct_walkin = true,
+                        is_dressing = isDressing,
+                        service_id = req.service_id,
+                        tenant_code = tenant_code,
+                        isdeleted = false,
+                        created_at = DateTime.SpecifyKind(DateTime.UtcNow, DateTimeKind.Utc),
+                        updated_at = DateTime.SpecifyKind(DateTime.UtcNow, DateTimeKind.Utc)
+                    };
+
+                    using (var tx = db.BeginTransaction())
+                    {
+                        try
+                        {
+                            var (tokenNo, seq) = await GenerateNextTokenNo(
+                                db, tx, req.dcode, null, "WALKIN", tenant_code, service_id: req.service_id);
+                            noSlotData.token_no = tokenNo;
+                            noSlotData.queue_no = seq;
+
+                            await db.ExecuteAsync(@"
+                        INSERT INTO op_registration
+                        (op_id, op_no, custid, dcode, department_code, slot_detail_id, visit_type,
+                         reg_type, visit_date, token_no, queue_no, is_dressing, service_id,
+                         visit_status, notes, is_direct_walkin, tenant_code, isdeleted, created_at, updated_at)
+                        VALUES
+                        (@op_id, @op_no, @custid, @dcode, @department_code, @slot_detail_id, @visit_type,
+                         @reg_type, @visit_date, @token_no, @queue_no, @is_dressing, @service_id,
+                         @visit_status, @notes, @is_direct_walkin, @tenant_code, @isdeleted, @created_at, @updated_at)",
+                                new
+                                {
+                                    noSlotData.op_id,
+                                    noSlotData.op_no,
+                                    noSlotData.custid,
+                                    noSlotData.dcode,
+                                    noSlotData.department_code,
+                                    noSlotData.slot_detail_id,
+                                    noSlotData.visit_type,
+                                    noSlotData.reg_type,
+                                    visit_date = noSlotData.visit_date.ToDateTime(TimeOnly.MinValue),
+                                    noSlotData.token_no,
+                                    noSlotData.queue_no,
+                                    noSlotData.is_dressing,
+                                    service_id = req.service_id,
+                                    noSlotData.visit_status,
+                                    noSlotData.notes,
+                                    noSlotData.is_direct_walkin,
+                                    noSlotData.tenant_code,
+                                    noSlotData.isdeleted,
+                                    noSlotData.created_at,
+                                    noSlotData.updated_at
+                                }, tx);
+
+                            tx.Commit();
+                        }
+                        catch { tx.Rollback(); throw; }
+                    }
+
+                    var (noSlotTcode, noSlotRate, noSlotAmount) = await GetServiceCharge(db, svc.service_name, tenant_code);
+
+                    await _unbilledCls.AddConsultationCharge(new AddUnbilledConsultationRequest
+                    {
+                        op_id = noSlotData.op_id.ToString(),
+                        custid = noSlotData.custid,
+                        tcode = noSlotTcode,
+                        rate = noSlotRate,
+                        amount = noSlotAmount,
+                        quantity = 1
+                    }, tenant_code);
+
+                    return $"Success|OpNo:{noSlotData.op_no}|OpId:{noSlotData.op_id}|Token:{noSlotData.token_no}|ServiceId:{req.service_id}";
+                }
+
+                // ── SLOT-REQUIRED MODE ──
+                var slot = await db.QueryFirstOrDefaultAsync<DoctorAppointmentSlotDetailsModel>(
+                    @"SELECT * FROM doctor_appointment_slot_details
+              WHERE slot_detail_id = @slot_detail_id AND tenant_code = @tenant_code
+              AND isdeleted = false AND is_active = true",
+                    new { req.slot_detail_id, tenant_code });
+
+                if (slot == null) return "Slot not found";
+                if (slot.dcode != req.dcode) return "Selected slot does not belong to selected doctor";
+                if (slot.slot_status == "FULL") return "Slot is full";
+                if (slot.slot_status == "CANCELLED") return "Slot is cancelled";
+                if (slot.slot_status == "CLOSED") return "Slot is closed";
+                if (slot.walkin_count >= slot.max_walkin) return "Walk-in quota full for this slot";
+                if (slot.booked_count >= slot.max_patients) return "Slot capacity reached";
+
+                var data = new OpRegistrationModel
+                {
+                    op_id = Guid.NewGuid(),
+                    op_no = await GenerateOpNo(db, tenant_code),
+                    custid = req.custid,
+                    dcode = req.dcode,
+                    department_code = req.department_code,
+                    slot_detail_id = slot.slot_detail_id,
+                    visit_type = svc.service_name,
+                    reg_type = "WALKIN",
+                    visit_date = slot.appointment_date,
+                    visit_status = "WAITING",
+                    notes = req.notes,
+                    is_direct_walkin = true,
+                    is_dressing = isDressing,
+                    service_id = req.service_id,
+                    tenant_code = tenant_code,
+                    isdeleted = false,
+                    created_at = DateTime.SpecifyKind(DateTime.UtcNow, DateTimeKind.Utc),
+                    updated_at = DateTime.SpecifyKind(DateTime.UtcNow, DateTimeKind.Utc)
+                };
+
+                string token;
+
+                using (var tx = db.BeginTransaction())
+                {
+                    try
+                    {
+                        var (tokenStr, seq) = await GenerateNextTokenNo(
+                            db, tx, req.dcode, slot.slot_detail_id, "WALKIN", tenant_code, service_id: req.service_id);
+                        token = tokenStr;
+                        data.token_no = tokenStr;
+                        data.queue_no = seq;
+
+                        await db.ExecuteAsync(@"
+                    INSERT INTO op_registration
+                    (op_id, op_no, custid, dcode, department_code, slot_detail_id, visit_type,
+                     reg_type, visit_date, token_no, queue_no, is_dressing, service_id,
+                     visit_status, notes, is_direct_walkin, tenant_code, isdeleted, created_at, updated_at)
+                    VALUES
+                    (@op_id, @op_no, @custid, @dcode, @department_code, @slot_detail_id, @visit_type,
+                     @reg_type, @visit_date, @token_no, @queue_no, @is_dressing, @service_id,
+                     @visit_status, @notes, @is_direct_walkin, @tenant_code, @isdeleted, @created_at, @updated_at)",
+                            new
+                            {
+                                data.op_id,
+                                data.op_no,
+                                data.custid,
+                                data.dcode,
+                                data.department_code,
+                                data.slot_detail_id,
+                                data.visit_type,
+                                data.reg_type,
+                                visit_date = data.visit_date.ToDateTime(TimeOnly.MinValue),
+                                data.token_no,
+                                data.queue_no,
+                                data.is_dressing,
+                                service_id = req.service_id,
+                                data.visit_status,
+                                data.notes,
+                                data.is_direct_walkin,
+                                data.tenant_code,
+                                data.isdeleted,
+                                data.created_at,
+                                data.updated_at
+                            }, tx);
+
+                        tx.Commit();
+                    }
+                    catch { tx.Rollback(); throw; }
+                }
+
+                var (feeTcode, feeRate, feeAmount) = await GetServiceCharge(db, svc.service_name, tenant_code);
+
+                await _unbilledCls.AddConsultationCharge(new AddUnbilledConsultationRequest
+                {
+                    op_id = data.op_id.ToString(),
+                    custid = data.custid,
+                    tcode = feeTcode,
+                    rate = feeRate,
+                    amount = feeAmount,
+                    quantity = 1
+                }, tenant_code);
+
+                await db.ExecuteAsync(@"
+            UPDATE doctor_appointment_slot_details
+            SET booked_count = booked_count + 1, walkin_count = walkin_count + 1, updated_at = now()
+            WHERE slot_detail_id = @slot_detail_id AND tenant_code = @tenant_code",
+                    new { slot_detail_id = slot.slot_detail_id, tenant_code });
+
+                await db.ExecuteAsync(@"
+            UPDATE doctor_appointment_slot_details
+            SET slot_status = 'FULL'
+            WHERE slot_detail_id = @slot_detail_id AND booked_count >= max_patients AND tenant_code = @tenant_code",
+                    new { slot_detail_id = slot.slot_detail_id, tenant_code });
+
+                return $"Success|OpNo:{data.op_no}|OpId:{data.op_id}|Token:{token}|ServiceId:{req.service_id}";
+            }
+            catch (Exception ex)
+            {
+                return ex.Message;
+            }
         }
     }
 }
