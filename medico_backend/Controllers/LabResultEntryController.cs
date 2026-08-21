@@ -1,5 +1,4 @@
-﻿using medico_backend.Class;
-using medico_backend.Model;
+using medico_backend.Class;
 using medico_backend.Model;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -32,7 +31,6 @@ namespace medico_backend.Controllers
             }
         }
 
-
         [HttpGet("LoadTestResultDetails")]
         public async Task<IActionResult> LoadTestResultDetails([FromQuery] Guid testResultId)
         {
@@ -50,18 +48,11 @@ namespace medico_backend.Controllers
 
         [HttpGet("ViewResultSearch")]
         public async Task<IActionResult> GetResultList(
-    [FromQuery] int dcode,
-    [FromQuery] string fromdate,
-    [FromQuery] string todate)
+            [FromQuery] int dcode,
+            [FromQuery] string fromdate,
+            [FromQuery] string todate)
         {
-            // tenantCode is resolved from the JWT / request context the same way
-            // every other endpoint in LIMS_Backend does it.
-            //string? tenantCode = User.FindFirst("tenant_code")?.Value;
-            string tenantCode = null;
-            if (tenantCode == null)
-            {
-                tenantCode = Request.Headers["tenant_code"].ToString();
-            }
+            string? tenantCode = Request.Headers["tenant_code"].ToString();
 
             if (string.IsNullOrWhiteSpace(tenantCode))
                 return Unauthorized("Tenant context missing.");
@@ -97,22 +88,21 @@ namespace medico_backend.Controllers
             }
         }
 
-
-        // ── Save result entry (supports both JSON and multipart/form-data) ──
-        // When the client sends multipart/form-data, individual image_file fields
-        // are bound automatically by ASP.NET Core model binding.
-        // When the client sends application/json, proof_image_base64 can be used instead.
         [HttpPost("saveresultentry")]
-        [RequestFormLimits(ValueLengthLimit = int.MaxValue, MultipartBodyLengthLimit = long.MaxValue, ValueCountLimit = int.MaxValue)]
-        [RequestSizeLimit(long.MaxValue)]
-        public async Task<IActionResult> SaveResult([FromForm] List<LabResultEntry> entries)
+        public async Task<IActionResult> SaveResult([FromBody] List<LabResultEntry> results)
         {
             try
             {
-                string? tenantCode = User.FindFirst("tenant_code")?.Value
-                                     ?? Request.Headers["tenant_code"].ToString();
+                string? tenantCode = Request.Headers["tenant_code"].ToString();
+                if (string.IsNullOrWhiteSpace(tenantCode))
+                {
+                    tenantCode = User.FindFirst("tenant_code")?.Value ?? "";
+                }
 
-                var result = await _cls.SaveResult(entries, tenantCode);
+                if (results is not { Count: > 0 })
+                    return BadRequest(new { status = "Failed", message = "No entries supplied." });
+
+                await _cls.SaveResult(results, tenantCode);
                 return Ok(new { status = "Success", message = "Result saved successfully" });
             }
             catch (Exception ex)
@@ -124,6 +114,58 @@ namespace medico_backend.Controllers
                     message = ex.Message,
                     detail = ex.InnerException?.Message
                 });
+            }
+        }
+
+        [HttpPost("saveresult")]
+        public async Task<IActionResult> SaveResultAlias([FromBody] List<LabResultEntry> results)
+        {
+            return await SaveResult(results);
+        }
+
+        [HttpPost("saveresultimage")]
+        [RequestFormLimits(ValueLengthLimit = int.MaxValue, MultipartBodyLengthLimit = long.MaxValue, ValueCountLimit = int.MaxValue)]
+        [RequestSizeLimit(long.MaxValue)]
+        public async Task<IActionResult> SaveResultImage([FromForm] IList<ResultImageUpload> upload)
+        {
+            try
+            {
+                if (upload is not { Count: > 0 })
+                    return BadRequest(new { status = "Failed", message = "No images supplied." });
+
+                string? tenantCode = Request.Headers["tenant_code"].ToString();
+
+                var results = new List<object>();
+
+                foreach (var item in upload)
+                {
+                    if (item.testresultid == Guid.Empty || item.image_file is not { Length: > 0 })
+                    {
+                        results.Add(new { testresultid = item.testresultid, status = "Skipped", message = "Missing testresultid or file." });
+                        continue;
+                    }
+
+                    try
+                    {
+                        var imagePath = await _cls.SaveResultImage(item.testresultid, item.image_file, tenantCode);
+
+                        results.Add(imagePath == null
+                            ? new { testresultid = item.testresultid, status = "Failed", message = "No matching result row found." }
+                            : new { testresultid = item.testresultid, status = "Success", image_path = imagePath });
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"[Controller:SaveResultImage] testresultid={item.testresultid} {ex.GetType().Name}: {ex.Message}");
+                        results.Add(new { testresultid = item.testresultid, status = "Failed", message = ex.Message });
+                    }
+                }
+
+                return Ok(new { status = "Completed", results });
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[Controller:SaveResultImage] {ex.GetType().Name}: {ex.Message}\n{ex}");
+                return StatusCode(500, new { status = "Failed", message = ex.Message, detail = ex.InnerException?.Message });
             }
         }
     }

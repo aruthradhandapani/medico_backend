@@ -436,4 +436,9 @@ namespace medico_backend.Model
         public string Result { get; set; }
     }
 
+    public class ResultImageUpload
+    {
+        public Guid testresultid { get; set; }
+        public IFormFile? image_file { get; set; }
+    }
 }

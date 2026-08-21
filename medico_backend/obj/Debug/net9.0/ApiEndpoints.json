@@ -6769,6 +6769,22 @@
   },
   {
     "ContainingType": "medico_backend.Controllers.LabResultController",
+    "Method": "SaveResultAlias",
+    "RelativePath": "api/LabResult/saveresult",
+    "HttpMethod": "POST",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "results",
+        "Type": "System.Collections.Generic.List\u00601[[medico_backend.Model.LabResultEntry, medico_backend, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]]",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "medico_backend.Controllers.LabResultController",
     "Method": "SaveResult",
     "RelativePath": "api/LabResult/saveresultentry",
     "HttpMethod": "POST",
@@ -6776,8 +6792,24 @@
     "Order": 0,
     "Parameters": [
       {
-        "Name": "entries",
+        "Name": "results",
         "Type": "System.Collections.Generic.List\u00601[[medico_backend.Model.LabResultEntry, medico_backend, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]]",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "medico_backend.Controllers.LabResultController",
+    "Method": "SaveResultImage",
+    "RelativePath": "api/LabResult/saveresultimage",
+    "HttpMethod": "POST",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "upload",
+        "Type": "System.Collections.Generic.IList\u00601[[medico_backend.Model.ResultImageUpload, medico_backend, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]]",
         "IsRequired": false
       }
     ],
@@ -7012,6 +7044,26 @@
     "Order": 0,
     "Parameters": [
       {
+        "Name": "show_dischargesummary_header_footer_image",
+        "Type": "System.Nullable\u00601[[System.Boolean, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
+        "IsRequired": false
+      },
+      {
+        "Name": "show_op_casesheet_header_footer_image",
+        "Type": "System.Nullable\u00601[[System.Boolean, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
+        "IsRequired": false
+      },
+      {
+        "Name": "show_casesheet_header_footer_image",
+        "Type": "System.Nullable\u00601[[System.Boolean, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
+        "IsRequired": false
+      },
+      {
+        "Name": "show_ip_casesheet_header_footer_image",
+        "Type": "System.Nullable\u00601[[System.Boolean, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
+        "IsRequired": false
+      },
+      {
         "Name": "lsid",
         "Type": "System.Guid",
         "IsRequired": false
@@ -7099,6 +7151,96 @@
       {
         "Name": "bill_orientation",
         "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "gender_fullform",
+        "Type": "System.Nullable\u00601[[System.Boolean, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
+        "IsRequired": false
+      },
+      {
+        "Name": "net_amount",
+        "Type": "System.Nullable\u00601[[System.Boolean, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
+        "IsRequired": false
+      },
+      {
+        "Name": "paid_amount",
+        "Type": "System.Nullable\u00601[[System.Boolean, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
+        "IsRequired": false
+      },
+      {
+        "Name": "discount_amount",
+        "Type": "System.Nullable\u00601[[System.Boolean, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
+        "IsRequired": false
+      },
+      {
+        "Name": "balance_amount",
+        "Type": "System.Nullable\u00601[[System.Boolean, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
+        "IsRequired": false
+      },
+      {
+        "Name": "show_name_age_single_row",
+        "Type": "System.Nullable\u00601[[System.Boolean, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
+        "IsRequired": false
+      },
+      {
+        "Name": "result_row_align_top",
+        "Type": "System.Nullable\u00601[[System.Boolean, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
+        "IsRequired": false
+      },
+      {
+        "Name": "bill_signature_type",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "bill_fixed_signature_path",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "bill_fixed_signature_name",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "billsignaturetype",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "bill_fixed_signature",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "bill_signature",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "align_results_top",
+        "Type": "System.Nullable\u00601[[System.Boolean, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
+        "IsRequired": false
+      },
+      {
+        "Name": "results_align_top",
+        "Type": "System.Nullable\u00601[[System.Boolean, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
+        "IsRequired": false
+      },
+      {
+        "Name": "show_name_and_age_in_single_row",
+        "Type": "System.Nullable\u00601[[System.Boolean, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
+        "IsRequired": false
+      },
+      {
+        "Name": "show_name_and_age_single_row",
+        "Type": "System.Nullable\u00601[[System.Boolean, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
+        "IsRequired": false
+      },
+      {
+        "Name": "show_name_age_in_single_row",
+        "Type": "System.Nullable\u00601[[System.Boolean, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
         "IsRequired": false
       },
       {
@@ -7238,31 +7380,6 @@
       },
       {
         "Name": "show_receipt_header_footer_image",
-        "Type": "System.Nullable\u00601[[System.Boolean, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
-        "IsRequired": false
-      },
-      {
-        "Name": "show_op_casesheet_header_footer_image",
-        "Type": "System.Nullable\u00601[[System.Boolean, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
-        "IsRequired": false
-      },
-      {
-        "Name": "show_ip_casesheet_header_footer_image",
-        "Type": "System.Nullable\u00601[[System.Boolean, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
-        "IsRequired": false
-      },
-      {
-        "Name": "show_casesheet_header_footer_image",
-        "Type": "System.Nullable\u00601[[System.Boolean, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
-        "IsRequired": false
-      },
-      {
-        "Name": "show_dischargesummary_header_footer_image",
-        "Type": "System.Nullable\u00601[[System.Boolean, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
-        "IsRequired": false
-      },
-      {
-        "Name": "show_pharmacy_header_footer_image",
         "Type": "System.Nullable\u00601[[System.Boolean, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
         "IsRequired": false
       },
@@ -7637,6 +7754,41 @@
         "IsRequired": false
       },
       {
+        "Name": "company",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "company_name",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "address",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "landline_no",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "mobile_no",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "email",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "website",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
         "Name": "header_path",
         "Type": "System.String",
         "IsRequired": false
@@ -7682,12 +7834,7 @@
         "IsRequired": false
       },
       {
-        "Name": "is_slot_required",
-        "Type": "System.Nullable\u00601[[System.Boolean, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
-        "IsRequired": false
-      },
-      {
-        "Name": "op_age_wise_split",
+        "Name": "critical_value_indication",
         "Type": "System.Nullable\u00601[[System.Boolean, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
         "IsRequired": false
       },
@@ -7959,6 +8106,26 @@
     "Order": 0,
     "Parameters": [
       {
+        "Name": "show_dischargesummary_header_footer_image",
+        "Type": "System.Nullable\u00601[[System.Boolean, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
+        "IsRequired": false
+      },
+      {
+        "Name": "show_op_casesheet_header_footer_image",
+        "Type": "System.Nullable\u00601[[System.Boolean, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
+        "IsRequired": false
+      },
+      {
+        "Name": "show_casesheet_header_footer_image",
+        "Type": "System.Nullable\u00601[[System.Boolean, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
+        "IsRequired": false
+      },
+      {
+        "Name": "show_ip_casesheet_header_footer_image",
+        "Type": "System.Nullable\u00601[[System.Boolean, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
+        "IsRequired": false
+      },
+      {
         "Name": "lsid",
         "Type": "System.Guid",
         "IsRequired": false
@@ -8046,6 +8213,96 @@
       {
         "Name": "bill_orientation",
         "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "gender_fullform",
+        "Type": "System.Nullable\u00601[[System.Boolean, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
+        "IsRequired": false
+      },
+      {
+        "Name": "net_amount",
+        "Type": "System.Nullable\u00601[[System.Boolean, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
+        "IsRequired": false
+      },
+      {
+        "Name": "paid_amount",
+        "Type": "System.Nullable\u00601[[System.Boolean, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
+        "IsRequired": false
+      },
+      {
+        "Name": "discount_amount",
+        "Type": "System.Nullable\u00601[[System.Boolean, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
+        "IsRequired": false
+      },
+      {
+        "Name": "balance_amount",
+        "Type": "System.Nullable\u00601[[System.Boolean, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
+        "IsRequired": false
+      },
+      {
+        "Name": "show_name_age_single_row",
+        "Type": "System.Nullable\u00601[[System.Boolean, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
+        "IsRequired": false
+      },
+      {
+        "Name": "result_row_align_top",
+        "Type": "System.Nullable\u00601[[System.Boolean, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
+        "IsRequired": false
+      },
+      {
+        "Name": "bill_signature_type",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "bill_fixed_signature_path",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "bill_fixed_signature_name",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "billsignaturetype",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "bill_fixed_signature",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "bill_signature",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "align_results_top",
+        "Type": "System.Nullable\u00601[[System.Boolean, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
+        "IsRequired": false
+      },
+      {
+        "Name": "results_align_top",
+        "Type": "System.Nullable\u00601[[System.Boolean, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
+        "IsRequired": false
+      },
+      {
+        "Name": "show_name_and_age_in_single_row",
+        "Type": "System.Nullable\u00601[[System.Boolean, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
+        "IsRequired": false
+      },
+      {
+        "Name": "show_name_and_age_single_row",
+        "Type": "System.Nullable\u00601[[System.Boolean, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
+        "IsRequired": false
+      },
+      {
+        "Name": "show_name_age_in_single_row",
+        "Type": "System.Nullable\u00601[[System.Boolean, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
         "IsRequired": false
       },
       {
@@ -8185,31 +8442,6 @@
       },
       {
         "Name": "show_receipt_header_footer_image",
-        "Type": "System.Nullable\u00601[[System.Boolean, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
-        "IsRequired": false
-      },
-      {
-        "Name": "show_op_casesheet_header_footer_image",
-        "Type": "System.Nullable\u00601[[System.Boolean, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
-        "IsRequired": false
-      },
-      {
-        "Name": "show_ip_casesheet_header_footer_image",
-        "Type": "System.Nullable\u00601[[System.Boolean, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
-        "IsRequired": false
-      },
-      {
-        "Name": "show_casesheet_header_footer_image",
-        "Type": "System.Nullable\u00601[[System.Boolean, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
-        "IsRequired": false
-      },
-      {
-        "Name": "show_dischargesummary_header_footer_image",
-        "Type": "System.Nullable\u00601[[System.Boolean, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
-        "IsRequired": false
-      },
-      {
-        "Name": "show_pharmacy_header_footer_image",
         "Type": "System.Nullable\u00601[[System.Boolean, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
         "IsRequired": false
       },
@@ -8584,6 +8816,41 @@
         "IsRequired": false
       },
       {
+        "Name": "company",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "company_name",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "address",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "landline_no",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "mobile_no",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "email",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "website",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
         "Name": "header_path",
         "Type": "System.String",
         "IsRequired": false
@@ -8629,12 +8896,7 @@
         "IsRequired": false
       },
       {
-        "Name": "is_slot_required",
-        "Type": "System.Nullable\u00601[[System.Boolean, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
-        "IsRequired": false
-      },
-      {
-        "Name": "op_age_wise_split",
+        "Name": "critical_value_indication",
         "Type": "System.Nullable\u00601[[System.Boolean, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
         "IsRequired": false
       },
@@ -9136,96 +9398,6 @@
       },
       {
         "Name": "FileName",
-        "Type": "System.String",
-        "IsRequired": false
-      }
-    ],
-    "ReturnTypes": []
-  },
-  {
-    "ContainingType": "medico_backend.Controllers.LabTestResultController",
-    "Method": "GetCustomerResults",
-    "RelativePath": "api/LabTestResult/deltacheck",
-    "HttpMethod": "GET",
-    "IsController": true,
-    "Order": 0,
-    "Parameters": [
-      {
-        "Name": "custcode",
-        "Type": "System.String",
-        "IsRequired": false
-      }
-    ],
-    "ReturnTypes": []
-  },
-  {
-    "ContainingType": "medico_backend.Controllers.LabTestResultController",
-    "Method": "LoadResultEntry",
-    "RelativePath": "api/LabTestResult/LoadResultEntry",
-    "HttpMethod": "GET",
-    "IsController": true,
-    "Order": 0,
-    "Parameters": [
-      {
-        "Name": "requestGuid",
-        "Type": "System.String",
-        "IsRequired": false
-      }
-    ],
-    "ReturnTypes": []
-  },
-  {
-    "ContainingType": "medico_backend.Controllers.LabTestResultController",
-    "Method": "LoadTestResultDetails",
-    "RelativePath": "api/LabTestResult/LoadTestResultDetails",
-    "HttpMethod": "GET",
-    "IsController": true,
-    "Order": 0,
-    "Parameters": [
-      {
-        "Name": "testResultId",
-        "Type": "System.Guid",
-        "IsRequired": false
-      }
-    ],
-    "ReturnTypes": []
-  },
-  {
-    "ContainingType": "medico_backend.Controllers.LabTestResultController",
-    "Method": "SaveResult",
-    "RelativePath": "api/LabTestResult/saveresultentry",
-    "HttpMethod": "POST",
-    "IsController": true,
-    "Order": 0,
-    "Parameters": [
-      {
-        "Name": "entries",
-        "Type": "System.Collections.Generic.List\u00601[[medico_backend.Model.LabResultEntry, medico_backend, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]]",
-        "IsRequired": false
-      }
-    ],
-    "ReturnTypes": []
-  },
-  {
-    "ContainingType": "medico_backend.Controllers.LabTestResultController",
-    "Method": "GetResultList",
-    "RelativePath": "api/LabTestResult/ViewResultSearch",
-    "HttpMethod": "GET",
-    "IsController": true,
-    "Order": 0,
-    "Parameters": [
-      {
-        "Name": "dcode",
-        "Type": "System.Int32",
-        "IsRequired": false
-      },
-      {
-        "Name": "fromdate",
-        "Type": "System.String",
-        "IsRequired": false
-      },
-      {
-        "Name": "todate",
         "Type": "System.String",
         "IsRequired": false
       }
@@ -9980,6 +10152,22 @@
         "Name": "visit_status",
         "Type": "System.String",
         "IsRequired": false
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "medico_backend.Controllers.OpRegistrationController",
+    "Method": "Cancel",
+    "RelativePath": "api/OpRegistration/cancel",
+    "HttpMethod": "POST",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "req",
+        "Type": "medico_backend.Model.OPRegistrationModel\u002BCancelOpRequest",
+        "IsRequired": true
       }
     ],
     "ReturnTypes": []
@@ -13768,6 +13956,22 @@
         "Name": "rmtcode",
         "Type": "System.Int32",
         "IsRequired": false
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "medico_backend.Controllers.UnbilledChargesController",
+    "Method": "Update",
+    "RelativePath": "api/UnbilledCharges/update",
+    "HttpMethod": "POST",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "req",
+        "Type": "medico_backend.Model.UpdateUnbilledChargeRequest",
+        "IsRequired": true
       }
     ],
     "ReturnTypes": []

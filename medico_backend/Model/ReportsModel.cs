@@ -603,14 +603,18 @@ namespace medico_backend.Model
     }
     public class AuthorizedUser
     {
+        public string? SignatureMode { get; set; } = "fixed";
+        public bool? Auth1Show { get; set; } = true;
         public byte[] EnteredSign { get; set; }
         public string EnteredBy { get; set; }
         public string EnteredByDesignation { get; set; }
 
+        public bool? Auth2Show { get; set; } = true;
         public byte[] AuthorizedSign { get; set; }
         public string AuthorizedBy { get; set; }
         public string AuthorizedByDesignation { get; set; }
 
+        public bool? Auth3Show { get; set; } = true;
         public byte[] AuthorizedSign2 { get; set; }
         public string AuthorizedBy2 { get; set; }
         public string AuthorizedByDesignation2 { get; set; }
@@ -619,6 +623,20 @@ namespace medico_backend.Model
     {
         public IList<RoutineReportModel> rrm { get; set; }
         public IList<AuthorizedUser> auth { get; set; }
+        public byte[]? HeaderImage { get; set; }
+        public byte[]? FooterImage { get; set; }
+        public bool? report_qr { get; set; } = true;
+        public bool? sample_collection { get; set; } = true;
+        public bool? ref_by { get; set; }
+        public bool? critical_value_indication { get; set; } = true;
+        public double? iscan_margin_top { get; set; } = 0;
+        public double? iscan_margin_bottom { get; set; } = 0;
+        public double? iscan_margin_left { get; set; } = 0;
+        public double? iscan_margin_right { get; set; } = 0;
+        public bool? ls_signature_on_end { get; set; } = false;
+        public bool? ls_signature_on_each_page { get; set; } = true;
+        public bool? show_name_age_single_row { get; set; } = false;
+        public bool? result_row_align_top { get; set; } = false;
     }
     public class RoutineReportRequest
     {
@@ -1010,6 +1028,7 @@ namespace medico_backend.Model
 
     public class RawReportRow
     {
+        public string? ResultImagePath { get; set; }
         public string TenantId { get; set; } = "";
         public int RequestSno { get; set; }
         public DateTime RequestDateTime { get; set; }

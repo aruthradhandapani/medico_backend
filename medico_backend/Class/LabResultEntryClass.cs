@@ -33,12 +33,48 @@ namespace medico_backend.Class
 
         private NpgsqlConnection CreateConnection() => new(_connectionString);
 
+        private static List<T> FilterByMcAndScode<T>(IEnumerable<T> items, int targetMccode, int targetScode, Func<T, int?> getMccode, Func<T, int?> getScode)
+        {
+            var list = items.ToList();
+            if (list.Count == 0) return list;
+
+            if (targetMccode > 0)
+            {
+                var mcMatches = list.Where(x => getMccode(x) == targetMccode).ToList();
+                if (mcMatches.Count > 0)
+                {
+                    list = mcMatches;
+                }
+                else
+                {
+                    list = list.Where(x => getMccode(x) == 0 || getMccode(x) == null).ToList();
+                }
+            }
+
+            if (targetScode > 0)
+            {
+                var scMatches = list.Where(x => getScode(x) == targetScode).ToList();
+                if (scMatches.Count > 0)
+                {
+                    list = scMatches;
+                }
+                else
+                {
+                    list = list.Where(x => getScode(x) == 0 || getScode(x) == null).ToList();
+                }
+            }
+
+            return list;
+        }
+
         public async Task<ResultEntryModel> GetResult(string guid, string tenantCode)
         {
             try
             {
                 await using var db = CreateConnection();
                 await db.OpenAsync();
+
+                Guid parsedGuid = Guid.TryParse(guid, out var g) ? g : Guid.Empty;
 
                 const string sql = @"
 -- ── RS 1 : Pending tests (resultstatus = false) ──────────────────────────────
@@ -81,35 +117,36 @@ SELECT  CAST(lrm.requestguid AS VARCHAR(50))                                AS r
         COALESCE(sm.name,  '')                                              AS samplename,
         COALESCE(uom.name, '')                                              AS unitname
 FROM   lab_request_master  lrm
-JOIN   lab_request_details lrd ON lrm.requestguid = lrd.requestguid
+JOIN   lab_request_details lrd ON lrm.requestguid::text = lrd.requestguid::text
 JOIN   test_master         tm  ON lrd.tcode = tm.tcode
-                               AND tm.tenant_code = @TenantCode
+                               AND (tm.tenant_code = @TenantCode OR tm.tenant_code = '0' OR tm.tenant_code IS NULL)
 JOIN   test_result_master  trm ON tm.tcode = trm.tcode
-                               AND trm.tenant_code = @TenantCode
+                               AND (trm.tenant_code = @TenantCode OR trm.tenant_code = '0' OR trm.tenant_code IS NULL)
 LEFT JOIN test_result_properties trp
-       ON trp.testresultid = COALESCE(
-              CASE WHEN trm.fromtestresultid IS NOT NULL
-                        AND trm.fromtestresultid != '00000000-0000-0000-0000-000000000000'::uuid
+       ON trp.testresultid = CASE 
+              WHEN EXISTS (SELECT 1 FROM test_result_properties trp_chk WHERE trp_chk.testresultid = trm.testresultid AND (trp_chk.tenant_code = @TenantCode OR trp_chk.tenant_code = '0' OR trp_chk.tenant_code IS NULL))
+                   THEN trm.testresultid
+              WHEN trm.fromtestresultid IS NOT NULL AND trm.fromtestresultid != '00000000-0000-0000-0000-000000000000'::uuid
                    THEN trm.fromtestresultid
-              END,
-              trm.testresultid
-          )
+              ELSE trm.testresultid
+          END
       AND (trp.usedefault = true OR trp.usedefault IS NULL)
       AND (trp.tenant_code = @TenantCode OR trp.tenant_code = '0' OR trp.tenant_code IS NULL)
 LEFT JOIN group_master   gm  ON tm.gcode              = gm.gcode
-                             AND gm.tenant_code         = @TenantCode
+                             AND (gm.tenant_code = @TenantCode OR gm.tenant_code = '0' OR gm.tenant_code IS NULL)
 LEFT JOIN sample_master  sm  ON tm.scode              = sm.scode
-                             AND sm.tenant_code         = @TenantCode
+                             AND (sm.tenant_code = @TenantCode OR sm.tenant_code = '0' OR sm.tenant_code IS NULL)
 LEFT JOIN machine_master mm  ON trp.mccode            = mm.mccode
-                             AND mm.tenant_code         = @TenantCode
+                             AND (mm.tenant_code = @TenantCode OR mm.tenant_code = '0' OR mm.tenant_code IS NULL)
 LEFT JOIN uom_master     uom ON trp.defaultunitscode  = uom.ucode
-                             AND uom.tenant_code        = @TenantCode
+                             AND (uom.tenant_code = @TenantCode OR uom.tenant_code = '0' OR uom.tenant_code IS NULL)
 LEFT JOIN report_method  rm  ON trp.rtmcode           = rm.rtmcode
-                             AND rm.tenant_code         = @TenantCode
-WHERE lrm.requestguid  = @RequestGUIDText
+                             AND (rm.tenant_code = @TenantCode OR rm.tenant_code = '0' OR rm.tenant_code IS NULL)
+WHERE lrm.requestguid::text  = @RequestGUIDText
+  AND (lrm.tenant_code = @TenantCode OR lrm.tenant_code = '0' OR lrm.tenant_code IS NULL)
+  AND (lrd.tenant_code = @TenantCode OR lrd.tenant_code = '0' OR lrd.tenant_code IS NULL)
   AND lrd.resultstatus = false
-  AND lrd.ttid         IN (1)
-  AND lrd.tenant_code  = @TenantCode
+  AND (lrd.ttid IN (1) OR lrd.ttid IS NULL OR lrd.ttid = 0)
 
 UNION ALL
 
@@ -155,26 +192,26 @@ SELECT  CAST(lrm2.requestguid AS VARCHAR(50))                               AS r
 FROM   lab_result_master lrm2
 JOIN   lab_result_details lrd2 ON lrm2.resultguid = lrd2.resultguid
 JOIN   test_master         tm2 ON lrd2.tcode = tm2.tcode
-                               AND tm2.tenant_code = @TenantCode
+                               AND (tm2.tenant_code = @TenantCode OR tm2.tenant_code = '0' OR tm2.tenant_code IS NULL)
 LEFT JOIN lab_result_properties lrp
        ON lrd2.testresultid = lrp.testresultid
       AND (lrp.tenant_code = @TenantCode OR lrp.tenant_code = '0' OR lrp.tenant_code IS NULL)
 LEFT JOIN group_master    gm2  ON tm2.gcode              = gm2.gcode
-                               AND gm2.tenant_code         = @TenantCode
+                               AND (gm2.tenant_code = @TenantCode OR gm2.tenant_code = '0' OR gm2.tenant_code IS NULL)
 LEFT JOIN sample_master   sm2  ON tm2.scode              = sm2.scode
-                               AND sm2.tenant_code         = @TenantCode
+                               AND (sm2.tenant_code = @TenantCode OR sm2.tenant_code = '0' OR sm2.tenant_code IS NULL)
 LEFT JOIN machine_master  mm2  ON lrp.mccode             = mm2.mccode
-                               AND mm2.tenant_code         = @TenantCode
+                               AND (mm2.tenant_code = @TenantCode OR mm2.tenant_code = '0' OR mm2.tenant_code IS NULL)
 LEFT JOIN uom_master      uom2 ON lrp.defaultunitscode   = uom2.ucode
-                               AND uom2.tenant_code        = @TenantCode
+                               AND (uom2.tenant_code = @TenantCode OR uom2.tenant_code = '0' OR uom2.tenant_code IS NULL)
 LEFT JOIN report_method   rm2  ON lrp.rtmcode            = rm2.rtmcode
-                               AND rm2.tenant_code         = @TenantCode
+                               AND (rm2.tenant_code = @TenantCode OR rm2.tenant_code = '0' OR rm2.tenant_code IS NULL)
 LEFT JOIN lab_request_details reqd
-      ON reqd.requestguid = lrm2.requestguid::text 
+       ON reqd.requestguid::text = lrm2.requestguid::text 
       AND reqd.tcode        = lrd2.tcode
-      AND reqd.tenant_code  = @TenantCode
-WHERE lrm2.requestguid = @RequestGUID
-  AND lrm2.tenant_code = @TenantCode;
+      AND (reqd.tenant_code = @TenantCode OR reqd.tenant_code = '0' OR reqd.tenant_code IS NULL)
+WHERE (lrm2.requestguid = @RequestGUID OR lrm2.requestguid::text = @RequestGUIDText)
+  AND (lrm2.tenant_code = @TenantCode OR lrm2.tenant_code = '0' OR lrm2.tenant_code IS NULL);
 
 -- ── RS 2 : Units ──────────────────────────────────────────────────────────────
 SELECT * FROM uom_master
@@ -195,18 +232,18 @@ WHERE tenant_code = @TenantCode OR tenant_code = '0' OR tenant_code IS NULL;
 -- ── RS 6 : test_result_properties (pending rows) ─────────────────────────────
 WITH pending_ids AS (
     SELECT DISTINCT
-        CASE WHEN trm.fromtestresultid IS NOT NULL
-                  AND trm.fromtestresultid != '00000000-0000-0000-0000-000000000000'::uuid
+        CASE WHEN EXISTS (SELECT 1 FROM test_result_properties trp_chk WHERE trp_chk.testresultid = trm.testresultid AND (trp_chk.tenant_code = @TenantCode OR trp_chk.tenant_code = '0' OR trp_chk.tenant_code IS NULL))
+             THEN trm.testresultid
+             WHEN trm.fromtestresultid IS NOT NULL AND trm.fromtestresultid != '00000000-0000-0000-0000-000000000000'::uuid
              THEN trm.fromtestresultid
              ELSE trm.testresultid
         END AS resolvedid
     FROM   lab_request_details lrd
-    JOIN   test_result_master  trm ON lrd.tcode = trm.tcode
-                                   AND trm.tenant_code = @TenantCode
-    WHERE  lrd.requestguid  = @RequestGUIDText
-      AND  lrd.resultstatus = false
-      AND  lrd.ttid         IN (1)
-      AND  lrd.tenant_code  = @TenantCode
+    JOIN   test_result_master  trm ON lrd.tcode = trm.tcode AND (trm.tenant_code = @TenantCode OR trm.tenant_code = '0' OR trm.tenant_code IS NULL)
+    WHERE  lrd.requestguid::text  = @RequestGUIDText 
+      AND  lrd.resultstatus = false 
+      AND  (lrd.ttid IN (1) OR lrd.ttid IS NULL OR lrd.ttid = 0)
+      AND  (lrd.tenant_code = @TenantCode OR lrd.tenant_code = '0' OR lrd.tenant_code IS NULL)
 )
 SELECT trp.* FROM test_result_properties trp
 JOIN   pending_ids p ON trp.testresultid = p.resolvedid
@@ -216,14 +253,18 @@ WHERE  (trp.usedefault = true OR trp.usedefault IS NULL)
 -- ── RS 7 : test_result_textnormalvalues (pending rows) ───────────────────────
 WITH pending_ids AS (
     SELECT DISTINCT
-        CASE WHEN trm.fromtestresultid IS NOT NULL
-                  AND trm.fromtestresultid != '00000000-0000-0000-0000-000000000000'::uuid
-             THEN trm.fromtestresultid ELSE trm.testresultid END AS resolvedid
+        CASE WHEN EXISTS (SELECT 1 FROM test_result_textnormalvalues trnv_chk WHERE trnv_chk.testresultid = trm.testresultid AND (trnv_chk.tenant_code = @TenantCode OR trnv_chk.tenant_code = '0' OR trnv_chk.tenant_code IS NULL))
+             THEN trm.testresultid
+             WHEN trm.fromtestresultid IS NOT NULL AND trm.fromtestresultid != '00000000-0000-0000-0000-000000000000'::uuid
+             THEN trm.fromtestresultid
+             ELSE trm.testresultid
+        END AS resolvedid
     FROM   lab_request_details lrd
-    JOIN   test_result_master  trm ON lrd.tcode = trm.tcode AND trm.tenant_code = @TenantCode
-    WHERE  lrd.requestguid = @RequestGUIDText AND lrd.resultstatus = false
-      AND  lrd.ttid        IN (1)
-      AND  lrd.tenant_code = @TenantCode
+    JOIN   test_result_master  trm ON lrd.tcode = trm.tcode AND (trm.tenant_code = @TenantCode OR trm.tenant_code = '0' OR trm.tenant_code IS NULL)
+    WHERE  lrd.requestguid::text = @RequestGUIDText 
+      AND  lrd.resultstatus = false 
+      AND  (lrd.ttid IN (1) OR lrd.ttid IS NULL OR lrd.ttid = 0)
+      AND  (lrd.tenant_code = @TenantCode OR lrd.tenant_code = '0' OR lrd.tenant_code IS NULL)
 )
 SELECT trnv.* FROM test_result_textnormalvalues trnv
 JOIN   pending_ids p ON trnv.testresultid = p.resolvedid
@@ -232,14 +273,18 @@ WHERE  (trnv.tenant_code = @TenantCode OR trnv.tenant_code = '0' OR trnv.tenant_
 -- ── RS 8 : test_result_detailednormalvalues (pending rows) ───────────────────
 WITH pending_ids AS (
     SELECT DISTINCT
-        CASE WHEN trm.fromtestresultid IS NOT NULL
-                  AND trm.fromtestresultid != '00000000-0000-0000-0000-000000000000'::uuid
-             THEN trm.fromtestresultid ELSE trm.testresultid END AS resolvedid
+        CASE WHEN EXISTS (SELECT 1 FROM test_result_detailednormalvalues trdnv_chk WHERE trdnv_chk.testresultid = trm.testresultid AND (trdnv_chk.tenant_code = @TenantCode OR trdnv_chk.tenant_code = '0' OR trdnv_chk.tenant_code IS NULL))
+             THEN trm.testresultid
+             WHEN trm.fromtestresultid IS NOT NULL AND trm.fromtestresultid != '00000000-0000-0000-0000-000000000000'::uuid
+             THEN trm.fromtestresultid
+             ELSE trm.testresultid
+        END AS resolvedid
     FROM   lab_request_details lrd
-    JOIN   test_result_master  trm ON lrd.tcode = trm.tcode AND trm.tenant_code = @TenantCode
-    WHERE  lrd.requestguid = @RequestGUIDText AND lrd.resultstatus = false
-      AND  lrd.ttid        IN (1)
-      AND  lrd.tenant_code = @TenantCode
+    JOIN   test_result_master  trm ON lrd.tcode = trm.tcode AND (trm.tenant_code = @TenantCode OR trm.tenant_code = '0' OR trm.tenant_code IS NULL)
+    WHERE  lrd.requestguid::text = @RequestGUIDText 
+      AND  lrd.resultstatus = false 
+      AND  (lrd.ttid IN (1) OR lrd.ttid IS NULL OR lrd.ttid = 0)
+      AND  (lrd.tenant_code = @TenantCode OR lrd.tenant_code = '0' OR lrd.tenant_code IS NULL)
 )
 SELECT trdnv.* FROM test_result_detailednormalvalues trdnv
 JOIN   pending_ids p ON trdnv.testresultid = p.resolvedid
@@ -248,14 +293,18 @@ WHERE  (trdnv.tenant_code = @TenantCode OR trdnv.tenant_code = '0' OR trdnv.tena
 -- ── RS 9 : test_result_calculatedformula (pending rows) ──────────────────────
 WITH pending_ids AS (
     SELECT DISTINCT
-        CASE WHEN trm.fromtestresultid IS NOT NULL
-                  AND trm.fromtestresultid != '00000000-0000-0000-0000-000000000000'::uuid
-             THEN trm.fromtestresultid ELSE trm.testresultid END AS resolvedid
+        CASE WHEN EXISTS (SELECT 1 FROM test_result_calculatedformula tcf_chk WHERE tcf_chk.testresultid = trm.testresultid AND (tcf_chk.tenant_code = @TenantCode OR tcf_chk.tenant_code = '0' OR tcf_chk.tenant_code IS NULL))
+             THEN trm.testresultid
+             WHEN trm.fromtestresultid IS NOT NULL AND trm.fromtestresultid != '00000000-0000-0000-0000-000000000000'::uuid
+             THEN trm.fromtestresultid
+             ELSE trm.testresultid
+        END AS resolvedid
     FROM   lab_request_details lrd
-    JOIN   test_result_master  trm ON lrd.tcode = trm.tcode AND trm.tenant_code = @TenantCode
-    WHERE  lrd.requestguid = @RequestGUIDText AND lrd.resultstatus = false
-      AND  lrd.ttid        IN (1)
-      AND  lrd.tenant_code = @TenantCode
+    JOIN   test_result_master  trm ON lrd.tcode = trm.tcode AND (trm.tenant_code = @TenantCode OR trm.tenant_code = '0' OR trm.tenant_code IS NULL)
+    WHERE  lrd.requestguid::text = @RequestGUIDText 
+      AND  lrd.resultstatus = false 
+      AND  (lrd.ttid IN (1) OR lrd.ttid IS NULL OR lrd.ttid = 0)
+      AND  (lrd.tenant_code = @TenantCode OR lrd.tenant_code = '0' OR lrd.tenant_code IS NULL)
 )
 SELECT tcf.* FROM test_result_calculatedformula tcf
 JOIN   pending_ids p ON tcf.testresultid = p.resolvedid
@@ -266,38 +315,38 @@ SELECT lrp.*
 FROM   lab_result_properties lrp
 JOIN   lab_result_details    lrd ON lrp.testresultid = lrd.testresultid
 JOIN   lab_result_master     lrm ON lrd.resultguid   = lrm.resultguid
-WHERE  lrm.requestguid  = @RequestGUID
-  AND  lrm.tenant_code  = @TenantCode
+WHERE  (lrm.requestguid = @RequestGUID OR lrm.requestguid::text = @RequestGUIDText)
+  AND  (lrm.tenant_code = @TenantCode OR lrm.tenant_code = '0' OR lrm.tenant_code IS NULL)
   AND  (lrp.tenant_code = @TenantCode OR lrp.tenant_code = '0' OR lrp.tenant_code IS NULL);
 
 SELECT lrnv.*
 FROM   lab_result_textnormalvalues lrnv
 JOIN   lab_result_details          lrd ON lrnv.testresultid = lrd.testresultid
 JOIN   lab_result_master           lrm ON lrd.resultguid    = lrm.resultguid
-WHERE  lrm.requestguid  = @RequestGUID
-  AND  lrm.tenant_code  = @TenantCode
-  AND  lrnv.tenant_code = @TenantCode;
+WHERE  (lrm.requestguid = @RequestGUID OR lrm.requestguid::text = @RequestGUIDText)
+  AND  (lrm.tenant_code = @TenantCode OR lrm.tenant_code = '0' OR lrm.tenant_code IS NULL)
+  AND  (lrnv.tenant_code = @TenantCode OR lrnv.tenant_code = '0' OR lrnv.tenant_code IS NULL);
 
 SELECT lrdnv.*
 FROM   lab_result_detailednormalvalues lrdnv
 JOIN   lab_result_details              lrd ON lrdnv.testresultid = lrd.testresultid
 JOIN   lab_result_master               lrm ON lrd.resultguid     = lrm.resultguid
-WHERE  lrm.requestguid  = @RequestGUID
-  AND  lrm.tenant_code  = @TenantCode
-  AND  lrdnv.tenant_code = @TenantCode;
+WHERE  (lrm.requestguid = @RequestGUID OR lrm.requestguid::text = @RequestGUIDText)
+  AND  (lrm.tenant_code = @TenantCode OR lrm.tenant_code = '0' OR lrm.tenant_code IS NULL)
+  AND  (lrdnv.tenant_code = @TenantCode OR lrdnv.tenant_code = '0' OR lrdnv.tenant_code IS NULL);
 
 SELECT lcf.*
 FROM   lab_result_calculatedformula lcf
 JOIN   lab_result_details           lrd ON lcf.testresultid = lrd.testresultid
 JOIN   lab_result_master            lrm ON lrd.resultguid   = lrm.resultguid
-WHERE  lrm.requestguid  = @RequestGUID
-  AND  lrm.tenant_code  = @TenantCode
-  AND  lcf.tenant_code  = @TenantCode;";
+WHERE  (lrm.requestguid = @RequestGUID OR lrm.requestguid::text = @RequestGUIDText)
+  AND  (lrm.tenant_code = @TenantCode OR lrm.tenant_code = '0' OR lrm.tenant_code IS NULL)
+  AND  (lcf.tenant_code = @TenantCode OR lcf.tenant_code = '0' OR lcf.tenant_code IS NULL);";
 
                 var param = new
                 {
-                    RequestGUID = Guid.Parse(guid),   // for uuid columns (lab_result_*)
-                    RequestGUIDText = guid,               // for text columns (lab_request_*)
+                    RequestGUID = parsedGuid,
+                    RequestGUIDText = guid,
                     TenantCode = tenantCode
                 };
 
@@ -331,13 +380,22 @@ WHERE  lrm.requestguid  = @RequestGUID
                 {
                     if (!entry.status)
                     {
-                        Guid lookupId = entry.fromtestresultid != Guid.Empty
-                            ? entry.fromtestresultid
-                            : entry.testresultid;
+                        var propsList = testProps[entry.testresultid].ToList();
+                        Guid targetLookupId = entry.testresultid;
+                        if (propsList.Count == 0 && entry.fromtestresultid != Guid.Empty)
+                        {
+                            propsList = testProps[entry.fromtestresultid].ToList();
+                            targetLookupId = entry.fromtestresultid;
+                        }
+                        entry.testproperties = propsList;
 
-                        entry.testproperties = testProps[lookupId].ToList();
+                        int targetMccode = propsList.FirstOrDefault()?.mccode ?? entry.mccode;
+                        int targetScode = propsList.FirstOrDefault()?.scode ?? entry.scode;
 
-                        entry.textnormalvalues = testTNV[lookupId]
+                        var tnvList = testTNV[targetLookupId].ToList();
+                        tnvList = FilterByMcAndScode(tnvList, targetMccode, targetScode, r => r.mccode, r => r.scode);
+
+                        entry.textnormalvalues = tnvList
                             .Select(r => new LabResultTextNormalValuesModel
                             {
                                 sex = r.sex,
@@ -347,7 +405,10 @@ WHERE  lrm.requestguid  = @RequestGUID
                                 performedcount = r.performedcount ?? 1
                             }).ToList();
 
-                        entry.detailednormalvalues = testDNV[lookupId]
+                        var dnvList = testDNV[targetLookupId].ToList();
+                        dnvList = FilterByMcAndScode(dnvList, targetMccode, targetScode, r => r.mccode, r => r.scode);
+
+                        entry.detailednormalvalues = dnvList
                             .Select(r => new LabResultDetailedNormalValuesModel
                             {
                                 sno = r.sno ?? 0,
@@ -366,7 +427,10 @@ WHERE  lrm.requestguid  = @RequestGUID
                                 performedcount = r.performedcount ?? 1
                             }).ToList();
 
-                        entry.calculatedformulas = testCF[lookupId]
+                        var cfList = testCF[targetLookupId].ToList();
+                        cfList = FilterByMcAndScode(cfList, targetMccode, targetScode, r => r.mccode, r => r.scode);
+
+                        entry.calculatedformulas = cfList
                             .Select(r => new LabResultCalculatedFormulaModel
                             {
                                 sex = r.sex,
@@ -378,10 +442,30 @@ WHERE  lrm.requestguid  = @RequestGUID
                     }
                     else
                     {
-                        entry.labproperties = labProps[entry.testresultid].ToList();
-                        entry.textnormalvalues = labTNV[entry.testresultid].ToList();
-                        entry.detailednormalvalues = labDNV[entry.testresultid].ToList();
-                        entry.calculatedformulas = labCF[entry.testresultid].ToList();
+                        var labPropsList = labProps[entry.testresultid].ToList();
+                        Guid targetLookupId = entry.testresultid;
+                        if (labPropsList.Count == 0 && entry.fromtestresultid != Guid.Empty)
+                        {
+                            var fromLabProps = labProps[entry.fromtestresultid].ToList();
+                            if (fromLabProps.Count > 0)
+                            {
+                                labPropsList = fromLabProps;
+                                targetLookupId = entry.fromtestresultid;
+                            }
+                        }
+                        entry.labproperties = labPropsList;
+
+                        int targetMccode = labPropsList.FirstOrDefault()?.mccode ?? entry.mccode;
+                        int targetScode = labPropsList.FirstOrDefault()?.scode ?? entry.scode;
+
+                        var rawLabTNV = labTNV[targetLookupId].ToList();
+                        entry.textnormalvalues = FilterByMcAndScode(rawLabTNV, targetMccode, targetScode, r => r.mccode, r => r.scode);
+
+                        var rawLabDNV = labDNV[targetLookupId].ToList();
+                        entry.detailednormalvalues = FilterByMcAndScode(rawLabDNV, targetMccode, targetScode, r => r.mccode, r => r.scode);
+
+                        var rawLabCF = labCF[targetLookupId].ToList();
+                        entry.calculatedformulas = FilterByMcAndScode(rawLabCF, targetMccode, targetScode, r => r.mccode, r => r.scode);
                     }
                 }
 
@@ -413,33 +497,69 @@ WHERE  lrm.requestguid  = @RequestGUID
                 bool existsInLab = await db.ExecuteScalarAsync<bool>(
                     @"SELECT EXISTS (
                         SELECT 1 FROM lab_result_properties
-                        WHERE  testresultid = @Id AND tenant_code = @TenantCode
+                        WHERE  (testresultid = @Id OR testresultid IN (SELECT fromtestresultid FROM lab_result_details WHERE testresultid = @Id))
+                          AND  (tenant_code = @TenantCode OR tenant_code = '0' OR tenant_code IS NULL)
                       )", param);
 
                 if (existsInLab)
                 {
+                    bool labPropsExistForId = await db.ExecuteScalarAsync<bool>(@"
+                        SELECT EXISTS (
+                            SELECT 1 FROM lab_result_properties
+                            WHERE  testresultid::text = @IdText AND (tenant_code = @TenantCode OR tenant_code = '0' OR tenant_code IS NULL)
+                        )", param);
+
+                    Guid effectiveLabId = testResultId;
+                    if (!labPropsExistForId)
+                    {
+                        Guid? fromId = await db.QueryFirstOrDefaultAsync<Guid?>(@"
+                            SELECT CASE 
+                                     WHEN fromtestresultid IS NOT NULL 
+                                          AND fromtestresultid != '00000000-0000-0000-0000-000000000000'::uuid 
+                                     THEN fromtestresultid 
+                                   END
+                            FROM   lab_result_details
+                            WHERE  testresultid::text = @IdText AND (tenant_code = @TenantCode OR tenant_code = '0' OR tenant_code IS NULL)
+                            LIMIT 1", param);
+
+                        if (fromId.HasValue && fromId.Value != Guid.Empty)
+                        {
+                            effectiveLabId = fromId.Value;
+                        }
+                    }
+
+                    var labLookupParam = new { Id = effectiveLabId, TenantCode = tenantCode };
+
                     const string sql = @"
 SELECT * FROM lab_result_properties
-WHERE  testresultid = @Id AND (usedefault = true OR usedefault IS NULL) AND tenant_code = @TenantCode;
+WHERE  testresultid = @Id AND (usedefault = true OR usedefault IS NULL) AND (tenant_code = @TenantCode OR tenant_code = '0' OR tenant_code IS NULL);
 
 SELECT * FROM lab_result_textnormalvalues
-WHERE  testresultid = @Id AND tenant_code = @TenantCode;
+WHERE  testresultid::text = @IdText AND (tenant_code = @TenantCode OR tenant_code = '0' OR tenant_code IS NULL);
 
 SELECT * FROM lab_result_detailednormalvalues
-WHERE  testresultid = @Id AND tenant_code = @TenantCode;
+WHERE  testresultid::text = @IdText AND (tenant_code = @TenantCode OR tenant_code = '0' OR tenant_code IS NULL);
 
 SELECT * FROM lab_result_calculatedformula
-WHERE  testresultid = @Id AND tenant_code = @TenantCode;";
+WHERE  testresultid::text = @IdText AND (tenant_code = @TenantCode OR tenant_code = '0' OR tenant_code IS NULL);";
 
-                    using var multi = await db.QueryMultipleAsync(sql, param);
+                    using var multi = await db.QueryMultipleAsync(sql, labLookupParam);
+
+                    var labProps = (await multi.ReadAsync<LabResultPropertiesModel>()).ToList();
+                    int targetMccode = labProps.FirstOrDefault()?.mccode ?? 0;
+                    int targetScode = labProps.FirstOrDefault()?.scode ?? 0;
+
+                    var rawTNV = (await multi.ReadAsync<LabResultTextNormalValuesModel>()).ToList();
+                    var rawDNV = (await multi.ReadAsync<LabResultDetailedNormalValuesModel>()).ToList();
+                    var rawCF = (await multi.ReadAsync<LabResultCalculatedFormulaModel>()).ToList();
 
                     return new TestResultDetailsModel
                     {
                         isresulted = true,
-                        labproperties = (await multi.ReadAsync<LabResultPropertiesModel>()).ToList(),
-                        labtextnormalvalues = (await multi.ReadAsync<LabResultTextNormalValuesModel>()).ToList(),
-                        labdetailedNormalvalues = (await multi.ReadAsync<LabResultDetailedNormalValuesModel>()).ToList(),
-                        labcalculatedformulas = (await multi.ReadAsync<LabResultCalculatedFormulaModel>()).ToList(),
+                        labproperties = labProps,
+                        labtextnormalvalues = FilterByMcAndScode(rawTNV, targetMccode, targetScode, r => r.mccode, r => r.scode),
+                        labdetailedNormalvalues = FilterByMcAndScode(rawDNV, targetMccode, targetScode, r => r.mccode, r => r.scode),
+                        labcalculatedformulas = FilterByMcAndScode(rawCF, targetMccode, targetScode, r => r.mccode, r => r.scode),
                         properties = new List<test_result_properties>(),
                         textnormalvalues = new List<test_result_textnormalvalues>(),
                         detailedNormalvalues = new List<test_result_detailednormalvalues>(),
@@ -448,6 +568,36 @@ WHERE  testresultid = @Id AND tenant_code = @TenantCode;";
                 }
                 else
                 {
+                    bool propsExistForTestResultId = await db.ExecuteScalarAsync<bool>(@"
+                        SELECT EXISTS (
+                            SELECT 1 FROM test_result_properties
+                            WHERE  testresultid = @Id
+                              AND  (usedefault = true OR usedefault IS NULL)
+                              AND  (tenant_code = @TenantCode OR tenant_code = '0' OR tenant_code IS NULL)
+                        )", param);
+
+                    Guid effectiveId = testResultId;
+                    if (!propsExistForTestResultId)
+                    {
+                        Guid? fromId = await db.QueryFirstOrDefaultAsync<Guid?>(@"
+                            SELECT CASE 
+                                     WHEN fromtestresultid IS NOT NULL 
+                                          AND fromtestresultid != '00000000-0000-0000-0000-000000000000'::uuid 
+                                     THEN fromtestresultid 
+                                   END
+                            FROM   test_result_master
+                            WHERE  testresultid = @Id
+                              AND  (tenant_code = @TenantCode OR tenant_code = '0' OR tenant_code IS NULL)
+                            LIMIT 1", param);
+
+                        if (fromId.HasValue && fromId.Value != Guid.Empty)
+                        {
+                            effectiveId = fromId.Value;
+                        }
+                    }
+
+                    var lookupParam = new { Id = effectiveId, TenantCode = tenantCode };
+
                     const string sql = @"
 SELECT * FROM test_result_properties
 WHERE  testresultid = @Id
@@ -466,15 +616,23 @@ SELECT * FROM test_result_calculatedformula
 WHERE  testresultid = @Id
   AND  (tenant_code = @TenantCode OR tenant_code = '0' OR tenant_code IS NULL);";
 
-                    using var multi = await db.QueryMultipleAsync(sql, param);
+                    using var multi = await db.QueryMultipleAsync(sql, lookupParam);
+
+                    var masterProps = (await multi.ReadAsync<test_result_properties>()).ToList();
+                    int targetMccode = masterProps.FirstOrDefault()?.mccode ?? 0;
+                    int targetScode = masterProps.FirstOrDefault()?.scode ?? 0;
+
+                    var rawTNV = (await multi.ReadAsync<test_result_textnormalvalues>()).ToList();
+                    var rawDNV = (await multi.ReadAsync<test_result_detailednormalvalues>()).ToList();
+                    var rawCF = (await multi.ReadAsync<TestResultCalculatedformula>()).ToList();
 
                     return new TestResultDetailsModel
                     {
                         isresulted = false,
-                        properties = (await multi.ReadAsync<test_result_properties>()).ToList(),
-                        textnormalvalues = (await multi.ReadAsync<test_result_textnormalvalues>()).ToList(),
-                        detailedNormalvalues = (await multi.ReadAsync<test_result_detailednormalvalues>()).ToList(),
-                        calculatedformulas = (await multi.ReadAsync<TestResultCalculatedformula>()).ToList(),
+                        properties = masterProps,
+                        textnormalvalues = FilterByMcAndScode(rawTNV, targetMccode, targetScode, r => r.mccode, r => r.scode),
+                        detailedNormalvalues = FilterByMcAndScode(rawDNV, targetMccode, targetScode, r => r.mccode, r => r.scode),
+                        calculatedformulas = FilterByMcAndScode(rawCF, targetMccode, targetScode, r => r.mccode, r => r.scode),
                         labproperties = new List<LabResultPropertiesModel>(),
                         labtextnormalvalues = new List<LabResultTextNormalValuesModel>(),
                         labdetailedNormalvalues = new List<LabResultDetailedNormalValuesModel>(),
@@ -534,13 +692,15 @@ WHERE  testresultid = @Id
         {
             int userCode = entries.First().resultenteredby;
 
+            Guid parsedReqGuid = Guid.TryParse(requestGuid, out var g) ? g : Guid.Empty;
+
             string? existingResultGuid = await db.QueryFirstOrDefaultAsync<string?>(@"
                 SELECT resultguid::text
                 FROM   lab_result_master
-                WHERE  requestguid = @RequestGUID
-                  AND  tenant_code = @TenantCode
+                WHERE  requestguid::text = @RequestGUIDText
+                  AND  (tenant_code = @TenantCode OR tenant_code = '0' OR tenant_code IS NULL)
                 LIMIT  1",
-            new { RequestGUID = Guid.Parse(requestGuid), TenantCode = tenantCode }, transaction);
+            new { RequestGUIDText = requestGuid, TenantCode = tenantCode }, transaction);
 
             bool isUpdate = !string.IsNullOrEmpty(existingResultGuid);
             string resultGuid = isUpdate ? existingResultGuid! : Guid.NewGuid().ToString();
@@ -548,10 +708,10 @@ WHERE  testresultid = @Id
             var barcodeInfo = await db.QueryFirstOrDefaultAsync<(string barcode, string convertedBarcode)?>(@"
         SELECT requestbarcode, requestconvertedbarcode
         FROM   lab_request_master
-        WHERE  requestguid = @RequestGUID
-          AND  tenant_code = @TenantCode
+        WHERE  requestguid::text = @RequestGUIDText
+          AND  (tenant_code = @TenantCode OR tenant_code = '0' OR tenant_code IS NULL)
         LIMIT  1",
-                new { RequestGUID = requestGuid, TenantCode = tenantCode }, transaction);
+                new { RequestGUIDText = requestGuid, TenantCode = tenantCode }, transaction);
 
             string resultBarcode = barcodeInfo?.barcode ?? string.Empty;
             string resultConvertedBarcode = barcodeInfo?.convertedBarcode ?? string.Empty;
@@ -565,9 +725,9 @@ WHERE  testresultid = @Id
                 var existingLabRows = (await db.QueryAsync<(Guid labTestResultId, int tcode)>(@"
         SELECT testresultid, tcode
         FROM   lab_result_details
-        WHERE  resultguid  = @ResultGUID
-          AND  tenant_code = @TenantCode",
-                    new { ResultGUID = Guid.Parse(resultGuid), TenantCode = tenantCode }, transaction)).ToList();
+        WHERE  resultguid::text = @ResultGUIDText
+          AND  (tenant_code = @TenantCode OR tenant_code = '0' OR tenant_code IS NULL)",
+                    new { ResultGUIDText = resultGuid, TenantCode = tenantCode }, transaction)).ToList();
 
                 var existingLabIds = existingLabRows.Select(r => r.labTestResultId).ToHashSet();
 
@@ -580,7 +740,7 @@ WHERE  testresultid = @Id
             WHERE  testresultid  = ANY(@Ids)
               AND  mastertestresultid IS NOT NULL
               AND  mastertestresultid != '00000000-0000-0000-0000-000000000000'
-              AND  tenant_code = @TenantCode",
+              AND  (tenant_code = @TenantCode OR tenant_code = '0' OR tenant_code IS NULL)",
                         new { Ids = existingLabIds.ToArray(), TenantCode = tenantCode }, transaction);
 
                     foreach (var r in propRows)
@@ -635,8 +795,8 @@ WHERE  testresultid = @Id
             UPDATE lab_result_master
             SET    resultdatetime = @Now,
                    entereddate    = @Now
-            WHERE  resultguid  = @ResultGUID
-              AND  tenant_code = @TenantCode",
+            WHERE  resultguid::text = @ResultGUIDText
+              AND  (tenant_code = @TenantCode OR tenant_code = '0' OR tenant_code IS NULL)",
                     new
                     {
                         Now = DateTime.UtcNow,
@@ -662,7 +822,7 @@ WHERE  testresultid = @Id
                         ResultBarcode = resultBarcode,
                         ResultConvertedBarcode = resultConvertedBarcode,
                         Now = DateTime.UtcNow,
-                        RequestGUID = Guid.Parse(requestGuid),
+                        RequestGUID = parsedReqGuid != Guid.Empty ? (object)parsedReqGuid : requestGuid,
                         UserCode = userCode,
                         TenantCode = tenantCode
                     },
@@ -670,18 +830,24 @@ WHERE  testresultid = @Id
             }
 
             var masterIds = entries
-                .Where(e => e.testresultid != Guid.Empty)
-                .Select(e => e.testresultid)
+                .SelectMany(e => new[] { e.testresultid, e.fromtestresultid })
+                .Where(id => id != Guid.Empty)
                 .Distinct()
                 .ToArray();
 
             var allTestProps = (await db.QueryAsync<test_result_properties>(@"
         SELECT * FROM test_result_properties
         WHERE  testresultid = ANY(@Ids)
-          AND  (usedefault = true OR usedefault IS NULL)
           AND  (tenant_code = @TenantCode OR tenant_code = '0' OR tenant_code IS NULL)",
                 new { Ids = masterIds, TenantCode = tenantCode }, transaction))
-                .ToDictionary(p => p.testresultid!.Value);
+                .Where(p => p.testresultid.HasValue)
+                .GroupBy(p => p.testresultid!.Value)
+                .ToDictionary(
+                    g => g.Key,
+                    g => g.OrderByDescending(p => p.tenant_code == tenantCode)
+                          .ThenByDescending(p => p.usedefault == true)
+                          .First()
+                );
 
             var rtmFallbackMap = (await db.QueryAsync<(Guid testresultid, int rtmcode)>(@"
         SELECT DISTINCT ON (testresultid) testresultid, rtmcode
@@ -691,7 +857,8 @@ WHERE  testresultid = @Id
           AND  (tenant_code = @TenantCode OR tenant_code = '0' OR tenant_code IS NULL)
         ORDER  BY testresultid, rtmcode",
                 new { Ids = masterIds, TenantCode = tenantCode }, transaction))
-                .ToDictionary(r => r.testresultid, r => r.rtmcode);
+                .GroupBy(r => r.testresultid)
+                .ToDictionary(g => g.Key, g => g.First().rtmcode);
 
             var allTextNV = (await db.QueryAsync<test_result_textnormalvalues>(@"
         SELECT * FROM test_result_textnormalvalues
@@ -773,9 +940,17 @@ WHERE  testresultid = @Id
                     ? resolvedFromTestResultId
                     : entry.testresultid;
 
-                var labProp = entry.labproperties?.FirstOrDefault(lp => lp.testresultid == entry.testresultid);
+                var labProp = entry.labproperties?.FirstOrDefault(lp => lp.testresultid == entry.testresultid)
+                           ?? entry.labproperties?.FirstOrDefault();
+
+                var clientTestProp = entry.testproperties?.FirstOrDefault(tp => tp.testresultid == entry.testresultid)
+                                  ?? entry.testproperties?.FirstOrDefault();
 
                 allTestProps.TryGetValue(entry.testresultid, out var testProp);
+                if (testProp == null && entry.fromtestresultid != Guid.Empty)
+                {
+                    allTestProps.TryGetValue(entry.fromtestresultid, out testProp);
+                }
 
                 int rtmCode = testProp?.rtmcode ?? 0;
                 if (rtmCode == 0 && entry.rtmcode > 0)
@@ -809,53 +984,69 @@ WHERE  testresultid = @Id
                     DefaultValue = resolvedDefaultValue,
                     NormalValue = resolvedNormalValue,
                     RTMCode = rtmCode,
-                    RangeType = Truncate(labProp?.rangetype ?? testProp?.rangetype ?? "Normal", 50),
-                    FromNormalValue = labProp?.fromnormalvalue ?? testProp?.fromnormalvalue ?? 0.0,
-                    ToNormalValue = labProp?.tonormalvalue ?? testProp?.tonormalvalue ?? 0.0,
+                    RangeType = Truncate(labProp?.rangetype ?? clientTestProp?.rangetype ?? testProp?.rangetype ?? "-", 50),
+                    FromNormalValue = labProp?.fromnormalvalue ?? clientTestProp?.fromnormalvalue ?? testProp?.fromnormalvalue ?? 0.0,
+                    ToNormalValue = labProp?.tonormalvalue ?? clientTestProp?.tonormalvalue ?? testProp?.tonormalvalue ?? 0.0,
                     ConclusionForHigher = !string.IsNullOrWhiteSpace(labProp?.conclusionforhigher)
                         ? labProp!.conclusionforhigher
-                        : testProp?.conclusionforhigher ?? string.Empty,
+                        : (!string.IsNullOrWhiteSpace(clientTestProp?.conclusionforhigher)
+                            ? clientTestProp!.conclusionforhigher
+                            : testProp?.conclusionforhigher ?? string.Empty),
                     ConclusionForLower = !string.IsNullOrWhiteSpace(labProp?.conclusionforlower)
                         ? labProp!.conclusionforlower
-                        : testProp?.conclusionforlower ?? string.Empty,
+                        : (!string.IsNullOrWhiteSpace(clientTestProp?.conclusionforlower)
+                            ? clientTestProp!.conclusionforlower
+                            : testProp?.conclusionforlower ?? string.Empty),
                     PrintFixedTextConclusionInReport = labProp?.printfixedtextconclusioninreport
+                        ?? clientTestProp?.printfixedtextconclusioninreport
                         ?? testProp?.printfixedtextconclusioninreport ?? false,
                     ConclusionforFixedText = !string.IsNullOrWhiteSpace(entry.fixedvalues)
                         ? Truncate(entry.fixedvalues, 4000)
                         : (!string.IsNullOrWhiteSpace(labProp?.conclusionforfixedtext)
                             ? labProp!.conclusionforfixedtext
-                            : testProp?.conclusionforfixedtext ?? string.Empty),
-                    ShowAgedBased = labProp?.showagedbased ?? testProp?.showagedbased ?? false,
-                    PrintConclusionInReport = labProp?.printconclusioninreport ?? testProp?.printconclusioninreport ?? false,
-                    PrintConclusionInBottom = labProp?.printconclusioninbottom ?? testProp?.printconclusioninbottom ?? false,
-                    ShowAlertOnHigherLower = labProp?.showalertonhigherlower ?? testProp?.showalertonhigherlower ?? false,
-                    IsAddResult = labProp?.isaddresult ?? testProp?.isaddresult ?? false,
-                    PrintUnitsInNormalValues = labProp?.printunitsinnormalvalues ?? testProp?.printunitsinnormalvalues ?? false,
-                    PrintNormalValuesatBottom = labProp?.printnormalvaluesatbottom ?? testProp?.printnormalvaluesatbottom ?? false,
-                    PrintSpecialFieldsatRightSide = labProp?.printspecialfieldsatrightside ?? testProp?.printspecialfieldsatrightside ?? false,
-                    GroupValuesbySex = labProp?.groupvaluesbysex ?? testProp?.groupvaluesbysex ?? false,
-                    GroupValuesbySpecialField = labProp?.groupvaluesbyspecialfield ?? testProp?.groupvaluesbyspecialfield ?? false,
+                            : (!string.IsNullOrWhiteSpace(clientTestProp?.conclusionforfixedtext)
+                                ? clientTestProp!.conclusionforfixedtext
+                                : testProp?.conclusionforfixedtext ?? string.Empty)),
+                    ShowAgedBased = labProp?.showagedbased ?? clientTestProp?.showagedbased ?? testProp?.showagedbased ?? false,
+                    PrintConclusionInReport = labProp?.printconclusioninreport ?? clientTestProp?.printconclusioninreport ?? testProp?.printconclusioninreport ?? false,
+                    PrintConclusionInBottom = labProp?.printconclusioninbottom ?? clientTestProp?.printconclusioninbottom ?? testProp?.printconclusioninbottom ?? false,
+                    ShowAlertOnHigherLower = labProp?.showalertonhigherlower ?? clientTestProp?.showalertonhigherlower ?? testProp?.showalertonhigherlower ?? false,
+                    IsAddResult = labProp?.isaddresult ?? clientTestProp?.isaddresult ?? testProp?.isaddresult ?? false,
+                    PrintUnitsInNormalValues = labProp?.printunitsinnormalvalues ?? clientTestProp?.printunitsinnormalvalues ?? testProp?.printunitsinnormalvalues ?? false,
+                    PrintNormalValuesatBottom = labProp?.printnormalvaluesatbottom ?? clientTestProp?.printnormalvaluesatbottom ?? testProp?.printnormalvaluesatbottom ?? false,
+                    PrintSpecialFieldsatRightSide = labProp?.printspecialfieldsatrightside ?? clientTestProp?.printspecialfieldsatrightside ?? testProp?.printspecialfieldsatrightside ?? false,
+                    GroupValuesbySex = labProp?.groupvaluesbysex ?? clientTestProp?.groupvaluesbysex ?? testProp?.groupvaluesbysex ?? false,
+                    GroupValuesbySpecialField = labProp?.groupvaluesbyspecialfield ?? clientTestProp?.groupvaluesbyspecialfield ?? testProp?.groupvaluesbyspecialfield ?? false,
                     FooterMessage = !string.IsNullOrWhiteSpace(labProp?.footermessage)
                         ? labProp!.footermessage
-                        : testProp?.footermessage ?? string.Empty,
-                    PrintResultOnly = labProp?.printresultonly ?? testProp?.printresultonly ?? false,
-                    IsGraph = labProp?.isgraph ?? testProp?.isgraph ?? false,
-                    GraphValue = labProp?.graphvalue ?? testProp?.graphvalue ?? 0.0,
-                    DecimalValue = labProp?.decimalvalue ?? testProp?.decimalvalue ?? 2,
+                        : (!string.IsNullOrWhiteSpace(clientTestProp?.footermessage)
+                            ? clientTestProp!.footermessage
+                            : testProp?.footermessage ?? string.Empty),
+                    PrintResultOnly = labProp?.printresultonly ?? clientTestProp?.printresultonly ?? testProp?.printresultonly ?? false,
+                    IsGraph = labProp?.isgraph ?? clientTestProp?.isgraph ?? testProp?.isgraph ?? false,
+                    GraphValue = labProp?.graphvalue ?? clientTestProp?.graphvalue ?? testProp?.graphvalue ?? 0.0,
+                    DecimalValue = labProp?.decimalvalue ?? clientTestProp?.decimalvalue ?? testProp?.decimalvalue ?? 2,
                     CriticalLowType = !string.IsNullOrWhiteSpace(labProp?.criticallowtype)
                         ? labProp!.criticallowtype
-                        : testProp?.criticallowtype ?? string.Empty,
+                        : (!string.IsNullOrWhiteSpace(clientTestProp?.criticallowtype)
+                            ? clientTestProp!.criticallowtype
+                            : testProp?.criticallowtype ?? string.Empty),
                     CriticalLowRange = !string.IsNullOrWhiteSpace(labProp?.criticallowrange)
                         ? labProp!.criticallowrange
-                        : testProp?.criticallowrange ?? string.Empty,
+                        : (!string.IsNullOrWhiteSpace(clientTestProp?.criticallowrange)
+                            ? clientTestProp!.criticallowrange
+                            : testProp?.criticallowrange ?? string.Empty),
                     CriticalHighType = !string.IsNullOrWhiteSpace(labProp?.criticalhightype)
                         ? labProp!.criticalhightype
-                        : testProp?.criticalhightype ?? string.Empty,
+                        : (!string.IsNullOrWhiteSpace(clientTestProp?.criticalhightype)
+                            ? clientTestProp!.criticalhightype
+                            : testProp?.criticalhightype ?? string.Empty),
                     CriticalHighRange = !string.IsNullOrWhiteSpace(labProp?.criticalhighrange)
                         ? labProp!.criticalhighrange
-                        : testProp?.criticalhighrange ?? string.Empty,
+                        : (!string.IsNullOrWhiteSpace(clientTestProp?.criticalhighrange)
+                            ? clientTestProp!.criticalhighrange
+                            : testProp?.criticalhighrange ?? string.Empty),
                     TenantCode = tenantCode,
-                    // Proof image: uploaded to MinIO; NULL when no image supplied.
                     imagepath = await ResolveProofImagePathAsync(entry, labId, tenantCode, db, transaction)
                 };
 
@@ -874,8 +1065,8 @@ WHERE  testresultid = @Id
                        calculatedformula = @CalculatedFormula,
                        fromtcode         = @FromTCode,
                        fromtestresultid  = @FromTestResultID
-                WHERE  testresultid = @TestResultID
-                  AND  tenant_code  = @TenantCode",
+                WHERE  testresultid::text = @TestResultIDText
+                  AND  (tenant_code = @TenantCode OR tenant_code = '0' OR tenant_code IS NULL)",
                         new
                         {
                             TestResultID = labId,
@@ -937,17 +1128,17 @@ WHERE  testresultid = @Id
                        criticalhightype                 = @CriticalHighType,
                        criticalhighrange                = @CriticalHighRange,
                        image_path                       = COALESCE(@ImagePath, image_path)
-                WHERE  testresultid = @TestResultID
-                  AND  tenant_code  = @TenantCode",
+                WHERE  testresultid::text = @TestResultIDText
+                  AND  (tenant_code = @TenantCode OR tenant_code = '0' OR tenant_code IS NULL)",
                         propsParam, transaction);
 
                     await db.ExecuteAsync(@"
                 DELETE FROM lab_result_textnormalvalues
-                WHERE  testresultid = @Id AND tenant_code = @TenantCode;
+                WHERE  testresultid::text = @IdText AND (tenant_code = @TenantCode OR tenant_code = '0' OR tenant_code IS NULL);
                 DELETE FROM lab_result_detailednormalvalues
-                WHERE  testresultid = @Id AND tenant_code = @TenantCode;
+                WHERE  testresultid::text = @IdText AND (tenant_code = @TenantCode OR tenant_code = '0' OR tenant_code IS NULL);
                 DELETE FROM lab_result_calculatedformula
-                WHERE  testresultid = @Id AND tenant_code = @TenantCode;",
+                WHERE  testresultid::text = @IdText AND (tenant_code = @TenantCode OR tenant_code = '0' OR tenant_code IS NULL);",
                         new { Id = labId, TenantCode = tenantCode }, transaction);
                 }
                 else
@@ -1208,12 +1399,12 @@ WHERE  testresultid = @Id
                    resultauthorizedby2 = @ResultAuthorizedBy2,
                    firstauthorizedate  = @FirstAuthorizeDate,
                    secondauthorizedate = @SecondAuthorizeDate
-            WHERE  requestguid = @RequestGUID
+            WHERE  requestguid::text = @RequestGUIDText
               AND  tcode = @TCode
-              AND  tenant_code = @TenantCode",
+              AND  (tenant_code = @TenantCode OR tenant_code = '0' OR tenant_code IS NULL)",
                     new
                     {
-                        RequestGUID = entry.requestguid,
+                        RequestGUIDText = requestGuid,
                         TCode = Convert.ToDecimal(entry.tcode),
                         ResultEnteredBy = entry.resultenteredby,
                         ResultEnteredDate = DateTime.UtcNow,
@@ -1270,10 +1461,10 @@ WHERE  testresultid = @Id
             int pendingCount = await db.QueryFirstOrDefaultAsync<int>(@"
         SELECT COUNT(*)
         FROM   lab_request_details
-        WHERE  requestguid  = @RequestGUID
+        WHERE  requestguid::text  = @RequestGUIDText
           AND  resultstatus = false
-          AND  tenant_code  = @TenantCode",
-                new { RequestGUID = requestGuid, TenantCode = tenantCode }, transaction);
+          AND  (tenant_code  = @TenantCode OR tenant_code = '0' OR tenant_code IS NULL)",
+                new { RequestGUIDText = requestGuid, TenantCode = tenantCode }, transaction);
 
             if (pendingCount == 0)
             {
@@ -1282,20 +1473,20 @@ WHERE  testresultid = @Id
                 COUNT(*) FILTER (WHERE isauthorized1 = false) AS notAuth1,
                 COUNT(*) FILTER (WHERE isauthorized2 = false) AS notAuth2
             FROM   lab_request_details
-            WHERE  requestguid = @RequestGUID
-              AND  tenant_code = @TenantCode",
-                    new { RequestGUID = requestGuid, TenantCode = tenantCode }, transaction);
+            WHERE  requestguid::text = @RequestGUIDText
+              AND  (tenant_code = @TenantCode OR tenant_code = '0' OR tenant_code IS NULL)",
+                    new { RequestGUIDText = requestGuid, TenantCode = tenantCode }, transaction);
 
                 await db.ExecuteAsync(@"
             UPDATE lab_request_master
             SET    resultstatus                = true,
                    isinvestigationauthorized1 = @IsAuth1,
                    isinvestigationauthorized2 = @IsAuth2
-            WHERE  requestguid = @RequestGUID
-              AND  tenant_code = @TenantCode",
+            WHERE  requestguid::text = @RequestGUIDText
+              AND  (tenant_code = @TenantCode OR tenant_code = '0' OR tenant_code IS NULL)",
                     new
                     {
-                        RequestGUID = requestGuid,
+                        RequestGUIDText = requestGuid,
                         IsAuth1 = authCounts.notAuth1 == 0,
                         IsAuth2 = authCounts.notAuth2 == 0,
                         TenantCode = tenantCode
@@ -1321,7 +1512,7 @@ WHERE  testresultid = @Id
                 const string sql = @"
                     SELECT *
                     FROM   viewresultsearch
-                    WHERE  tenant_code      = @TenantCode
+                    WHERE  (tenant_code = @TenantCode OR tenant_code = '0' OR tenant_code IS NULL)
                       AND  (@DCode = 0 OR dcode = @DCode)
                       AND  requestdatetime >= @StartDate
                       AND  requestdatetime <= @EndDate";
@@ -1356,7 +1547,6 @@ WHERE  testresultid = @Id
 
             try
             {
-                // ✅ UPDATED: use CustomerClass to resolve custid by tenant custcode
                 var customer = await _customerClass.GetCustomerByCustCode(custcode, tenantCode);
                 if (customer == null)
                     return new List<List<CustomerResultDto>>();
@@ -1372,9 +1562,9 @@ WHERE  testresultid = @Id
                                 r.requestdatetime
                         FROM    lab_request_master r
                         INNER JOIN lab_result_master rm ON rm.requestguid = r.requestguid
-                                                        AND rm.tenant_code = @TenantCode
+                                                        AND (rm.tenant_code = @TenantCode OR rm.tenant_code = '0' OR rm.tenant_code IS NULL)
                         WHERE r.custid = @CustId
-                          AND r.tenant_code = @TenantCode
+                          AND (r.tenant_code = @TenantCode OR r.tenant_code = '0' OR r.tenant_code IS NULL)
                     )
                     SELECT
                         CAST(req.requestguid AS VARCHAR)  AS requestguid,
@@ -1383,13 +1573,13 @@ WHERE  testresultid = @Id
                         d.enteredresult AS Result
                     FROM    Req req
                     INNER JOIN lab_result_master rm  ON rm.requestguid = req.requestguid
-                                                        AND rm.tenant_code = @TenantCode
+                                                        AND (rm.tenant_code = @TenantCode OR rm.tenant_code = '0' OR rm.tenant_code IS NULL)
                     INNER JOIN lab_result_details d   ON d.resultguid = rm.resultguid
-                                                        AND d.tenant_code = @TenantCode
-                    INNER JOIN lab_request_details lrd ON lrd.requestguid = req.requestguid
+                                                        AND (d.tenant_code = @TenantCode OR d.tenant_code = '0' OR d.tenant_code IS NULL)
+                    INNER JOIN lab_request_details lrd ON lrd.requestguid::text = req.requestguid::text
                                                         AND lrd.tcode = d.tcode
-                                                        AND lrd.ttid = 1
-                                                        AND lrd.tenant_code = @TenantCode
+                                                        AND (lrd.ttid = 1 OR lrd.ttid IS NULL OR lrd.ttid = 0)
+                                                        AND (lrd.tenant_code = @TenantCode OR lrd.tenant_code = '0' OR lrd.tenant_code IS NULL)
                     ORDER BY req.requestdatetime DESC, d.description ASC";
 
                 var flat = (await db.QueryAsync<CustomerResultDto>(sql, new
@@ -1411,19 +1601,7 @@ WHERE  testresultid = @Id
                 throw;
             }
         }
-        /// <summary>
-        /// Resolves the MinIO image path for a result entry's proof image.
-        /// Called inside ProcessResultGroupAsync before building propsParam.
-        /// Handles IFormFile, base64 string, or no image (returns null).
-        /// When an image already exists in lab_result_properties, the old MinIO
-        /// object is deleted via S3ImageService.ReplaceAsync before uploading the new one.
-        /// </summary>
-        /// <summary>
-        /// Resolves the MinIO image path for a result entry's proof image.
-        /// Called inside ProcessResultGroupAsync before building propsParam.
-        /// Handles IFormFile only. When an image already exists in lab_result_properties,
-        /// the old MinIO object is replaced via S3ImageService.ReplaceAsync.
-        /// </summary>
+
         private async Task<string?> ResolveProofImagePathAsync(
             LabResultEntry entry,
             Guid labId,
@@ -1440,11 +1618,10 @@ WHERE  testresultid = @Id
         SELECT image_path
         FROM   lab_result_properties
         WHERE  testresultid = @LabId
-          AND  tenant_code  = @TenantCode
+          AND  (tenant_code = @TenantCode OR tenant_code = '0' OR tenant_code IS NULL)
         LIMIT 1",
                 new { LabId = labId, TenantCode = tenantCode }, transaction);
 
-            // ── Build date-partitioned entityType + custom prefix ──
             var now = DateTime.UtcNow;
             string datedEntityType = $"result-proof/{now:yyyy}/{now:MM}/{now:dd}";
             string customPrefix = $"{entry.requestguid}proof{entry.slno}";
@@ -1459,6 +1636,43 @@ WHERE  testresultid = @Id
                 Console.WriteLine($"[ResolveProofImagePathAsync] ERROR: {ex.Message}");
                 return oldKey;
             }
+        }
+
+        public async Task<string?> SaveResultImage(Guid masterTestResultId, IFormFile file, string tenantCode)
+        {
+            if (string.IsNullOrWhiteSpace(tenantCode))
+                throw new ArgumentException("tenantCode is required", nameof(tenantCode));
+
+            await using var db = CreateConnection();
+            await db.OpenAsync();
+
+            var row = await db.QueryFirstOrDefaultAsync<(Guid labTestResultId, string? oldImagePath)?>(@"
+        SELECT testresultid, image_path
+        FROM   lab_result_properties
+        WHERE  (tenant_code = @TenantCode OR tenant_code = '0' OR tenant_code IS NULL)
+          AND  (mastertestresultid = @Id OR testresultid = @Id)
+        ORDER  BY (mastertestresultid = @Id) DESC
+        LIMIT  1",
+                new { Id = masterTestResultId, TenantCode = tenantCode });
+
+            if (row == null)
+                return null;
+
+            var now = DateTime.UtcNow;
+            string datedEntityType = $"result-proof/{now:yyyy}/{now:MM}/{now:dd}";
+            string customPrefix = $"{masterTestResultId}proof";
+
+            string newPath = await _s3Service.ReplaceAsync(
+                file, row.Value.oldImagePath, tenantCode, datedEntityType, 0, customPrefix);
+
+            await db.ExecuteAsync(@"
+        UPDATE lab_result_properties
+        SET    image_path  = @ImagePath
+        WHERE  testresultid = @LabId
+          AND  (tenant_code  = @TenantCode OR tenant_code = '0' OR tenant_code IS NULL)",
+                new { ImagePath = newPath, LabId = row.Value.labTestResultId, TenantCode = tenantCode });
+
+            return newPath;
         }
     }
 }

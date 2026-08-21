@@ -2,6 +2,7 @@ using Amazon.Runtime;
 using Amazon.S3.Model;
 using Dapper;
 using medico_backend.Model;
+using Medico_Backend.Model;
 using medico_backend.Services;
 using Npgsql;
 using SkiaSharp;
@@ -2620,99 +2621,99 @@ namespace medico_backend.Class
             return val;
         }
 
-        private static RoutineReportModel MapRow(
+                                private static RoutineReportModel MapRow(
             RawReportRow r, Dictionary<string, byte[]> cache) => new()
             {
-                TenantId = r.TenantId,
+                TenantId = r.TenantId ?? "",
                 RequestSno = r.RequestSno,
                 RequestBarCode = string.IsNullOrWhiteSpace(r.RequestBarCode)
                     ? GenerateBlankPng()
                     : GenerateBarcodePng(r.RequestBarCode),
                 RequestDateTime = ToLocalReportTime(r.RequestDateTime, DateTime.MinValue) ?? r.RequestDateTime,
                 RequestedDateTime = ToLocalReportTime(r.RequestedDateTime, DateTime.MinValue) ?? r.RequestedDateTime,
-                Name = r.Name,
-                Gender = r.Gender,
-                DateofBirth = r.DateofBirth,
+                Name = r.Name ?? "",
+                Gender = r.Gender ?? "",
+                DateofBirth = r.DateofBirth ?? "",
                 AgeYears = r.AgeYears,
                 AgeMonths = r.AgeMonths,
                 AgeDays = r.AgeDays,
-                Address = r.Address,
-                MobileNo = r.MobileNo,
+                Address = r.Address ?? "",
+                MobileNo = r.MobileNo ?? "",
                 RequestAmount = r.RequestAmount,
-                Description = r.Description,
-                CustCode = r.CustCode,
-                Sample = r.Sample,
-                TestName = r.TestName,
-                GroupName = r.GroupName,
-                Doctor = r.Doctor,
-                Initial = r.Initial,
-                NameTitle = r.NameTitle,
-                Reference = r.Reference,
-                DoctorCode = r.DoctorCode,
-                EnteredResult = r.EnteredResult,
-                Reporting = r.Reporting,
-                CityName = r.CityName,
-                AreaPinCode = r.AreaPinCode,
-                AreaName = r.AreaName,
-                RequestGUID = r.RequestGUID,
+                Description = r.Description ?? "",
+                CustCode = r.CustCode ?? "",
+                Sample = r.Sample ?? "",
+                TestName = r.TestName ?? "",
+                GroupName = r.GroupName ?? "",
+                Doctor = r.Doctor ?? "",
+                Initial = r.Initial ?? "",
+                NameTitle = r.NameTitle ?? "",
+                Reference = r.Reference ?? "",
+                DoctorCode = r.DoctorCode ?? "",
+                EnteredResult = r.EnteredResult ?? "",
+                Reporting = r.Reporting ?? "",
+                CityName = r.CityName ?? "",
+                AreaPinCode = r.AreaPinCode ?? "",
+                AreaName = r.AreaName ?? "",
+                RequestGUID = r.RequestGUID ?? "",
                 TestSno = r.TestSno,
-                Col2 = r.Col2,
+                Col2 = r.Col2 ?? "",
                 Units = (!string.IsNullOrWhiteSpace(r.Units) ? r.Units : r.TRPUName) ?? "",
                 ResultSno = r.ResultSno,
                 CustomerImage = GetImage(r.CustomerImage, cache),
                 SignatureImage = GetImage(r.SignatureImage, cache),
-                ResultGUID = r.ResultGUID,
-                ValueType = r.ValueType,
+                ResultGUID = r.ResultGUID ?? "",
+                ValueType = r.ValueType ?? "",
                 TCode = r.TCode,
                 ResultDateTime = ToLocalReportTime(r.ResultDateTime, r.RequestDateTime),
-                ResultType = r.ResultType,
+                ResultType = r.ResultType ?? "",
                 PrintInSeparatePage = r.PrintInSeparatePage,
                 TestOrderNo = r.TestOrderNo,
                 GroupOrderNo = r.GroupOrderNo,
-                RoomNo = r.RoomNo,
-                HospitalID = r.HospitalID,
-                Email = r.Email,
-                AlteredBHCode = r.AlteredBHCode,
+                RoomNo = r.RoomNo ?? "",
+                HospitalID = r.HospitalID ?? "",
+                Email = r.Email ?? "",
+                AlteredBHCode = r.AlteredBHCode ?? "",
                 CollectedDateTime = ToLocalReportTime(r.CollectedDateTime, r.RequestDateTime),
-                OnlineCode = r.OnlineCode,
-                ResultValueType = r.ResultValueType,
-                DefaultValue = r.DefaultValue,
+                OnlineCode = r.OnlineCode ?? "",
+                ResultValueType = r.ResultValueType ?? "",
+                DefaultValue = r.DefaultValue ?? "",
                 SimpleNormalValues = r.SimpleNormalValues,
                 DetailedNormalValues = r.DetailedNormalValues,
-                RangeType = r.RangeType,
+                RangeType = r.RangeType ?? "",
                 FromNormalValue = r.FromNormalValue,
                 ToNormalValue = r.ToNormalValue,
-                ConclusionForHigher = r.ConclusionForHigher,
-                ConclusionForLower = r.ConclusionForLower,
-                ConclusionForFixedText = r.ConclusionForFixedText,
+                ConclusionForHigher = r.ConclusionForHigher ?? "",
+                ConclusionForLower = r.ConclusionForLower ?? "",
+                ConclusionForFixedText = r.ConclusionForFixedText ?? "",
                 PrintFixedTextConclusionInReport = r.PrintFixedTextConclusionInReport,
                 ShowAgedBased = r.ShowAgedBased,
                 ShowAlertOnHigherLower = r.ShowAlertOnHigherLower,
-                FooterMessage = r.FooterMessage,
-                TRPUName = r.TRPUName,
-                FixedValues = r.FixedValues,
+                FooterMessage = r.FooterMessage ?? "",
+                TRPUName = r.TRPUName ?? "",
+                FixedValues = r.FixedValues ?? "",
                 DecimalPlaces = r.DecimalPlaces,
-                ReportingMethod = r.ReportingMethod,
+                ReportingMethod = r.ReportingMethod ?? "",
                 TestResultID = r.TestResultID,
-                RequestSnoPrint = r.RequestSnoPrint,
+                RequestSnoPrint = r.RequestSnoPrint ?? "",
                 PrintResultOnly = r.PrintResultOnly,
                 ResultNormal = r.ResultNormal,
                 ResultHigh = r.ResultHigh,
                 ResultLow = r.ResultLow,
                 IsInvestigationPartial = r.IsInvestigationPartial,
-                ResultSample = r.ResultSample,
-                DoctorFullName = r.DoctorFullName,
+                ResultSample = r.ResultSample ?? "",
+                DoctorFullName = r.DoctorFullName ?? "",
                 DCode = r.DCode,
-                FrontHospitalID = r.FrontHospitalID,
-                FrontHospitalPatientID = r.FrontHospitalPatientID,
+                FrontHospitalID = r.FrontHospitalID ?? "",
+                FrontHospitalPatientID = r.FrontHospitalPatientID ?? "",
                 IsAuthorized1 = r.IsAuthorized1,
-                DoctorTitle = r.DoctorTitle,
-                SecondDoctorName = r.SecondDoctorName,
+                DoctorTitle = r.DoctorTitle ?? "",
+                SecondDoctorName = r.SecondDoctorName ?? "",
                 SecondDCode = r.SecondDCode,
                 DefaultAuthorizeImage = GetImage(r.DefaultAuthorizeImage, cache),
-                DefaultAuthorizeName = r.DefaultAuthorizeName,
-                DefaultAuthorizeDesignation = r.DefaultAuthorizeDesignation,
-                NormalValues = r.NormalValues,
+                DefaultAuthorizeName = r.DefaultAuthorizeName ?? "",
+                DefaultAuthorizeDesignation = r.DefaultAuthorizeDesignation ?? "",
+                NormalValues = r.NormalValues ?? "",
                 RowNum = r.RowNum,
                 MCCode = r.MCCode,
             };
@@ -2721,15 +2722,84 @@ namespace medico_backend.Class
             RawAuthUser a, Dictionary<string, byte[]> cache) => new()
             {
                 EnteredSign = GetImage(a.EnteredSign, cache) ?? GenerateBlankPng(),
-                EnteredBy = a.EnteredBy,
-                EnteredByDesignation = a.EnteredByDesignation,
+                EnteredBy = a.EnteredBy ?? "",
+                EnteredByDesignation = a.EnteredByDesignation ?? "",
                 AuthorizedSign = GetImage(a.AuthorizedSign, cache) ?? GenerateBlankPng(),
-                AuthorizedBy = a.AuthorizedBy,
-                AuthorizedByDesignation = a.AuthorizedByDesignation,
+                AuthorizedBy = a.AuthorizedBy ?? "",
+                AuthorizedByDesignation = a.AuthorizedByDesignation ?? "",
                 AuthorizedSign2 = GetImage(a.AuthorizedSign2, cache) ?? GenerateBlankPng(),
-                AuthorizedBy2 = a.AuthorizedBy2,
-                AuthorizedByDesignation2 = a.AuthorizedByDesignation2,
+                AuthorizedBy2 = a.AuthorizedBy2 ?? "",
+                AuthorizedByDesignation2 = a.AuthorizedByDesignation2 ?? "",
             };
+
+        public async Task<(byte[]? HeaderImage, byte[]? FooterImage)> GetHeaderFooterImagesAsync(string tenant_code, int? bh_code)
+        {
+            try
+            {
+                using IDbConnection db = new NpgsqlConnection(_conn);
+
+                string sql = "SELECT header_path, header_image_path, footer_path, footer_image_path FROM lab_settings WHERE tenant_code = @tenant_code AND deleted = false";
+                if (bh_code.HasValue && bh_code.Value != 0)
+                {
+                    sql += " AND bh_code = @bh_code";
+                }
+                else
+                {
+                    sql += " AND (bh_code = 0 OR bh_code IS NULL)";
+                }
+
+                var row = await db.QueryFirstOrDefaultAsync<dynamic>(sql, new { tenant_code, bh_code });
+
+                if (row == null && bh_code.HasValue && bh_code.Value != 0)
+                {
+                    string fallbackSql = "SELECT header_path, header_image_path, footer_path, footer_image_path FROM lab_settings WHERE tenant_code = @tenant_code AND deleted = false AND (bh_code = 0 OR bh_code IS NULL)";
+                    row = await db.QueryFirstOrDefaultAsync<dynamic>(fallbackSql, new { tenant_code });
+                }
+
+                if (row == null)
+                    return (null, null);
+
+                var dict = (IDictionary<string, object>)row;
+                string? headerKey = (dict.TryGetValue("header_path", out var hp) && hp != null) ? hp.ToString() : (dict.TryGetValue("header_image_path", out var hip) && hip != null ? hip.ToString() : null);
+                string? footerKey = (dict.TryGetValue("footer_path", out var fp) && fp != null) ? fp.ToString() : (dict.TryGetValue("footer_image_path", out var fip) && fip != null ? fip.ToString() : null);
+
+                byte[]? headerBytes = await FetchImageBytesAsync(headerKey);
+                byte[]? footerBytes = await FetchImageBytesAsync(footerKey);
+
+                return (headerBytes, footerBytes);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"GetHeaderFooterImagesAsync ERROR: {ex.Message}");
+                return (null, null);
+            }
+        }
+
+        private static string CleanNormalValues(string? raw)
+        {
+            if (string.IsNullOrWhiteSpace(raw)) return string.Empty;
+
+            var lines = raw.Split(new[] { "@", "\r\n", "\n", "<br/>", "<br>" }, StringSplitOptions.RemoveEmptyEntries);
+            var cleanedLines = new List<string>();
+
+            foreach (var line in lines)
+            {
+                string trimmed = line.Trim();
+                if (trimmed.StartsWith(":"))
+                {
+                    trimmed = trimmed.Substring(1).Trim();
+                }
+                if (!string.IsNullOrWhiteSpace(trimmed))
+                {
+                    if (!cleanedLines.Contains(trimmed))
+                    {
+                        cleanedLines.Add(trimmed);
+                    }
+                }
+            }
+
+            return string.Join("<br/>", cleanedLines);
+        }
 
         public async Task<string?> GetLabReportAsync(Guid requestguid, string tenant_code, bool? isletterhead)
         {
@@ -2737,10 +2807,8 @@ namespace medico_backend.Class
             {
                 using IDbConnection db = new NpgsqlConnection(_conn);
 
-                // ── Step 1: Result rows (all image columns as text paths) ─────────────
                 const string resultSql = @"
 SELECT
-    -- ── Request / Patient ─────────────────────────────────────────────────
     lrm.tenant_code                                                     AS TenantId,
     COALESCE(lrm.requestsno, 0)                                         AS RequestSno,
     COALESCE(
@@ -2752,40 +2820,30 @@ SELECT
     lrm.requestdatetime::timestamp                                      AS RequestDateTime,
     COALESCE(lrm.requesteddatetime,
              lrm.requestdatetime)::timestamp                            AS RequestedDateTime,
-
     COALESCE(lrm.name,        '')                                       AS Name,
     COALESCE(lrm.gender,      '')                                       AS Gender,
     COALESCE(lrm.dateofbirth, '')                                       AS DateofBirth,
-    CASE WHEN COALESCE(lrm.ageyears::int, 0) = 0 AND COALESCE(lrm.agemonths::int, 0) = 0 AND COALESCE(lrm.agedays::int, 0) = 0 THEN COALESCE(cm.ageyears, 0) ELSE COALESCE(lrm.ageyears::int, 0) END AS AgeYears,
-    CASE WHEN COALESCE(lrm.ageyears::int, 0) = 0 AND COALESCE(lrm.agemonths::int, 0) = 0 AND COALESCE(lrm.agedays::int, 0) = 0 THEN COALESCE(cm.agemonths, 0) ELSE COALESCE(lrm.agemonths::int, 0) END AS AgeMonths,
-    CASE WHEN COALESCE(lrm.ageyears::int, 0) = 0 AND COALESCE(lrm.agemonths::int, 0) = 0 AND COALESCE(lrm.agedays::int, 0) = 0 THEN COALESCE(cm.agedays, 0) ELSE COALESCE(lrm.agedays::int, 0) END AS AgeDays,
+    CASE WHEN COALESCE(NULLIF(TRIM(lrm.ageyears::text), '')::int, 0) = 0 AND COALESCE(NULLIF(TRIM(lrm.agemonths::text), '')::int, 0) = 0 AND COALESCE(NULLIF(TRIM(lrm.agedays::text), '')::int, 0) = 0 THEN COALESCE(cm.ageyears, 0) ELSE COALESCE(NULLIF(TRIM(lrm.ageyears::text), '')::int, 0) END AS AgeYears,
+    CASE WHEN COALESCE(NULLIF(TRIM(lrm.ageyears::text), '')::int, 0) = 0 AND COALESCE(NULLIF(TRIM(lrm.agemonths::text), '')::int, 0) = 0 AND COALESCE(NULLIF(TRIM(lrm.agedays::text), '')::int, 0) = 0 THEN COALESCE(cm.agemonths, 0) ELSE COALESCE(NULLIF(TRIM(lrm.agemonths::text), '')::int, 0) END AS AgeMonths,
+    CASE WHEN COALESCE(NULLIF(TRIM(lrm.ageyears::text), '')::int, 0) = 0 AND COALESCE(NULLIF(TRIM(lrm.agemonths::text), '')::int, 0) = 0 AND COALESCE(NULLIF(TRIM(lrm.agedays::text), '')::int, 0) = 0 THEN COALESCE(cm.agedays, 0) ELSE COALESCE(NULLIF(TRIM(lrm.agedays::text), '')::int, 0) END AS AgeDays,
     COALESCE(lrm.address,  '')                                          AS Address,
     COALESCE(lrm.mobileno, '')                                          AS MobileNo,
     COALESCE(lrm.requestamount, 0)::float8                              AS RequestAmount,
-
-    -- ── Test / Result ──────────────────────────────────────────────────────
-    COALESCE(lrdd.description,    '')                                   AS Description,
-    COALESCE(cm.custcode,         '')                                   AS CustCode,
+    COALESCE(NULLIF(lrdd.description, ''), NULLIF(lrdd.quotescolumn, ''), tm.name, '') AS Description,
+    COALESCE(crm.custcode, cm.custcode, '')                             AS CustCode,
     COALESCE(sm.name,             '')                                   AS Sample,
     COALESCE(tm.name,             '')                                   AS TestName,
     COALESCE(gm.name,             '')                                   AS GroupName,
-
-    -- ── Doctor ────────────────────────────────────────────────────────────
-    COALESCE(dm.name,      '')                                          AS Doctor,
+    COALESCE(NULLIF(TRIM(dm.name), ''), CASE WHEN lrm.dcode IS NULL OR lrm.dcode = 0 THEN 'SELF' ELSE '' END) AS Doctor,
     COALESCE(dm.initial,   '')                                          AS Initial,
     COALESCE(dm.nametitle, '')                                          AS NameTitle,
-    ''                                                                  AS Reference,
+    COALESCE(dm.reference, '')                                          AS Reference,
     COALESCE(lrm.dcode::text, '')                                       AS DoctorCode,
-
     COALESCE(lrdd.enteredresult, '')                                    AS EnteredResult,
     COALESCE(rtm.name,           '')                                    AS Reporting,
-
-    -- ── Area ──────────────────────────────────────────────────────────────
     ''                                                                  AS CityName,
     COALESCE(ar.areapincode, '')                                        AS AreaPinCode,
     COALESCE(ar.areaname,    '')                                        AS AreaName,
-
-    -- ── Identifiers ───────────────────────────────────────────────────────
     lrm.requestguid::text                                               AS RequestGUID,
     COALESCE(lrd.testsno,       0)                                      AS TestSno,
     COALESCE(lrdd.quotescolumn, '')                                     AS Col2,
@@ -2795,81 +2853,56 @@ SELECT
         ''
     )                                                                   AS Units,
     COALESCE(lrdd.testsno,      0)                                      AS ResultSno,
-
-    -- ── Image columns → MinIO paths (string), NOT bytea ───────────────────
     NULL::text                                                          AS CustomerImage,
     NULL::text                                                          AS SignatureImage,
-
     COALESCE(lrm_res.resultguid::text, '')                              AS ResultGUID,
     COALESCE(lrdd.valuetype,     '')                                    AS ValueType,
-    COALESCE(lrd.tcode::int,      0)                                    AS TCode,
+    COALESCE(NULLIF(TRIM(lrd.tcode::text), '')::int, 0)                 AS TCode,
     lrm_res.resultdatetime                                              AS ResultDateTime,
     CASE
         WHEN lrdd.resulttype IN ('F', 'Footer', 'footer') THEN 'Footer'
         WHEN lrdd.resulttype IS NULL OR lrdd.resulttype = '' THEN ''
         ELSE 'Result'
     END                                                                 AS ResultType,
-
     COALESCE(tm.printinseparatepage, false)                             AS PrintInSeparatePage,
     COALESCE(tm.orderno, 0)                                             AS TestOrderNo,
     COALESCE(gm.orderno, 0)                                             AS GroupOrderNo,
-
     COALESCE(lrm.roomno,     '')                                        AS RoomNo,
     COALESCE(lrm.hospitalid, '')                                        AS HospitalID,
     COALESCE(cm.email,       '')                                        AS Email,
-    COALESCE(lrm.alteredbhcode::text, '')                               AS AlteredBHCode,
-    COALESCE(sc.collectedtime, lrm.collecteddatetime)                   AS CollectedDateTime,
+    COALESCE(lrm.collecteddatetime, sc.collectedtime)::timestamp        AS CollectedDateTime,
     COALESCE(lrm.onlinecode, '')                                        AS OnlineCode,
-
-    -- ── Result properties ─────────────────────────────────────────────────
-    COALESCE(lrp.resultvaluetype,        '')                            AS ResultValueType,
-    COALESCE(lrp.defaultvalue,           '')                            AS DefaultValue,
-    COALESCE(lrp.simplenormalvalues,   false)                           AS SimpleNormalValues,
-    COALESCE(lrp.detailednormalvalues, false)                           AS DetailedNormalValues,
-    COALESCE(lrp.rangetype,              '')                            AS RangeType,
-
-    COALESCE(
-        CASE WHEN lrp.detailednormalvalues = true
-             THEN COALESCE(dnv.rangefrom, dnv_master.rangefrom)
-        END,
-        lrp.fromnormalvalue,
-        0
-    )::float8                                                          AS FromNormalValue,
-    COALESCE(
-        CASE WHEN lrp.detailednormalvalues = true
-             THEN COALESCE(dnv.rangeto, dnv_master.rangeto)
-        END,
-        lrp.tonormalvalue,
-        0
-    )::float8                                                          AS ToNormalValue,
-
-    COALESCE(lrp.conclusionforhigher,    '')                            AS ConclusionForHigher,
-    COALESCE(lrp.conclusionforlower,     '')                            AS ConclusionForLower,
-    COALESCE(lrp.conclusionforfixedtext, '')                            AS ConclusionForFixedText,
-    COALESCE(lrp.printfixedtextconclusioninreport, false)               AS PrintFixedTextConclusionInReport,
-    COALESCE(lrp.showagedbased,        false)                           AS ShowAgedBased,
-    COALESCE(lrp.showalertonhigherlower,false)                          AS ShowAlertOnHigherLower,
-    COALESCE(lrp.footermessage,          '')                            AS FooterMessage,
+    COALESCE(NULLIF(lrp.resultvaluetype, ''), NULLIF(lrdd.valuetype, ''), trp_master.resultvaluetype, '') AS ResultValueType,
+    COALESCE(NULLIF(lrp.defaultvalue, ''), trp_master.defaultvalue, '') AS DefaultValue,
+    COALESCE(lrp.simplenormalvalues, trp_master.simplenormalvalues, false) AS SimpleNormalValues,
+    COALESCE(lrp.detailednormalvalues, trp_master.detailednormalvalues, false) AS DetailedNormalValues,
+    COALESCE(NULLIF(lrp.rangetype, ''), trp_master.rangetype, '')       AS RangeType,
+    COALESCE(lrp.fromnormalvalue, trp_master.fromnormalvalue, 0)::float8 AS FromNormalValue,
+    COALESCE(lrp.tonormalvalue,   trp_master.tonormalvalue, 0)::float8 AS ToNormalValue,
+    COALESCE(NULLIF(lrp.conclusionforhigher, ''), trp_master.conclusionforhigher, '') AS ConclusionForHigher,
+    COALESCE(NULLIF(lrp.conclusionforlower, ''), trp_master.conclusionforlower, '') AS ConclusionForLower,
+    COALESCE(NULLIF(NULLIF(lrp.conclusionforfixedtext, '0'), ''), NULLIF(NULLIF(trp_master.conclusionforfixedtext, '0'), ''), '') AS ConclusionForFixedText,
+    COALESCE(lrp.printfixedtextconclusioninreport, trp_master.printfixedtextconclusioninreport, false) AS PrintFixedTextConclusionInReport,
+    COALESCE(lrp.showagedbased,         trp_master.showagedbased, false) AS ShowAgedBased,
+    COALESCE(lrp.showalertonhigherlower, trp_master.showalertonhigherlower, false) AS ShowAlertOnHigherLower,
+    COALESCE(NULLIF(lrp.footermessage, ''), trp_master.footermessage, '') AS FooterMessage,
     COALESCE(uom.name,                   '')                            AS TRPUName,
-
-    COALESCE(lrp.decimalvalue,            0)                            AS DecimalPlaces,
-    COALESCE(rtm_master.name, rtm.name, '')                             AS ReportingMethod,
+    COALESCE(lrp.decimalvalue,           trp_master.decimalvalue, 0)   AS DecimalPlaces,
+    COALESCE(rtm_master.name, rtm.name,  '')                            AS ReportingMethod,
     COALESCE(
-        CASE WHEN lrdd.testresultid::text ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
-             THEN lrdd.testresultid::text::uuid
-        END,
+        NULLIF(lrdd.testresultid, '00000000-0000-0000-0000-000000000000'::uuid),
+        NULLIF(lrp.mastertestresultid, '00000000-0000-0000-0000-000000000000'::uuid),
+        trm_master.testresultid,
         '00000000-0000-0000-0000-000000000000'::uuid
     )                                                                   AS TestResultID,
-
     COALESCE(lrm.requestsnoprint, '')                                   AS RequestSnoPrint,
-    COALESCE(lrp.printresultonly, false)                                AS PrintResultOnly,
+    COALESCE(lrp.printresultonly, trp_master.printresultonly, false)    AS PrintResultOnly,
     COALESCE(lrp.resultnormal,    false)                                AS ResultNormal,
     COALESCE(lrp.resulthigh,      false)                                AS ResultHigh,
     COALESCE(lrp.resultlow,       false)                                AS ResultLow,
     COALESCE(lrm.isinvestigationpartial, false)                         AS IsInvestigationPartial,
-
     COALESCE(sm.name,  '')                                              AS ResultSample,
-    COALESCE(dm.name,  '')                                              AS DoctorFullName,
+    COALESCE(NULLIF(TRIM(dm.name), ''), CASE WHEN lrm.dcode IS NULL OR lrm.dcode = 0 THEN 'SELF' ELSE '' END) AS DoctorFullName,
     COALESCE(lrm.dcode::int,  0)                                        AS DCode,
     COALESCE(lrm.fronthospitalid,        '')                            AS FrontHospitalID,
     COALESCE(lrm.fronthospitalpatientid, '')                            AS FrontHospitalPatientID,
@@ -2877,337 +2910,125 @@ SELECT
     COALESCE(dm.nametitle,  '')                                         AS DoctorTitle,
     COALESCE(lrm.seconddoctorname, '')                                  AS SecondDoctorName,
     COALESCE(lrm.seconddcode::int,  0)                                  AS SecondDCode,
-
-    -- ── Authorizer signature → MinIO path string ──────────────────────────
     au.signature_image                                                  AS DefaultAuthorizeImage,
     COALESCE(au.name,        '')                                        AS DefaultAuthorizeName,
     COALESCE(au.description, '')                                        AS DefaultAuthorizeDesignation,
-
+    -- Raw fallback only. Age/sex-based detailed ranges, text-normal-value matching,
+    -- and fixed-text conclusion appending are all handled in C# by SetNormalRanges().
     COALESCE(
         NULLIF(lrdd.normalvalues, ''),
-        NULLIF(
-            CONCAT_WS(', ',
-                -- a) ALL matching detailed age bands — result-level, else master-level
-                CASE
-                    WHEN lrp.detailednormalvalues = true
-                    THEN COALESCE(dnv_all.fulltext, dnv_all_master.fulltext)
-                    ELSE NULL
-                END,
-                -- b) sex-specific text normal value — result-level, else master-level
-                CASE
-                    WHEN lrp.simplenormalvalues = true
-                    THEN NULLIF(COALESCE(tnv.normalvalue, tnv_master.normalvalue), '')
-                    ELSE NULL
-                END
-                
-            ),
-            ''
-        ),
         NULLIF(lrp.normalvalue, ''),
+        NULLIF(trp_master.normalvalue, ''),
         ''
     )                                                                   AS NormalValues,
-
     ROW_NUMBER() OVER (
         ORDER BY COALESCE(gm.orderno, 9999),
                  COALESCE(tm.orderno, 9999),
                  COALESCE(lrd.testsno, 0),
                  COALESCE(lrdd.testsno, 0)
     )::int                                                              AS RowNum,
-    COALESCE(lrp.mccode, 0)                                             AS MCCode
-
+    COALESCE(lrp.mccode, trp_master.mccode, 0)                          AS MCCode,
+    COALESCE(NULLIF(TRIM(lrm.alteredbhcode::text), ''), lrm.enteredbhcode::text, '0') AS AlteredBHCode,
+    lrp.image_path                                                      AS ResultImagePath
 FROM lab_request_master lrm
-
--- customer_master (cross-schema)
 LEFT JOIN customerdb.customer_master cm
        ON cm.custid      = lrm.custid
-
--- doctor_master
+LEFT JOIN customerdb.customer_registration_master crm
+       ON crm.custid = cm.custid AND (LOWER(crm.tenant_code) = LOWER(lrm.tenant_code) OR LOWER(crm.tenant_code) = LOWER(@tenant_code) OR crm.tenant_code = '0' OR crm.tenant_code IS NULL)
 LEFT JOIN doctor_master dm
        ON dm.dcode       = lrm.dcode
-      AND dm.tenant_code = lrm.tenant_code
-
--- lab_request_details — investigation rows only (ttid = 1)
+      AND (LOWER(dm.tenant_code) = LOWER(lrm.tenant_code) OR LOWER(dm.tenant_code) = LOWER(@tenant_code) OR dm.tenant_code = '0' OR dm.tenant_code IS NULL)
 LEFT JOIN lab_request_details lrd
        ON lrd.requestguid::text = lrm.requestguid::text
-      AND lrd.tenant_code = lrm.tenant_code
-      AND (lrd.ttid = 1 OR lrd.ttid IS NULL)
-
--- test_master
+      AND (LOWER(lrd.tenant_code) = LOWER(lrm.tenant_code) OR LOWER(lrd.tenant_code) = LOWER(@tenant_code) OR lrd.tenant_code = '0' OR lrd.tenant_code IS NULL)
+      AND (lrd.ttid = 1 OR lrd.ttid = 0 OR lrd.ttid IS NULL)
 LEFT JOIN test_master tm
        ON tm.tcode       = lrd.tcode
-      AND tm.tenant_code = lrm.tenant_code
-
--- group_master
+      AND (LOWER(tm.tenant_code) = LOWER(lrm.tenant_code) OR LOWER(tm.tenant_code) = LOWER(@tenant_code) OR tm.tenant_code = '0' OR tm.tenant_code IS NULL)
 LEFT JOIN group_master gm
        ON gm.gcode       = tm.gcode
-      AND gm.tenant_code = lrm.tenant_code
-
--- lab_result_master: one per request
-LEFT JOIN lab_result_master lrm_res
-       ON lrm_res.requestguid::text = lrm.requestguid::text
-      AND COALESCE(lrm_res.deleted, false) = false
-
--- lab_result_details: match by tcode within the result set for this request
+      AND (LOWER(gm.tenant_code) = LOWER(lrm.tenant_code) OR LOWER(gm.tenant_code) = LOWER(@tenant_code) OR gm.tenant_code = '0' OR gm.tenant_code IS NULL)
+LEFT JOIN LATERAL (
+    SELECT *
+    FROM lab_result_master lrm_sub
+    WHERE lrm_sub.requestguid::text = lrm.requestguid::text
+      AND (LOWER(lrm_sub.tenant_code) = LOWER(lrm.tenant_code) OR LOWER(lrm_sub.tenant_code) = LOWER(@tenant_code) OR lrm_sub.tenant_code = '0' OR lrm_sub.tenant_code IS NULL)
+      AND COALESCE(lrm_sub.deleted, false) = false
+    ORDER BY lrm_sub.entereddate DESC NULLS LAST, lrm_sub.resultdatetime DESC NULLS LAST
+    LIMIT 1
+) lrm_res ON true
 LEFT JOIN lab_result_details lrdd
        ON lrdd.resultguid  = lrm_res.resultguid
       AND lrdd.tcode       = lrd.tcode
-
--- lab_result_properties
+      AND (LOWER(lrdd.tenant_code) = LOWER(lrm.tenant_code) OR LOWER(lrdd.tenant_code) = LOWER(@tenant_code) OR lrdd.tenant_code = '0' OR lrdd.tenant_code IS NULL)
 LEFT JOIN lab_result_properties lrp
        ON lrp.testresultid = lrdd.testresultid
-
--- Patient age in days — computed once, reused by every age-matching lateral below
+      AND (LOWER(lrp.tenant_code) = LOWER(lrm.tenant_code) OR LOWER(lrp.tenant_code) = LOWER(@tenant_code) OR lrp.tenant_code = '0' OR lrp.tenant_code IS NULL)
 LEFT JOIN LATERAL (
-    SELECT
-        (CASE WHEN COALESCE(lrm.ageyears::int,0)=0 AND COALESCE(lrm.agemonths::int,0)=0 AND COALESCE(lrm.agedays::int,0)=0
-              THEN COALESCE(cm.ageyears,0) ELSE COALESCE(lrm.ageyears::int,0) END) * 365
-      + (CASE WHEN COALESCE(lrm.ageyears::int,0)=0 AND COALESCE(lrm.agemonths::int,0)=0 AND COALESCE(lrm.agedays::int,0)=0
-              THEN COALESCE(cm.agemonths,0) ELSE COALESCE(lrm.agemonths::int,0) END) * 30
-      + (CASE WHEN COALESCE(lrm.ageyears::int,0)=0 AND COALESCE(lrm.agemonths::int,0)=0 AND COALESCE(lrm.agedays::int,0)=0
-              THEN COALESCE(cm.agedays,0) ELSE COALESCE(lrm.agedays::int,0) END)
-        AS age_in_days
-) page ON true
-
--- ════════════════════════════════════════════════════════════════════════
--- DETAILED NORMAL VALUES 
--- ════════════════════════════════════════════════════════════════════════
-
--- (1) Result-level
-LEFT JOIN LATERAL (
-    SELECT dnv.rangefrom, dnv.rangeto, dnv.rangetype, dnv.sex
-    FROM lab_result_detailednormalvalues dnv
-    WHERE dnv.testresultid = lrdd.testresultid
-      AND (
-            dnv.sex IS NULL OR dnv.sex = '' OR
-            UPPER(dnv.sex) = UPPER(lrm.gender) OR
-            UPPER(dnv.sex) IN ('BOTH','ALL')
-          )
-      AND page.age_in_days BETWEEN
-            COALESCE(dnv.agefrom,0) * CASE LOWER(COALESCE(dnv.agefromtype,'years'))
-                                            WHEN 'year'   THEN 365 WHEN 'years'  THEN 365
-                                            WHEN 'month'  THEN 30  WHEN 'months' THEN 30
-                                            WHEN 'week'   THEN 7   WHEN 'weeks'  THEN 7
-                                            WHEN 'day'    THEN 1   WHEN 'days'   THEN 1
-                                            ELSE 365 END
-          AND
-            COALESCE(dnv.ageto,999) * CASE LOWER(COALESCE(dnv.agetotype,'years'))
-                                            WHEN 'year'   THEN 365 WHEN 'years'  THEN 365
-                                            WHEN 'month'  THEN 30  WHEN 'months' THEN 30
-                                            WHEN 'week'   THEN 7   WHEN 'weeks'  THEN 7
-                                            WHEN 'day'    THEN 1   WHEN 'days'   THEN 1
-                                            ELSE 365 END
-    ORDER BY (UPPER(dnv.sex) = UPPER(lrm.gender)) DESC, dnv.sno ASC NULLS LAST
+    SELECT trm.testresultid
+    FROM test_result_master trm
+    WHERE trm.tcode = lrd.tcode
+      AND (LOWER(trm.tenant_code) = LOWER(lrm.tenant_code) OR LOWER(trm.tenant_code) = LOWER(@tenant_code) OR trm.tenant_code = '0' OR trm.tenant_code IS NULL)
+    ORDER BY (LOWER(trm.tenant_code) = LOWER(lrm.tenant_code)) DESC
     LIMIT 1
-) dnv ON lrp.detailednormalvalues = true
-
--- (2) Master-level fallback
+) trm_master ON true
 LEFT JOIN LATERAL (
-    SELECT tdnv.rangefrom, tdnv.rangeto, tdnv.rangetype, tdnv.sex
-    FROM test_result_detailednormalvalues tdnv
-    WHERE tdnv.testresultid = lrp.mastertestresultid
-      AND (tdnv.tenant_code = lrm.tenant_code OR tdnv.tenant_code = '0' OR tdnv.tenant_code IS NULL)
-      AND (
-            tdnv.sex IS NULL OR tdnv.sex = '' OR
-            UPPER(tdnv.sex) = UPPER(lrm.gender) OR
-            UPPER(tdnv.sex) IN ('BOTH','ALL')
-          )
-      AND page.age_in_days BETWEEN
-            COALESCE(tdnv.agefrom,0) * CASE LOWER(COALESCE(tdnv.agefromtype,'years'))
-                                            WHEN 'year'   THEN 365 WHEN 'years'  THEN 365
-                                            WHEN 'month'  THEN 30  WHEN 'months' THEN 30
-                                            WHEN 'week'   THEN 7   WHEN 'weeks'  THEN 7
-                                            WHEN 'day'    THEN 1   WHEN 'days'   THEN 1
-                                            ELSE 365 END
-          AND
-            COALESCE(tdnv.ageto,999) * CASE LOWER(COALESCE(tdnv.agetotype,'years'))
-                                            WHEN 'year'   THEN 365 WHEN 'years'  THEN 365
-                                            WHEN 'month'  THEN 30  WHEN 'months' THEN 30
-                                            WHEN 'week'   THEN 7   WHEN 'weeks'  THEN 7
-                                            WHEN 'day'    THEN 1   WHEN 'days'   THEN 1
-                                            ELSE 365 END
-    ORDER BY (UPPER(tdnv.sex) = UPPER(lrm.gender)) DESC, tdnv.sno ASC NULLS LAST
+    SELECT trp.*
+    FROM test_result_properties trp
+    WHERE trp.testresultid = COALESCE(
+        NULLIF(lrp.mastertestresultid, '00000000-0000-0000-0000-000000000000'::uuid),
+        trm_master.testresultid
+    )
+      AND (LOWER(trp.tenant_code) = LOWER(lrm.tenant_code) OR LOWER(trp.tenant_code) = LOWER(@tenant_code) OR trp.tenant_code = '0' OR trp.tenant_code IS NULL)
+    ORDER BY (LOWER(trp.tenant_code) = LOWER(lrm.tenant_code)) DESC, (trp.usedefault = true) DESC
     LIMIT 1
-) dnv_master ON lrp.detailednormalvalues = true
-            AND dnv.rangefrom IS NULL
-            AND dnv.rangeto   IS NULL
-
--- (3) Result-level display text
-LEFT JOIN LATERAL (
-    SELECT STRING_AGG(band.linetext, '<br/>' ORDER BY band.agefrom_days, band.sno) AS fulltext
-    FROM (
-        SELECT
-            adnv.sno,
-            COALESCE(adnv.agefrom,0) * CASE LOWER(COALESCE(adnv.agefromtype,'years'))
-                WHEN 'year'  THEN 365 WHEN 'years'  THEN 365
-                WHEN 'month' THEN 30  WHEN 'months' THEN 30
-                WHEN 'week'  THEN 7   WHEN 'weeks'  THEN 7
-                WHEN 'day'   THEN 1   WHEN 'days'   THEN 1
-                ELSE 365 END AS agefrom_days,
-            CONCAT(
-                adnv.agefrom, ' ', adnv.agefromtype,
-                ' - ',
-                adnv.ageto,   ' ', adnv.agetotype,
-                ' : ',
-                CASE
-                    WHEN UPPER(COALESCE(adnv.rangetype,'')) LIKE 'GREATER%'
-                        THEN CONCAT('> ', TRIM(TO_CHAR(adnv.rangefrom, 'FM999999990.######')))
-                    WHEN UPPER(COALESCE(adnv.rangetype,'')) LIKE 'LESS%'
-                        THEN CONCAT('< ', TRIM(TO_CHAR(adnv.rangeto, 'FM999999990.######')))
-                    ELSE CONCAT(
-                            TRIM(TO_CHAR(adnv.rangefrom, 'FM999999990.######')),
-                            ' - ',
-                            TRIM(TO_CHAR(adnv.rangeto,   'FM999999990.######'))
-                         )
-                END
-            ) AS linetext
-        FROM lab_result_detailednormalvalues adnv
-        WHERE adnv.testresultid = lrdd.testresultid
-          AND (
-                adnv.sex IS NULL OR adnv.sex = '' OR
-                UPPER(adnv.sex) = UPPER(lrm.gender) OR
-                UPPER(adnv.sex) IN ('BOTH','ALL')
-              )
-    ) band
-) dnv_all ON lrp.detailednormalvalues = true
-
--- (4) Master-level fallback display text
-LEFT JOIN LATERAL (
-    SELECT STRING_AGG(band.linetext, '<br/>' ORDER BY band.agefrom_days, band.sno) AS fulltext
-    FROM (
-        SELECT
-            tdnv.sno,
-            COALESCE(tdnv.agefrom,0) * CASE LOWER(COALESCE(tdnv.agefromtype,'years'))
-                WHEN 'year'  THEN 365 WHEN 'years'  THEN 365
-                WHEN 'month' THEN 30  WHEN 'months' THEN 30
-                WHEN 'week'  THEN 7   WHEN 'weeks'  THEN 7
-                WHEN 'day'   THEN 1   WHEN 'days'   THEN 1
-                ELSE 365 END AS agefrom_days,
-            CONCAT(
-                tdnv.agefrom, ' ', tdnv.agefromtype,
-                ' - ',
-                tdnv.ageto,   ' ', tdnv.agetotype,
-                ' : ',
-                CASE
-                    WHEN UPPER(COALESCE(tdnv.rangetype,'')) LIKE 'GREATER%'
-                        THEN CONCAT('> ', TRIM(TO_CHAR(tdnv.rangefrom, 'FM999999990.######')))
-                    WHEN UPPER(COALESCE(tdnv.rangetype,'')) LIKE 'LESS%'
-                        THEN CONCAT('< ', TRIM(TO_CHAR(tdnv.rangeto, 'FM999999990.######')))
-                    ELSE CONCAT(
-                            TRIM(TO_CHAR(tdnv.rangefrom, 'FM999999990.######')),
-                            ' - ',
-                            TRIM(TO_CHAR(tdnv.rangeto,   'FM999999990.######'))
-                         )
-                END
-            ) AS linetext
-        FROM test_result_detailednormalvalues tdnv
-        WHERE tdnv.testresultid = lrp.mastertestresultid
-          AND (tdnv.tenant_code = lrm.tenant_code OR tdnv.tenant_code = '0' OR tdnv.tenant_code IS NULL)
-          AND (
-                tdnv.sex IS NULL OR tdnv.sex = '' OR
-                UPPER(tdnv.sex) = UPPER(lrm.gender) OR
-                UPPER(tdnv.sex) IN ('BOTH','ALL')
-              )
-    ) band
-) dnv_all_master ON lrp.detailednormalvalues = true
-                 AND dnv_all.fulltext IS NULL
-
--- ════════════════════════════════════════════════════════════════════════
--- TEXT NORMAL VALUES 
--- ════════════════════════════════════════════════════════════════════════
-
-LEFT JOIN LATERAL (
-    SELECT tnv.normalvalue, tnv.sex
-    FROM lab_result_textnormalvalues tnv
-    WHERE tnv.testresultid = lrdd.testresultid
-      AND (
-            tnv.sex IS NULL OR tnv.sex = '' OR
-            UPPER(tnv.sex) = UPPER(lrm.gender) OR
-            UPPER(tnv.sex) IN ('BOTH','ALL')
-          )
-    ORDER BY (UPPER(tnv.sex) = UPPER(lrm.gender)) DESC
-    LIMIT 1
-) tnv ON lrp.simplenormalvalues = true
-
-LEFT JOIN LATERAL (
-    SELECT ttnv.normalvalue, ttnv.sex
-    FROM test_result_textnormalvalues ttnv
-    WHERE ttnv.testresultid = lrp.mastertestresultid
-      AND (ttnv.tenant_code = lrm.tenant_code OR ttnv.tenant_code = '0' OR ttnv.tenant_code IS NULL)
-      AND (
-            ttnv.sex IS NULL OR ttnv.sex = '' OR
-            UPPER(ttnv.sex) = UPPER(lrm.gender) OR
-            UPPER(ttnv.sex) IN ('BOTH','ALL')
-          )
-    ORDER BY (UPPER(ttnv.sex) = UPPER(lrm.gender)) DESC
-    LIMIT 1
-) tnv_master ON lrp.simplenormalvalues = true
-            AND NULLIF(tnv.normalvalue, '') IS NULL
-
--- sample_master via test_master.scode
+) trp_master ON true
 LEFT JOIN sample_master sm
-       ON sm.scode       = tm.scode
-      AND sm.tenant_code = lrm.tenant_code
-
--- uom_master
+       ON sm.scode       = COALESCE(lrp.scode, trp_master.scode)
+      AND (LOWER(sm.tenant_code) = LOWER(lrm.tenant_code) OR LOWER(sm.tenant_code) = LOWER(@tenant_code) OR sm.tenant_code = '0' OR sm.tenant_code IS NULL)
 LEFT JOIN uom_master uom
-       ON uom.ucode       = lrp.defaultunitscode::bigint
-      AND uom.tenant_code = lrm.tenant_code
-
--- report_method via lab_result_properties
+       ON uom.ucode       = COALESCE(lrp.defaultunitscode, trp_master.defaultunitscode)::bigint
+      AND (LOWER(uom.tenant_code) = LOWER(lrm.tenant_code) OR LOWER(uom.tenant_code) = LOWER(@tenant_code) OR uom.tenant_code = '0' OR uom.tenant_code IS NULL)
 LEFT JOIN report_method rtm
        ON rtm.rtmcode     = lrp.rtmcode::bigint
-      AND rtm.tenant_code = lrm.tenant_code
-
--- report_method via test_result_properties master
-LEFT JOIN test_result_properties trp_master
-       ON trp_master.testresultid = lrp.mastertestresultid
-      AND (trp_master.tenant_code = lrm.tenant_code
-           OR trp_master.tenant_code = '0'
-           OR trp_master.tenant_code IS NULL)
+      AND (LOWER(rtm.tenant_code) = LOWER(lrm.tenant_code) OR LOWER(rtm.tenant_code) = LOWER(@tenant_code) OR rtm.tenant_code = '0' OR rtm.tenant_code IS NULL)
 LEFT JOIN report_method rtm_master
        ON rtm_master.rtmcode     = trp_master.rtmcode::bigint
-      AND rtm_master.tenant_code = lrm.tenant_code
-
--- Specimen collection
+      AND (LOWER(rtm_master.tenant_code) = LOWER(lrm.tenant_code) OR LOWER(rtm_master.tenant_code) = LOWER(@tenant_code) OR rtm_master.tenant_code = '0' OR rtm_master.tenant_code IS NULL)
 LEFT JOIN LATERAL (
-    SELECT sc_col.collectedtime
-    FROM   lab_request_specimencollection sc_col
-    WHERE  sc_col.requestguid::text = lrm.requestguid::text
-      AND  sc_col.scode       = tm.scode
-      AND  COALESCE(sc_col.isdeleted, false) = false
-    ORDER  BY sc_col.collectedtime DESC
+    SELECT sc_sub.collectedtime
+    FROM   lab_request_specimencollection sc_sub
+    WHERE  sc_sub.requestguid::text = lrm.requestguid::text
+      AND  sc_sub.scode       = COALESCE(lrp.scode, trp_master.scode)
+      AND  (LOWER(sc_sub.tenant_code) = LOWER(lrm.tenant_code) OR LOWER(sc_sub.tenant_code) = LOWER(@tenant_code) OR sc_sub.tenant_code = '0' OR sc_sub.tenant_code IS NULL)
+      AND  COALESCE(sc_sub.isdeleted, false) = false
+    ORDER  BY sc_sub.collectedtime DESC
     LIMIT  1
 ) sc ON true
-
--- area_master
 LEFT JOIN area_master ar
        ON ar.areacode     = lrm.areacode
-      AND (ar.tenant_code = lrm.tenant_code OR ar.tenant_code IS NULL)
-
--- Authorizer user
 LEFT JOIN LATERAL (
     SELECT u.name, u.description, u.signature_image
     FROM mastertenant.user_master u
     WHERE u.user_code = lrd.resultauthorizedby
     LIMIT 1
 ) au ON true
-
-WHERE lrm.requestguid::text = @requestguid::text
-  AND lrm.tenant_code = @tenant_code
+WHERE (lrm.requestguid::text = @requestguid OR LOWER(lrm.requestguid::text) = LOWER(@requestguid))
+  AND (LOWER(lrm.tenant_code) = LOWER(@tenant_code) OR lrm.tenant_code IS NULL OR lrm.tenant_code = '0' OR @tenant_code IS NULL OR @tenant_code = '' OR @tenant_code = '0')
   AND COALESCE(lrm.deleted, false) = false
-
 ORDER BY COALESCE(gm.orderno, 9999),
          COALESCE(tm.orderno, 9999),
          COALESCE(lrd.testsno, 0),
-         COALESCE(lrdd.testsno, 0)";
-
+         COALESCE(lrdd.testsno, 0);"; 
+                
                 var rawRows = (await db.QueryAsync<RawReportRow>(
-                    resultSql, new { requestguid = requestguid, tenant_code }
+                    resultSql, new { requestguid = requestguid.ToString(), tenant_code }
                 )).ToList();
 
                 if (rawRows.Count == 0) return null;
 
-                // ── Step 2: Auth users ────────────────────────────────────────────────
+                rawRows = (await SetNormalRanges(rawRows.ToList(), db)).ToList();
+
                 const string authSql = @"
 SELECT DISTINCT
     COALESCE(eu.name,        '')    AS EnteredBy,
@@ -3227,42 +3048,198 @@ LEFT JOIN mastertenant.user_master au1
 LEFT JOIN mastertenant.user_master au2
        ON au2.user_code = lrd.resultauthorizedby2
 WHERE lrd.requestguid::text = @requestguid::text
-  AND lrd.tenant_code = @tenant_code
-  AND (lrd.ttid = 1 OR lrd.ttid IS NULL)";
+  AND (lrd.tenant_code = @tenant_code OR lrd.tenant_code = '0' OR lrd.tenant_code IS NULL)
+  AND (lrd.ttid = 1 OR lrd.ttid = 0 OR lrd.ttid IS NULL)";
 
                 var rawAuth = (await db.QueryAsync<RawAuthUser>(
                     authSql, new { requestguid = requestguid.ToString(), tenant_code }
                 )).ToList();
 
-                // ── Step 3: Collect all unique non-null MinIO paths ───────────────────
                 var allPaths = rawRows
                     .SelectMany(r => new[]
                     {
-                        r.DefaultAuthorizeImage,
-                        r.CustomerImage,
-                        r.SignatureImage
+                r.DefaultAuthorizeImage,
+                r.CustomerImage,
+                r.SignatureImage,
+                r.ResultImagePath
                     })
                     .Concat(rawAuth.SelectMany(a => new[]
                     {
-                        a.EnteredSign,
-                        a.AuthorizedSign,
-                        a.AuthorizedSign2
+                a.EnteredSign,
+                a.AuthorizedSign,
+                a.AuthorizedSign2
                     }));
 
-                // ── Step 4: Fetch all images from MinIO in parallel ───────────────────
                 var imageCache = await BuildImageCacheAsync(allPaths);
 
-                // ── Step 5: Map raw DTOs → final models ───────────────────────────────
                 var results = rawRows.Select(r => MapRow(r, imageCache)).ToList();
+
+                // ✅ UTC fix: force Kind=Utc so JSON carries the trailing 'Z'
+                foreach (var r in results)
+                {
+                    if (r.CollectedDateTime.HasValue)
+                    {
+                        var dt = r.CollectedDateTime.Value;
+                        if (dt.Kind == DateTimeKind.Local)
+                        {
+                            // Legacy Npgsql reads timestamptz as Local (IST) → convert back to UTC
+                            r.CollectedDateTime = dt.ToUniversalTime();
+                        }
+                        else if (dt.Kind == DateTimeKind.Unspecified)
+                        {
+                            // Plain timestamp column (no tz) — assume value is UTC and tag it
+                            r.CollectedDateTime = DateTime.SpecifyKind(dt, DateTimeKind.Utc);
+                        }
+                        // If Kind == Utc, leave unchanged
+                    }
+                }
+
                 var authUsers = rawAuth.Select(a => MapAuth(a, imageCache)).ToList();
 
-                // ── Step 6: POST to report server ─────────────────────────────────────
-                var payload = new RoutineLabReport { rrm = results, auth = authUsers };
+                int? bhCode = null;
+                var firstRow = rawRows.FirstOrDefault();
+                if (firstRow != null && !string.IsNullOrWhiteSpace(firstRow.AlteredBHCode) && int.TryParse(firstRow.AlteredBHCode, out int pBh))
+                {
+                    bhCode = pBh;
+                }
+
+                // Check lab_settings for fixed (true) vs dynamic (false) signatures mode and QR/collection toggles
+                string lsSql = @"
+                    SELECT use_labsetting_signatures, auth1_show, auth1_name, auth1_designation, auth1_signature_path,
+                           auth2_show, auth2_name, auth2_designation, auth2_signature_path,
+                           auth3_show, auth3_name, auth3_designation, auth3_signature_path,
+                           report_qr, sample_collection, ref_by, critical_value_indication,
+                           iscan_margin_top, iscan_margin_bottom, iscan_margin_left, iscan_margin_right,
+                           ls_signature_on_end, ls_signature_on_each_page, show_name_age_single_row, result_row_align_top
+                    FROM lab_settings
+                    WHERE (LOWER(tenant_code) = LOWER(@tenant_code) OR tenant_code IS NULL)
+                      AND (bh_code = @bhCode OR bh_code = 0 OR bh_code IS NULL)
+                      AND (deleted = false OR deleted IS NULL)
+                    ORDER BY CASE WHEN bh_code = @bhCode AND bh_code <> 0 THEN 1 WHEN bh_code = 0 THEN 2 ELSE 3 END, lsid DESC
+                    LIMIT 1;";
+                bool reportQr = true;         // default: show QR
+                bool sampleCollection = true;  // default: show collected datetime
+                bool showReportImages = true;
+                bool? refBy = null;
+                bool? criticalValueIndication = true; // default: show arrows
+                double? iscanMarginTop = null;
+                double? iscanMarginBottom = null;
+                double? iscanMarginLeft = null;
+                double? iscanMarginRight = null;
+                bool? lsSignatureOnEnd = null;
+                bool? lsSignatureOnEachPage = null;
+                bool? showNameAgeSingleRow = false;
+                bool? resultRowAlignTop = false;
+                try
+                {
+                    var lsConfig = await db.QueryFirstOrDefaultAsync<LabSettingModel.lab_settings>(lsSql, new { tenant_code, bhCode = bhCode ?? 0 });
+                    if (lsConfig != null && lsConfig.use_labsetting_signatures == true)
+                    {
+                        var sig1 = !string.IsNullOrEmpty(lsConfig.auth1_signature_path) ? await FetchImageBytesAsync(lsConfig.auth1_signature_path) ?? GenerateBlankPng() : GenerateBlankPng();
+                        var sig2 = !string.IsNullOrEmpty(lsConfig.auth2_signature_path) ? await FetchImageBytesAsync(lsConfig.auth2_signature_path) ?? GenerateBlankPng() : GenerateBlankPng();
+                        var sig3 = !string.IsNullOrEmpty(lsConfig.auth3_signature_path) ? await FetchImageBytesAsync(lsConfig.auth3_signature_path) ?? GenerateBlankPng() : GenerateBlankPng();
+
+                        var fixedAuth = new AuthorizedUser
+                        {
+                            Auth1Show = lsConfig.auth1_show ?? true,
+                            EnteredBy = lsConfig.auth1_name ?? "",
+                            EnteredByDesignation = lsConfig.auth1_designation ?? "",
+                            EnteredSign = sig1,
+
+                            Auth2Show = lsConfig.auth2_show ?? true,
+                            AuthorizedBy = lsConfig.auth2_name ?? "",
+                            AuthorizedByDesignation = lsConfig.auth2_designation ?? "",
+                            AuthorizedSign = sig2,
+
+                            Auth3Show = lsConfig.auth3_show ?? true,
+                            AuthorizedBy2 = lsConfig.auth3_name ?? "",
+                            AuthorizedByDesignation2 = lsConfig.auth3_designation ?? "",
+                            AuthorizedSign2 = sig3,
+                        };
+                        authUsers = new List<AuthorizedUser> { fixedAuth };
+                    }
+                    reportQr = lsConfig?.report_qr ?? true;
+                    sampleCollection = lsConfig?.sample_collection ?? false;
+                    refBy = lsConfig?.ref_by;
+                    criticalValueIndication = lsConfig?.critical_value_indication ?? true;
+                    showReportImages = lsConfig?.show_report_header_footer_image ?? true;
+                    iscanMarginTop = lsConfig?.iscan_margin_top;
+                    iscanMarginBottom = lsConfig?.iscan_margin_bottom;
+                    iscanMarginLeft = lsConfig?.iscan_margin_left;
+                    iscanMarginRight = lsConfig?.iscan_margin_right;
+                    lsSignatureOnEnd = lsConfig?.ls_signature_on_end;
+                    lsSignatureOnEachPage = lsConfig?.ls_signature_on_each_page;
+                    showNameAgeSingleRow = lsConfig?.show_name_age_single_row ?? false;
+                    resultRowAlignTop = lsConfig?.result_row_align_top ?? false;
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Error evaluating signature mode: {ex.Message}");
+                }
+
+                var (headerImg, footerImg) = await GetHeaderFooterImagesAsync(tenant_code, bhCode);
+                if (!showReportImages)
+                {
+                    headerImg = null;
+                    footerImg = null;
+                }
+
+                if (authUsers == null || authUsers.Count == 0)
+                {
+                    authUsers = new List<AuthorizedUser>
+                    {
+                        new AuthorizedUser
+                        {
+                            Auth1Show = true,
+                            Auth2Show = true,
+                            Auth3Show = true,
+                            EnteredBy = " ",
+                            EnteredByDesignation = " ",
+                            EnteredSign = GenerateBlankPng(),
+                            AuthorizedBy = " ",
+                            AuthorizedByDesignation = " ",
+                            AuthorizedSign = GenerateBlankPng(),
+                            AuthorizedBy2 = " ",
+                            AuthorizedByDesignation2 = " ",
+                            AuthorizedSign2 = GenerateBlankPng()
+                        }
+                    };
+                }
+
+                var payload = new RoutineLabReport
+                {
+                    rrm = results,
+                    auth = authUsers,
+                    HeaderImage = headerImg,
+                    FooterImage = footerImg,
+                    report_qr = reportQr,
+                    sample_collection = sampleCollection,
+                    ref_by = refBy,
+                    critical_value_indication = criticalValueIndication,
+                    iscan_margin_top = iscanMarginTop,
+                    iscan_margin_bottom = iscanMarginBottom,
+                    iscan_margin_left = iscanMarginLeft,
+                    iscan_margin_right = iscanMarginRight,
+                    ls_signature_on_end = lsSignatureOnEnd,
+                    ls_signature_on_each_page = lsSignatureOnEachPage,
+                    show_name_age_single_row = showNameAgeSingleRow ?? false,
+                    result_row_align_top = resultRowAlignTop ?? false
+                };
+
+                // ✅ Remove any row whose TestName contains "ECG" (case-insensitive)
+                if (payload.rrm != null && tenant_code == "TEN567")
+                {
+                    payload.rrm = payload.rrm
+                        .Where(r => string.IsNullOrEmpty(r.TestName) ||
+                                    !r.TestName.Contains("ECG", StringComparison.OrdinalIgnoreCase))
+                        .ToList();
+                }
+
                 var json = JsonSerializer.Serialize(payload);
                 var content = new StringContent(json, Encoding.UTF8, "application/json");
 
                 var response = await client.PostAsync(
-                    $"/api/routinereport/iscanlabreport?tenantId={tenant_code}&isLetterhead={isletterhead}",
+                    $"/api/routinereport/iscanlabreport?tenantId={tenant_code}&isLetterhead={(isletterhead ?? false).ToString().ToLower()}",
                     content);
 
                 if (!response.IsSuccessStatusCode)
@@ -3280,104 +3257,473 @@ WHERE lrd.requestguid::text = @requestguid::text
             }
         }
 
-        // ─────────────────────────────────────────────────────────────────────────
-        // Code-128B barcode renderer (SkiaSharp)
-        // ─────────────────────────────────────────────────────────────────────────
-        private static readonly int[] Code128BEncoding = new[]
+        public async Task<IList<RawReportRow>> SetNormalRanges(IList<RawReportRow> _dyn, IDbConnection db)
         {
-            212222, 222122, 222221, 121223,
-            121322, 131222, 122213, 122312,
-            132212, 221213, 221312, 231212,
-            112232, 122132, 122231, 113222,
-            123122, 123221, 223211, 221132,
-            221231, 213212, 223112, 312131,
-            311222, 321122, 321221, 312212,
-            322112, 322211, 212123, 212321,
-            232121, 111323, 131123, 131321,
-            112313, 132113, 132311, 211313,
-            231113, 231311, 112133, 112331,
-            132131, 113123, 113321, 133121,
-            313121, 211331, 231131, 213113,
-            213311, 213131, 311123, 311321,
-            331121, 312113, 312311, 332111,
-            314111, 221411, 431111, 111224,
-            111422, 121124, 121421, 141122,
-            141221, 112214, 112412, 122114,
-            122411, 142112, 142211, 241211,
-            221114, 213114, 213411, 221141,
-            413111, 141113, 141311, 311141,
-            411113, 411311, 113141, 114131,
-            311411, 341111, 111143, 111341,
-            131141, 114113, 114311
-        };
-
-        private static readonly int[] Code128Special =
-        {
-            211412,
-            2331112
-        };
-
-        private static byte[] GenerateBarcodePng(string text)
-        {
-            if (string.IsNullOrWhiteSpace(text)) return GenerateBlankPng();
-
-            var bars = new System.Collections.Generic.List<int>();
-
-            AppendBarPattern(bars, Code128Special[0]);
-
-            int checksum = 104;
-            for (int i = 0; i < text.Length; i++)
+            try
             {
-                int code = text[i] - 32;
-                if (code < 0 || code >= Code128BEncoding.Length) code = 0;
-                checksum += code * (i + 1);
-                AppendBarPattern(bars, Code128BEncoding[code]);
+                if (_dyn == null || !_dyn.Any())
+                {
+                    return _dyn ?? new List<RawReportRow>();
+                }
+
+                var testResultIds = _dyn
+                                  .Select(x => x.TestResultID)
+                                  .Where(x => x != Guid.Empty)
+                                  .Distinct()
+                                  .ToArray();
+                IList<RawReportRow> dyn = _dyn;
+
+                // ✅ FIX: split into 3 separate single-statement queries.
+                // Npgsql cannot bind one @Ids parameter across a multi-statement
+                // (semicolon-separated) batch via QueryMultipleAsync — that's what
+                // caused "syntax error at or near $1".
+                var lrp = testResultIds.Length > 0
+                    ? (await db.QueryAsync<LabResultPropertiesModel>(
+                        "SELECT * FROM lab_result_properties WHERE testresultid = ANY(@Ids)",
+                        new { Ids = testResultIds }
+                    )).ToList()
+                    : new List<LabResultPropertiesModel>();
+
+                var lrd = testResultIds.Length > 0
+                    ? (await db.QueryAsync<LabResultDetailedNormalValuesModel>(
+                        "SELECT * FROM lab_result_detailednormalvalues WHERE testresultid = ANY(@Ids)",
+                        new { Ids = testResultIds }
+                    )).ToList()
+                    : new List<LabResultDetailedNormalValuesModel>();
+
+                var lrt = testResultIds.Length > 0
+                    ? (await db.QueryAsync<LabResultTextNormalValuesModel>(
+                        "SELECT * FROM lab_result_textnormalvalues WHERE testresultid = ANY(@Ids)",
+                        new { Ids = testResultIds }
+                    )).ToList()
+                    : new LabResultTextNormalValuesModel[0].ToList();
+
+                // ✅ Fallback to master tables (test_result_*) if transactional lab_result_* tables have no entries
+                var missingLrpIds = testResultIds.Where(id => !lrp.Any(x => x.testresultid == id)).ToArray();
+                if (missingLrpIds.Length > 0)
+                {
+                    try
+                    {
+                        var masterLrp = (await db.QueryAsync<LabResultPropertiesModel>(
+                            "SELECT * FROM test_result_properties WHERE testresultid = ANY(@Ids)",
+                            new { Ids = missingLrpIds }
+                        )).ToList();
+                        lrp.AddRange(masterLrp);
+                    }
+                    catch { }
+                }
+
+                var missingLrdIds = testResultIds.Where(id => !lrd.Any(x => x.testresultid == id)).ToArray();
+                if (missingLrdIds.Length > 0)
+                {
+                    try
+                    {
+                        var masterLrd = (await db.QueryAsync<LabResultDetailedNormalValuesModel>(
+                            "SELECT * FROM test_result_detailednormalvalues WHERE testresultid = ANY(@Ids)",
+                            new { Ids = missingLrdIds }
+                        )).ToList();
+                        lrd.AddRange(masterLrd);
+                    }
+                    catch { }
+                }
+
+                var missingLrtIds = testResultIds.Where(id => !lrt.Any(x => x.testresultid == id)).ToArray();
+                if (missingLrtIds.Length > 0)
+                {
+                    try
+                    {
+                        var masterLrt = (await db.QueryAsync<LabResultTextNormalValuesModel>(
+                            "SELECT * FROM test_result_textnormalvalues WHERE testresultid = ANY(@Ids)",
+                            new { Ids = missingLrtIds }
+                        )).ToList();
+                        lrt.AddRange(masterLrt);
+                    }
+                    catch { }
+                }
+
+                lrd = lrd.OrderBy(x => x.sno).ToList();
+
+                List<Guid> spcl = lrd
+                    .Select(x => x.specialconditioncode)
+                    .Where(x => x.HasValue && x.Value != Guid.Empty)
+                    .Select(x => x!.Value)
+                    .Distinct()
+                    .ToList();
+
+                var spclist = new List<dynamic>();
+                if (spcl.Any())
+                {
+                    var sqlspl = "select * from fixed_values where fxtcode = ANY(@spcl)";
+                    spclist = (await db.QueryAsync<dynamic>(sqlspl, new { spcl = spcl.ToArray() })).AsList();
+                }
+                if (!spclist.Any())
+                {
+                    try
+                    {
+                        var sqlspl = "select * from fixed_values";
+                        spclist = (await db.QueryAsync<dynamic>(sqlspl)).AsList();
+                    }
+                    catch { }
+                }
+
+                foreach (var it in dyn)
+                {
+                    var lrp1 = lrp.FirstOrDefault(x => x.testresultid == it.TestResultID && x.usedefault == true)
+                            ?? lrp.FirstOrDefault(x => x.testresultid == it.TestResultID);
+
+                    if (lrp1 == null && (it.SimpleNormalValues || it.DetailedNormalValues || lrd.Any(x => x.testresultid == it.TestResultID)))
+                    {
+                        lrp1 = new LabResultPropertiesModel
+                        {
+                            testresultid = it.TestResultID,
+                            resultvaluetype = !string.IsNullOrWhiteSpace(it.ResultValueType) ? it.ResultValueType : "Number",
+                            simplenormalvalues = it.SimpleNormalValues,
+                            detailednormalvalues = it.DetailedNormalValues || lrd.Any(x => x.testresultid == it.TestResultID),
+                            fromnormalvalue = it.FromNormalValue,
+                            tonormalvalue = it.ToNormalValue,
+                            rangetype = it.RangeType,
+                            showagedbased = it.ShowAgedBased,
+                            conclusionforfixedtext = it.ConclusionForFixedText,
+                            usedefault = true
+                        };
+                    }
+
+                        if (lrp1 != null)
+                        {
+                            if (lrp1.resultvaluetype == "Number" || lrp1.resultvaluetype == "Calculated Value" || lrp1.resultvaluetype == "Numeric")
+                            {
+                                if (lrp1.simplenormalvalues == true)
+                                {
+                                    double fr = lrp1.fromnormalvalue ?? 0;
+                                    double tr = lrp1.tonormalvalue ?? 0;
+
+                                    if (fr == 0 && tr == 0)
+                                    {
+                                        it.NormalValues = string.Empty;
+                                    }
+                                    else
+                                    {
+                                        it.NormalValues = await this.RefRange(lrp1.rangetype, fr, tr, string.Empty);
+                                    }
+                                }
+                                else if (lrp1.detailednormalvalues == true || lrd.Any(x => x.testresultid == it.TestResultID))
+                                {
+                                    var testDnvRows = lrd.Where(x => x.testresultid == it.TestResultID).ToList();
+                                    if (testDnvRows.Any())
+                                    {
+                                        if (lrp1.showagedbased == false)
+                                        {
+                                            it.NormalValues = this.BuildOutput(testDnvRows, spclist, isAgeBased: false);
+                                        }
+                                        else
+                                        {
+                                            int ageYear  = int.TryParse(it.AgeYears.ToString(),  out int ay) ? ay : 0;
+                                            int ageMonth = int.TryParse(it.AgeMonths.ToString(), out int am) ? am : 0;
+                                            int ageDay   = int.TryParse(it.AgeDays.ToString(),   out int ad) ? ad : 0;
+
+                                            if (ageYear == 0 && ageMonth == 0 && ageDay == 0 && !string.IsNullOrWhiteSpace(it.DateofBirth))
+                                            {
+                                                if (DateTime.TryParse(it.DateofBirth, out DateTime dob))
+                                                {
+                                                    var now = DateTime.Now;
+                                                    ageYear = now.Year - dob.Year;
+                                                    if (now < dob.AddYears(ageYear)) ageYear--;
+                                                }
+                                            }
+
+                                            int    age     = ageYear  > 0 ? ageYear  : (ageMonth > 0 ? ageMonth : ageDay);
+                                            string agetype = ageYear  > 0 ? "Yrs"   : (ageMonth > 0 ? "Mths"   : "Dys");
+
+                                            static string NormAgeType(string? t) =>
+                                                (t ?? "-").Trim().ToLower() switch
+                                                {
+                                                    "yrs" or "yr" or "year" or "years"       => "Yrs",
+                                                    "mths" or "mth" or "month" or "months"   => "Mths",
+                                                    "dys"  or "dy"  or "day"  or "days"      => "Dys",
+                                                    _                                         => (t ?? "-").Trim()
+                                                };
+
+                                            static string NormSex(string? s)
+                                            {
+                                                string t = (s ?? "").Trim().ToLower();
+                                                if (t == "m" || t == "male" || t == "boy" || t == "man" || t == "1") return "male";
+                                                if (t == "f" || t == "female" || t == "girl" || t == "woman" || t == "2") return "female";
+                                                if (t == "both" || t == "all" || t == "b" || t == "a" || t == "-" || t == "0" || string.IsNullOrEmpty(t)) return "both";
+                                                return t;
+                                            }
+
+                                            bool SexMatches(string? rowSex, string? patGender)
+                                            {
+                                                string rs = NormSex(rowSex);
+                                                string pg = NormSex(patGender);
+                                                if (rs == "both" || pg == "both") return true;
+                                                return rs == pg;
+                                            }
+
+                                            var sexRows = testDnvRows
+                                                .Where(x => (x.mccode == it.MCCode || x.mccode == 0 || it.MCCode == 0))
+                                                .Where(x => SexMatches(x.sex, it.Gender))
+                                                .ToList();
+
+                                            var exactGenderRows = sexRows.Where(x => !string.IsNullOrWhiteSpace(x.sex) && x.sex != "-" && x.sex != "0" && !x.sex.Equals("Both", StringComparison.OrdinalIgnoreCase) && !x.sex.Equals("All", StringComparison.OrdinalIgnoreCase)).ToList();
+                                            if (exactGenderRows.Any())
+                                            {
+                                                sexRows = exactGenderRows;
+                                            }
+
+                                            bool AgeMatches(LabResultDetailedNormalValuesModel x)
+                                            {
+                                                double af       = x.agefrom ?? 0;
+                                                double at       = x.ageto   ?? 0;
+                                                string atType   = NormAgeType(x.agetotype);
+                                                string rtype    = (x.agerangetype ?? "-").Trim();
+
+                                                if (af == 0 && at == 0) return false;
+
+                                                if (atType != "-" && !string.Equals(atType, agetype, StringComparison.OrdinalIgnoreCase)) return false;
+
+                                                return rtype.ToLower() switch
+                                                {
+                                                    "-" or "between" or "range" or "" => age >= af && age <= at,
+                                                    "<" or "less than"                 => age <  at,
+                                                    "upto" or "<=" or "≤"        => age <= at,
+                                                    ">" or "more than"                 => age >  af,
+                                                    ">=" or "≥"                  => age >= af,
+                                                    _                                  => (af == 0 || age >= af) && (at == 0 || age <= at)
+                                                };
+                                            }
+
+                                            var matchingAgeRows = sexRows.Where(AgeMatches).ToList();
+                                            if (!matchingAgeRows.Any())
+                                            {
+                                                matchingAgeRows = sexRows.Where(x => (x.agefrom ?? 0) == 0 && (x.ageto ?? 0) == 0).ToList();
+                                            }
+                                            if (!matchingAgeRows.Any())
+                                            {
+                                                matchingAgeRows = sexRows;
+                                            }
+                                            if (!matchingAgeRows.Any())
+                                            {
+                                                matchingAgeRows = testDnvRows;
+                                            }
+
+                                            if (matchingAgeRows.Any())
+                                            {
+                                                it.NormalValues = this.BuildOutput(matchingAgeRows, spclist, isAgeBased: true);
+                                            }
+                                            else
+                                            {
+                                                it.NormalValues = this.BuildOutput(testDnvRows, spclist, isAgeBased: false);
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            else if (lrp1.resultvaluetype == "Text" || lrp1.resultvaluetype == "TN" || lrp1.resultvaluetype == "Text & Number")
+                            {
+                                var tnvMatch = lrt
+                                    .Where(x => x.testresultid == it.TestResultID
+                                             && (x.mccode == it.MCCode || x.mccode == 0 || it.MCCode == 0)
+                                             && (string.IsNullOrWhiteSpace(x.sex) || x.sex == "-"
+                                                 || string.Equals(x.sex, it.Gender, StringComparison.OrdinalIgnoreCase)
+                                                 || string.Equals(x.sex, "Both", StringComparison.OrdinalIgnoreCase)
+                                                 || string.Equals(x.sex, "All", StringComparison.OrdinalIgnoreCase)))
+                                    .OrderByDescending(x => string.Equals(x.sex, it.Gender, StringComparison.OrdinalIgnoreCase))
+                                    .ThenByDescending(x => x.mccode == it.MCCode)
+                                    .Select(x => x.normalvalue)
+                                    .FirstOrDefault() ?? "";
+
+                                it.NormalValues = tnvMatch.Replace("\r\n", "<br/>").Replace("\n", "<br/>");
+                            }
+
+                            // ✅ ConclusionForFixedText fallback: if set on lab properties, include/append it
+                            var fxtRaw = lrp1?.conclusionforfixedtext?.Trim();
+                            if (!string.IsNullOrWhiteSpace(fxtRaw) && fxtRaw != "0")
+                            {
+                                var fxtVal = fxtRaw.Replace("\r\n", "<br/>").Replace("\n", "<br/>");
+                                if (string.IsNullOrWhiteSpace(it.NormalValues))
+                                {
+                                    it.NormalValues = fxtVal;
+                                }
+                                else if (!it.NormalValues.Contains(fxtRaw))
+                                {
+                                    it.NormalValues = it.NormalValues + "<br/>" + fxtVal;
+                                }
+                            }
+                        }
+                    }
+                    return dyn;
             }
-
-            AppendBarPattern(bars, Code128BEncoding[checksum % 103]);
-
-            AppendBarPattern(bars, Code128Special[1]);
-
-            const int barUnit = 3;
-            const int quietZone = 14;
-            const int barcodeH = 80;
-
-            int totalBarWidth = bars.Sum() * barUnit;
-            int imgW = totalBarWidth + quietZone * 2;
-
-            using var bitmap = new SKBitmap(imgW, barcodeH);
-            using var canvas = new SKCanvas(bitmap);
-            canvas.Clear(SKColors.White);
-
-            var blackPaint = new SKPaint { Color = SKColors.Black, IsAntialias = false };
-
-            int x = quietZone;
-            for (int i = 0; i < bars.Count; i++)
+            catch (Exception ex)
             {
-                int w = bars[i] * barUnit;
-                if (i % 2 == 0)
-                    canvas.DrawRect(x, 0, w, barcodeH, blackPaint);
-                x += w;
+                Console.WriteLine($"[SetNormalRanges] ERROR: {ex.Message}\n{ex.StackTrace}");
+                return _dyn ?? new List<RawReportRow>();
             }
-
-            using var img = SKImage.FromBitmap(bitmap);
-            using var data = img.Encode(SKEncodedImageFormat.Png, 100);
-            return data.ToArray();
         }
 
-        private static void AppendBarPattern(System.Collections.Generic.List<int> bars, int pattern)
+        public async Task<string> RefRange(string type, Double fr, Double tr, string fixedvalue)
         {
-            string s = pattern.ToString();
-            foreach (char c in s)
-                bars.Add(c - '0');
+            if (fr == 0 && tr == 0 && string.IsNullOrWhiteSpace(fixedvalue)) return string.Empty;
+            string refrange = "";
+            string t = (type ?? "").Trim();
+            if (string.IsNullOrWhiteSpace(t) || t == "-" || t.Equals("Between", StringComparison.OrdinalIgnoreCase))
+            {
+                refrange = (fr == tr || tr == 0) ? $"{fr}" : $"{fr} - {tr}";
+            }
+            else
+            {
+                double val = fr > 0 ? fr : tr;
+                refrange = $"{t} {val}";
+            }
+            if (!string.IsNullOrEmpty(fixedvalue)) refrange += (fixedvalue.Length > 0 ? (": " + fixedvalue) : "");
+            return refrange;
         }
 
-        private static byte[] GenerateBlankPng()
+        private static string FormatDetailedRangeValue(string? rangetype, double? rangefromVal, double? rangetoVal)
         {
-            using var bmp = new SkiaSharp.SKBitmap(1, 1);
-            using var img = SkiaSharp.SKImage.FromBitmap(bmp);
-            using var data = img.Encode(SkiaSharp.SKEncodedImageFormat.Png, 100);
-            return data.ToArray();
+            double rangefrom = rangefromVal ?? 0;
+            double rangeto = rangetoVal ?? 0;
+            string op = (rangetype ?? "").Trim();
+            if (string.IsNullOrWhiteSpace(op) || op == "-" || op.Equals("Between", StringComparison.OrdinalIgnoreCase) || op.Equals("Normal", StringComparison.OrdinalIgnoreCase))
+            {
+                if (rangefrom > 0 && rangeto > 0) return rangefrom == rangeto ? $"{rangefrom}" : $"{rangefrom} - {rangeto}";
+                if (rangefrom > 0 && rangeto == 0) return $"{rangefrom}";
+                if (rangefrom == 0 && rangeto > 0) return $"0 - {rangeto}";
+                return "";
+            }
+            double val = rangefrom > 0 ? rangefrom : rangeto;
+            return $"{op} {val}";
+        }
+
+        public string BuildOutput(List<LabResultDetailedNormalValuesModel> data, IList<dynamic> fxd, bool isAgeBased = false)
+        {
+            try
+            {
+                if (data == null || !data.Any()) return string.Empty;
+                var sb = new StringBuilder();
+
+                static string FormatGenderName(string? sex)
+                {
+                    if (string.IsNullOrWhiteSpace(sex) || sex == "-" || sex == "0") return "";
+                    string s = sex.Trim();
+                    if (string.Equals(s, "m", StringComparison.OrdinalIgnoreCase)) return "Male";
+                    if (string.Equals(s, "f", StringComparison.OrdinalIgnoreCase)) return "Female";
+                    if (string.Equals(s, "b", StringComparison.OrdinalIgnoreCase) || string.Equals(s, "both", StringComparison.OrdinalIgnoreCase)) return "Both";
+                    if (string.Equals(s, "all", StringComparison.OrdinalIgnoreCase)) return "All";
+                    return s;
+                }
+
+                static string FormatAgeString(LabResultDetailedNormalValuesModel item)
+                {
+                    double af = item.agefrom ?? 0;
+                    double at = item.ageto ?? 0;
+                    string unit = !string.IsNullOrWhiteSpace(item.agetotype) && item.agetotype != "-"
+                        ? item.agetotype.Trim()
+                        : (!string.IsNullOrWhiteSpace(item.agefromtype) && item.agefromtype != "-" ? item.agefromtype.Trim() : "Yrs");
+
+                    if (af == 0 && at == 0) return "";
+
+                    string op = (item.agerangetype ?? "-").Trim();
+
+                    if (string.IsNullOrWhiteSpace(op) || op == "-" || op.Equals("Between", StringComparison.OrdinalIgnoreCase) || op.Equals("Normal", StringComparison.OrdinalIgnoreCase))
+                    {
+                        if (af == 0 && at > 0) return $"0 - {at} {unit}".Trim();
+                        if (af > 0 && at == 0) return $"{af} {unit}".Trim();
+                        if (af == at) return $"{af} {unit}".Trim();
+                        return $"{af} - {at} {unit}".Trim();
+                    }
+                    else
+                    {
+                        if (af > 0 && at > 0 && af != at) return $"{af} - {at} {unit}".Trim();
+                        double ageVal = af > 0 ? af : at;
+                        return $"{op} {ageVal} {unit}".Trim();
+                    }
+                }
+
+                string GetSpecialName(LabResultDetailedNormalValuesModel item)
+                {
+                    string specialName = "";
+                    if (item.specialconditioncode.HasValue && item.specialconditioncode.Value != Guid.Empty && fxd != null)
+                    {
+                        foreach (var fxdRow in fxd)
+                        {
+                            var row = (IDictionary<string, object>)fxdRow;
+                            if (row.TryGetValue("fxtcode", out var fc) && fc is Guid fGuid && fGuid == item.specialconditioncode.Value)
+                            {
+                                row.TryGetValue("fixedvalues", out var fv);
+                                specialName = fv?.ToString() ?? "";
+                                break;
+                            }
+                        }
+                    }
+
+                    if (string.IsNullOrWhiteSpace(specialName) && !string.IsNullOrWhiteSpace(item.agerangetype))
+                    {
+                        string ag = item.agerangetype.Trim();
+                        string agClean = ag.Replace(" ", "");
+                        if (ag != "-" && ag != "<" && ag != ">" && ag != "<=" && ag != ">=" && agClean != "0--" && agClean != "0-0" && !ag.Equals("Between", StringComparison.OrdinalIgnoreCase))
+                        {
+                            specialName = ag;
+                        }
+                    }
+
+                    return specialName.Trim();
+                }
+
+                if (isAgeBased)
+                {
+                    foreach (var item in data)
+                    {
+                        string specialName = GetSpecialName(item);
+                        string rangeValue = FormatDetailedRangeValue(item.rangetype, item.rangefrom, item.rangeto);
+
+                        if (!string.IsNullOrWhiteSpace(specialName))
+                        {
+                            sb.AppendLine($"{rangeValue} : {specialName}");
+                        }
+                        else
+                        {
+                            sb.AppendLine(rangeValue);
+                        }
+                    }
+
+                    return sb.ToString().Trim();
+                }
+
+                foreach (var item in data.OrderBy(x => x.sno))
+                {
+                    string rangeValue = FormatDetailedRangeValue(item.rangetype, item.rangefrom, item.rangeto);
+                    string genderStr = FormatGenderName(item.sex);
+                    string ageStr = FormatAgeString(item);
+                    string specialName = GetSpecialName(item);
+
+                    var prefixParts = new List<string>();
+                    if (!string.IsNullOrWhiteSpace(genderStr)) prefixParts.Add(genderStr);
+                    if (!string.IsNullOrWhiteSpace(ageStr)) prefixParts.Add(ageStr);
+                    if (!string.IsNullOrWhiteSpace(specialName) && !prefixParts.Contains(specialName)) prefixParts.Add(specialName);
+
+                    string prefix = string.Join(" ", prefixParts).Trim();
+
+                    if (!string.IsNullOrWhiteSpace(prefix) && !string.IsNullOrWhiteSpace(rangeValue))
+                    {
+                        sb.AppendLine($"{prefix} : {rangeValue}");
+                    }
+                    else if (!string.IsNullOrWhiteSpace(rangeValue))
+                    {
+                        sb.AppendLine(rangeValue);
+                    }
+                    else if (!string.IsNullOrWhiteSpace(prefix))
+                    {
+                        sb.AppendLine(prefix);
+                    }
+                }
+
+                return sb.ToString().Trim();
+            }
+            catch
+            {
+                return string.Empty;
+            }
         }
 
         public async Task<string?> PayModeStatementPDF(DateTime fromdate, DateTime todate, string tenant_code)
@@ -4561,7 +4907,7 @@ WHERE lrd.requestguid::text = @requestguid::text
                             OR (COALESCE(@opIdStr, '') <> '' AND (lrm.opvisitid = @opIdStr OR lrm.sheet_id = @opIdStr))
                         )
                         AND (COALESCE(@tenant_code, '') = '' OR lrd.tenant_code IS NULL OR lrd.tenant_code = '' OR lrd.tenant_code = @tenant_code)
-                        AND (lrd.ttid = 1 OR lrd.ttid IS NULL)
+                        AND (lrd.ttid = 1 OR lrd.ttid = 0 OR lrd.ttid IS NULL)
 
                         UNION ALL
 
@@ -6453,5 +6799,100 @@ WHERE lrd.requestguid::text = @requestguid::text
                 throw;
             }
         }
+
+        private static readonly int[] Code128BEncoding = new[]
+        {
+            212222, 222122, 222221, 121223, 121322, 131222, 122213, 122312, 132212, 221213,
+            221312, 231212, 112232, 122132, 122231, 113222, 123122, 123221, 223211, 221132,
+            221231, 213212, 223112, 312131, 311222, 321122, 321221, 312212, 322112, 322211,
+            212123, 212321, 232121, 111323, 131123, 131321, 112313, 132113, 132311, 211313,
+            231113, 231311, 112133, 112331, 132131, 113123, 113321, 133121, 313121, 211331,
+            231131, 213113, 213311, 213131, 311123, 311321, 331121, 312113, 312311, 332111,
+            314111, 221411, 431111, 111224, 111422, 121124, 121421, 141122, 141221, 112214,
+            112412, 122114, 122411, 142112, 142211, 241211, 221114, 213114, 213411, 221141,
+            413111, 141113, 141311, 311141, 411113, 411311, 113141, 114131, 311411, 341111,
+            111143, 111341, 131141, 114113, 114311, 411131, 211412, 211214, 211232, 233111,
+            200000, 211112, 211211
+        };
+
+        private static readonly int[] Code128Special =
+        {
+            211412,
+            2331112
+        };
+
+        private static byte[] GenerateBarcodePng(string text)
+        {
+            if (string.IsNullOrWhiteSpace(text)) return GenerateBlankPng();
+
+            try
+            {
+                var bars = new System.Collections.Generic.List<int>();
+
+                AppendBarPattern(bars, Code128Special[0]);
+
+                int checksum = 104;
+                for (int i = 0; i < text.Length; i++)
+                {
+                    int code = text[i] - 32;
+                    if (code < 0 || code >= Code128BEncoding.Length) code = 0;
+                    checksum += code * (i + 1);
+                    AppendBarPattern(bars, Code128BEncoding[code]);
+                }
+
+                int checkIdx = Math.Abs(checksum % 103);
+                if (checkIdx >= Code128BEncoding.Length) checkIdx = 0;
+                AppendBarPattern(bars, Code128BEncoding[checkIdx]);
+
+                AppendBarPattern(bars, Code128Special[1]);
+
+                const int barUnit = 3;
+                const int quietZone = 14;
+                const int barcodeH = 80;
+
+                int totalBarWidth = bars.Sum() * barUnit;
+                int imgW = Math.Max(totalBarWidth + quietZone * 2, 100);
+
+                using var bitmap = new SkiaSharp.SKBitmap(imgW, barcodeH);
+                using var canvas = new SkiaSharp.SKCanvas(bitmap);
+                canvas.Clear(SkiaSharp.SKColors.White);
+
+                using var blackPaint = new SkiaSharp.SKPaint { Color = SkiaSharp.SKColors.Black, IsAntialias = false };
+
+                int x = quietZone;
+                for (int i = 0; i < bars.Count; i++)
+                {
+                    int w = bars[i] * barUnit;
+                    if (i % 2 == 0)
+                        canvas.DrawRect(x, 0, w, barcodeH, blackPaint);
+                    x += w;
+                }
+
+                using var img = SkiaSharp.SKImage.FromBitmap(bitmap);
+                using var data = img.Encode(SkiaSharp.SKEncodedImageFormat.Png, 100);
+                return data?.ToArray() ?? GenerateBlankPng();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[GenerateBarcodePng] Error generating barcode for '{text}': {ex.Message}");
+                return GenerateBlankPng();
+            }
+        }
+
+        private static void AppendBarPattern(System.Collections.Generic.List<int> bars, int pattern)
+        {
+            string s = pattern.ToString();
+            foreach (char c in s)
+                bars.Add(c - '0');
+        }
+
+        private static byte[] GenerateBlankPng()
+        {
+            using var bmp = new SkiaSharp.SKBitmap(1, 1);
+            using var img = SkiaSharp.SKImage.FromBitmap(bmp);
+            using var data = img.Encode(SkiaSharp.SKEncodedImageFormat.Png, 100);
+            return data.ToArray();
+        }
+
     }
 }
