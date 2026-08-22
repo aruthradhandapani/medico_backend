@@ -98,7 +98,8 @@ namespace medico_backend.Class
                 try
                 {
                     var (tokenNo, seq) = await GenerateNextTokenNo(
-        db, tx, data.dcode, data.slot_detail_id, data.reg_type, data.tenant_code!);
+    db, tx, data.dcode, data.slot_detail_id, data.reg_type,
+    data.visit_date, data.tenant_code!);
                     data.token_no = tokenNo;
                     data.queue_no = seq;
 
@@ -606,7 +607,8 @@ ORDER BY o.visit_date DESC, o.queue_no, o.token_no";
                         try
                         {
                             var (noSlotToken, noSlotSeq) = await GenerateNextTokenNo(
-                                db, tx, assignedDcode, null, "WALKIN", tenant_code, service_id: req.service_id);
+    db, tx, assignedDcode, null, "WALKIN",
+    noSlotData.visit_date, tenant_code, service_id: req.service_id);
                             noSlotData.token_no = noSlotToken;
                             noSlotData.queue_no = noSlotSeq;
 
@@ -736,7 +738,8 @@ ORDER BY o.visit_date DESC, o.queue_no, o.token_no";
                     try
                     {
                         var (tokenStr, seq) = await GenerateNextTokenNo(
-                            db, tx, assignedDcode, slot.slot_detail_id, "WALKIN", tenant_code, service_id: req.service_id);
+    db, tx, assignedDcode, slot.slot_detail_id, "WALKIN",
+    data.visit_date, tenant_code, service_id: req.service_id);
                         token = tokenStr;
                         data.token_no = tokenStr;
                         data.queue_no = seq;
@@ -900,7 +903,8 @@ ORDER BY o.visit_date DESC, o.queue_no, o.token_no";
                     try
                     {
                         var (tokenStr, seq) = await GenerateNextTokenNo(
-            db, tx, req.transfer_to_dcode, slot?.slot_detail_id, op.reg_type, tenant_code);
+    db, tx, req.transfer_to_dcode, slot?.slot_detail_id, op.reg_type,
+    req.visit_date, tenant_code);
                         newToken = tokenStr;
 
                         // Mark old OP as transferred (same tx)
@@ -1418,8 +1422,9 @@ AND b.tenant_code = @tenant_code
         }
         private async Task<(string token_no, int seq)> GenerateNextTokenNo(
     IDbConnection db, IDbTransaction tx,
-    int dcode, Guid? slot_detail_id, string reg_type, string tenant_code,
-    int? service_id = null)   // ✅ was string? service_code
+    int dcode, Guid? slot_detail_id, string reg_type,
+    DateOnly visit_date, string tenant_code,      // ✅ visit_date added
+    int? service_id = null)
         {
             string bookingType = string.IsNullOrWhiteSpace(reg_type) ? "WALKIN" : reg_type.ToUpper();
 
@@ -1429,7 +1434,6 @@ AND b.tenant_code = @tenant_code
 
             if (service_id == null)
             {
-                // ── EXISTING OP LOGIC — unchanged ──────────────────
                 var groupRow = await db.QueryFirstOrDefaultAsync(
                     @"SELECT dm.group_id, dm.token_prefix AS doctor_prefix,
                      dgm.token_type, dgm.token_prefix AS group_prefix
@@ -1454,7 +1458,6 @@ AND b.tenant_code = @tenant_code
             }
             else
             {
-                // ── service_type_master by id ──────────────────────
                 var svc = await db.QueryFirstOrDefaultAsync<ServiceTypeModel>(
                     @"SELECT * FROM service_type_master
               WHERE service_id = @service_id AND tenant_code = @tenant_code AND deleted = false",
@@ -1471,7 +1474,7 @@ AND b.tenant_code = @tenant_code
 
             if (slot_detail_id.HasValue && slot_detail_id != Guid.Empty)
             {
-                // ── SLOT MODE — unchanged ────────────────────────────
+                // ── SLOT MODE ─────────────────────────────── (unchanged — date lives on the slot row)
                 string lockKey = $"SLOT:{tenant_code}:{slot_detail_id}";
                 await db.ExecuteAsync("SELECT pg_advisory_xact_lock(hashtext(@lockKey))",
                     new { lockKey }, tx);
@@ -1508,20 +1511,36 @@ AND b.tenant_code = @tenant_code
                     used = (int)row.online_count;
                 }
 
-                seq = bookingType == "WALKIN" ? start + used : start + used - 1;
+                seq = start + used;
                 if (seq > end)
                     throw new Exception($"{bookingType} token quota exhausted for this slot");
+
+                string bumpSql = bookingType == "WALKIN"
+                    ? @"UPDATE doctor_appointment_slot_details
+                SET walkin_count = walkin_count + 1
+                WHERE slot_detail_id = @slot_detail_id AND tenant_code = @tenant_code"
+                    : @"UPDATE doctor_appointment_slot_details
+                SET online_count = online_count + 1
+                WHERE slot_detail_id = @slot_detail_id AND tenant_code = @tenant_code";
+
+                await db.ExecuteAsync(bumpSql, new { slot_detail_id, tenant_code }, tx);
             }
             else
             {
+                // ── NO-SLOT MODE — doctor/group/service-wise, restarts per visit_date ──
+                // ✅ FIX: use the passed visit_date, not CURRENT_TIMESTAMP, so
+                // future/back-dated registrations count against the right day
+                // instead of colliding with (or missing) today's tokens.
+                DateTime visitDateParam = visit_date.ToDateTime(TimeOnly.MinValue);
+
                 string lockKey;
                 string sql;
                 object param;
 
                 if (service_id == null && sharedSequence)
                 {
-                    // GROUP MODE — OP only, unchanged
-                    lockKey = $"GROUP:{tenant_code}:{groupId}";
+                    // GROUP MODE
+                    lockKey = $"GROUP:{tenant_code}:{groupId}:{visit_date:yyyyMMdd}";
 
                     sql = @"SELECT COALESCE(MAX(
                         NULLIF(regexp_replace(o.token_no, '\D', '', 'g'), '')::int
@@ -1533,14 +1552,14 @@ AND b.tenant_code = @tenant_code
                     AND    o.tenant_code = @tenant_code
                     AND    o.isdeleted   = false
                     AND    COALESCE(o.is_dressing, false) = false
-                    AND    o.visit_date  = (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata')::date";
+                    AND    o.visit_date  = @visit_date";
 
-                    param = new { groupId, tenant_code };
+                    param = new { groupId, tenant_code, visit_date = visitDateParam };
                 }
                 else if (service_id == null)
                 {
-                    // INDIVIDUAL MODE — OP only, unchanged
-                    lockKey = $"DCODE:{tenant_code}:{dcode}";
+                    // INDIVIDUAL MODE
+                    lockKey = $"DCODE:{tenant_code}:{dcode}:{visit_date:yyyyMMdd}";
 
                     sql = @"SELECT COALESCE(MAX(
                         NULLIF(regexp_replace(token_no, '\D', '', 'g'), '')::int
@@ -1550,14 +1569,14 @@ AND b.tenant_code = @tenant_code
                     AND    tenant_code  = @tenant_code
                     AND    isdeleted    = false
                     AND    COALESCE(is_dressing, false) = false
-                    AND    visit_date   = (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata')::date";
+                    AND    visit_date   = @visit_date";
 
-                    param = new { dcode, tenant_code };
+                    param = new { dcode, tenant_code, visit_date = visitDateParam };
                 }
                 else if (sharedSequence)
                 {
-                    // TENANT-scope service (e.g. DRESSING)
-                    lockKey = $"SVC:{tenant_code}:{service_id}";
+                    // TENANT-scope service
+                    lockKey = $"SVC:{tenant_code}:{service_id}:{visit_date:yyyyMMdd}";
 
                     sql = @"SELECT COALESCE(MAX(
                         NULLIF(regexp_replace(token_no, '\D', '', 'g'), '')::int
@@ -1566,14 +1585,14 @@ AND b.tenant_code = @tenant_code
                     WHERE  service_id  = @service_id
                     AND    tenant_code = @tenant_code
                     AND    isdeleted   = false
-                    AND    visit_date  = (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata')::date";
+                    AND    visit_date  = @visit_date";
 
-                    param = new { service_id, tenant_code };
+                    param = new { service_id, tenant_code, visit_date = visitDateParam };
                 }
                 else
                 {
                     // DOCTOR-scope service
-                    lockKey = $"SVC:{tenant_code}:{service_id}:{dcode}";
+                    lockKey = $"SVC:{tenant_code}:{service_id}:{dcode}:{visit_date:yyyyMMdd}";
 
                     sql = @"SELECT COALESCE(MAX(
                         NULLIF(regexp_replace(token_no, '\D', '', 'g'), '')::int
@@ -1583,9 +1602,9 @@ AND b.tenant_code = @tenant_code
                     AND    dcode       = @dcode
                     AND    tenant_code = @tenant_code
                     AND    isdeleted   = false
-                    AND    visit_date  = (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata')::date";
+                    AND    visit_date  = @visit_date";
 
-                    param = new { service_id, dcode, tenant_code };
+                    param = new { service_id, dcode, tenant_code, visit_date = visitDateParam };
                 }
 
                 await db.ExecuteAsync("SELECT pg_advisory_xact_lock(hashtext(@lockKey))",
@@ -1800,7 +1819,8 @@ AND b.tenant_code = @tenant_code
                         try
                         {
                             var (tokenNo, seq) = await GenerateNextTokenNo(
-                                db, tx, req.dcode, null, "WALKIN", tenant_code, service_id: req.service_id);
+    db, tx, req.dcode, null, "WALKIN",
+    noSlotData.visit_date, tenant_code, service_id: req.service_id);
                             noSlotData.token_no = tokenNo;
                             noSlotData.queue_no = seq;
 
@@ -1901,7 +1921,8 @@ AND b.tenant_code = @tenant_code
                     try
                     {
                         var (tokenStr, seq) = await GenerateNextTokenNo(
-                            db, tx, req.dcode, slot.slot_detail_id, "WALKIN", tenant_code, service_id: req.service_id);
+     db, tx, req.dcode, slot.slot_detail_id, "WALKIN",
+     data.visit_date, tenant_code, service_id: req.service_id);
                         token = tokenStr;
                         data.token_no = tokenStr;
                         data.queue_no = seq;
