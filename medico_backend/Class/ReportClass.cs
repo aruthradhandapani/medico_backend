@@ -3257,6 +3257,13 @@ WHERE lrd.requestguid::text = @requestguid::text
             }
         }
 
+        // =====================================================================
+        // FULL METHOD 1: SetNormalRanges  (drop-in replacement)
+        // Fix applied: removed the extra "fall back to ANY sex" step in the
+        // showagedbased == true branch so it never crosses sex boundaries,
+        // matching LIMS_Backend's behavior.
+        // =====================================================================
+
         public async Task<IList<RawReportRow>> SetNormalRanges(IList<RawReportRow> _dyn, IDbConnection db)
         {
             try
@@ -3273,7 +3280,7 @@ WHERE lrd.requestguid::text = @requestguid::text
                                   .ToArray();
                 IList<RawReportRow> dyn = _dyn;
 
-                // ✅ FIX: split into 3 separate single-statement queries.
+                // ✅ split into 3 separate single-statement queries.
                 // Npgsql cannot bind one @Ids parameter across a multi-statement
                 // (semicolon-separated) batch via QueryMultipleAsync — that's what
                 // caused "syntax error at or near $1".
@@ -3388,171 +3395,171 @@ WHERE lrd.requestguid::text = @requestguid::text
                         };
                     }
 
-                        if (lrp1 != null)
+                    if (lrp1 != null)
+                    {
+                        if (lrp1.resultvaluetype == "Number" || lrp1.resultvaluetype == "Calculated Value" || lrp1.resultvaluetype == "Numeric")
                         {
-                            if (lrp1.resultvaluetype == "Number" || lrp1.resultvaluetype == "Calculated Value" || lrp1.resultvaluetype == "Numeric")
+                            if (lrp1.simplenormalvalues == true)
                             {
-                                if (lrp1.simplenormalvalues == true)
-                                {
-                                    double fr = lrp1.fromnormalvalue ?? 0;
-                                    double tr = lrp1.tonormalvalue ?? 0;
+                                double fr = lrp1.fromnormalvalue ?? 0;
+                                double tr = lrp1.tonormalvalue ?? 0;
 
-                                    if (fr == 0 && tr == 0)
+                                if (fr == 0 && tr == 0)
+                                {
+                                    it.NormalValues = string.Empty;
+                                }
+                                else
+                                {
+                                    it.NormalValues = await this.RefRange(lrp1.rangetype, fr, tr, string.Empty);
+                                }
+                            }
+                            else if (lrp1.detailednormalvalues == true || lrd.Any(x => x.testresultid == it.TestResultID))
+                            {
+                                var testDnvRows = lrd.Where(x => x.testresultid == it.TestResultID).ToList();
+                                if (testDnvRows.Any())
+                                {
+                                    if (lrp1.showagedbased == false)
                                     {
-                                        it.NormalValues = string.Empty;
+                                        it.NormalValues = this.BuildOutput(testDnvRows, spclist, isAgeBased: false);
                                     }
                                     else
                                     {
-                                        it.NormalValues = await this.RefRange(lrp1.rangetype, fr, tr, string.Empty);
-                                    }
-                                }
-                                else if (lrp1.detailednormalvalues == true || lrd.Any(x => x.testresultid == it.TestResultID))
-                                {
-                                    var testDnvRows = lrd.Where(x => x.testresultid == it.TestResultID).ToList();
-                                    if (testDnvRows.Any())
-                                    {
-                                        if (lrp1.showagedbased == false)
+                                        int ageYear = int.TryParse(it.AgeYears.ToString(), out int ay) ? ay : 0;
+                                        int ageMonth = int.TryParse(it.AgeMonths.ToString(), out int am) ? am : 0;
+                                        int ageDay = int.TryParse(it.AgeDays.ToString(), out int ad) ? ad : 0;
+
+                                        if (ageYear == 0 && ageMonth == 0 && ageDay == 0 && !string.IsNullOrWhiteSpace(it.DateofBirth))
                                         {
-                                            it.NormalValues = this.BuildOutput(testDnvRows, spclist, isAgeBased: false);
-                                        }
-                                        else
-                                        {
-                                            int ageYear  = int.TryParse(it.AgeYears.ToString(),  out int ay) ? ay : 0;
-                                            int ageMonth = int.TryParse(it.AgeMonths.ToString(), out int am) ? am : 0;
-                                            int ageDay   = int.TryParse(it.AgeDays.ToString(),   out int ad) ? ad : 0;
-
-                                            if (ageYear == 0 && ageMonth == 0 && ageDay == 0 && !string.IsNullOrWhiteSpace(it.DateofBirth))
+                                            if (DateTime.TryParse(it.DateofBirth, out DateTime dob))
                                             {
-                                                if (DateTime.TryParse(it.DateofBirth, out DateTime dob))
-                                                {
-                                                    var now = DateTime.Now;
-                                                    ageYear = now.Year - dob.Year;
-                                                    if (now < dob.AddYears(ageYear)) ageYear--;
-                                                }
-                                            }
-
-                                            int    age     = ageYear  > 0 ? ageYear  : (ageMonth > 0 ? ageMonth : ageDay);
-                                            string agetype = ageYear  > 0 ? "Yrs"   : (ageMonth > 0 ? "Mths"   : "Dys");
-
-                                            static string NormAgeType(string? t) =>
-                                                (t ?? "-").Trim().ToLower() switch
-                                                {
-                                                    "yrs" or "yr" or "year" or "years"       => "Yrs",
-                                                    "mths" or "mth" or "month" or "months"   => "Mths",
-                                                    "dys"  or "dy"  or "day"  or "days"      => "Dys",
-                                                    _                                         => (t ?? "-").Trim()
-                                                };
-
-                                            static string NormSex(string? s)
-                                            {
-                                                string t = (s ?? "").Trim().ToLower();
-                                                if (t == "m" || t == "male" || t == "boy" || t == "man" || t == "1") return "male";
-                                                if (t == "f" || t == "female" || t == "girl" || t == "woman" || t == "2") return "female";
-                                                if (t == "both" || t == "all" || t == "b" || t == "a" || t == "-" || t == "0" || string.IsNullOrEmpty(t)) return "both";
-                                                return t;
-                                            }
-
-                                            bool SexMatches(string? rowSex, string? patGender)
-                                            {
-                                                string rs = NormSex(rowSex);
-                                                string pg = NormSex(patGender);
-                                                if (rs == "both" || pg == "both") return true;
-                                                return rs == pg;
-                                            }
-
-                                            var sexRows = testDnvRows
-                                                .Where(x => (x.mccode == it.MCCode || x.mccode == 0 || it.MCCode == 0))
-                                                .Where(x => SexMatches(x.sex, it.Gender))
-                                                .ToList();
-
-                                            var exactGenderRows = sexRows.Where(x => !string.IsNullOrWhiteSpace(x.sex) && x.sex != "-" && x.sex != "0" && !x.sex.Equals("Both", StringComparison.OrdinalIgnoreCase) && !x.sex.Equals("All", StringComparison.OrdinalIgnoreCase)).ToList();
-                                            if (exactGenderRows.Any())
-                                            {
-                                                sexRows = exactGenderRows;
-                                            }
-
-                                            bool AgeMatches(LabResultDetailedNormalValuesModel x)
-                                            {
-                                                double af       = x.agefrom ?? 0;
-                                                double at       = x.ageto   ?? 0;
-                                                string atType   = NormAgeType(x.agetotype);
-                                                string rtype    = (x.agerangetype ?? "-").Trim();
-
-                                                if (af == 0 && at == 0) return false;
-
-                                                if (atType != "-" && !string.Equals(atType, agetype, StringComparison.OrdinalIgnoreCase)) return false;
-
-                                                return rtype.ToLower() switch
-                                                {
-                                                    "-" or "between" or "range" or "" => age >= af && age <= at,
-                                                    "<" or "less than"                 => age <  at,
-                                                    "upto" or "<=" or "≤"        => age <= at,
-                                                    ">" or "more than"                 => age >  af,
-                                                    ">=" or "≥"                  => age >= af,
-                                                    _                                  => (af == 0 || age >= af) && (at == 0 || age <= at)
-                                                };
-                                            }
-
-                                            var matchingAgeRows = sexRows.Where(AgeMatches).ToList();
-                                            if (!matchingAgeRows.Any())
-                                            {
-                                                matchingAgeRows = sexRows.Where(x => (x.agefrom ?? 0) == 0 && (x.ageto ?? 0) == 0).ToList();
-                                            }
-                                            if (!matchingAgeRows.Any())
-                                            {
-                                                matchingAgeRows = sexRows;
-                                            }
-                                            if (!matchingAgeRows.Any())
-                                            {
-                                                matchingAgeRows = testDnvRows;
-                                            }
-
-                                            if (matchingAgeRows.Any())
-                                            {
-                                                it.NormalValues = this.BuildOutput(matchingAgeRows, spclist, isAgeBased: true);
-                                            }
-                                            else
-                                            {
-                                                it.NormalValues = this.BuildOutput(testDnvRows, spclist, isAgeBased: false);
+                                                var now = DateTime.Now;
+                                                ageYear = now.Year - dob.Year;
+                                                if (now < dob.AddYears(ageYear)) ageYear--;
                                             }
                                         }
+
+                                        int age = ageYear > 0 ? ageYear : (ageMonth > 0 ? ageMonth : ageDay);
+                                        string agetype = ageYear > 0 ? "Yrs" : (ageMonth > 0 ? "Mths" : "Dys");
+
+                                        static string NormAgeType(string? t) =>
+                                            (t ?? "-").Trim().ToLower() switch
+                                            {
+                                                "yrs" or "yr" or "year" or "years" => "Yrs",
+                                                "mths" or "mth" or "month" or "months" => "Mths",
+                                                "dys" or "dy" or "day" or "days" => "Dys",
+                                                _ => (t ?? "-").Trim()
+                                            };
+
+                                        static string NormSex(string? s)
+                                        {
+                                            string t = (s ?? "").Trim().ToLower();
+                                            if (t == "m" || t == "male" || t == "boy" || t == "man" || t == "1") return "male";
+                                            if (t == "f" || t == "female" || t == "girl" || t == "woman" || t == "2") return "female";
+                                            if (t == "both" || t == "all" || t == "b" || t == "a" || t == "-" || t == "0" || string.IsNullOrEmpty(t)) return "both";
+                                            return t;
+                                        }
+
+                                        bool SexMatches(string? rowSex, string? patGender)
+                                        {
+                                            string rs = NormSex(rowSex);
+                                            string pg = NormSex(patGender);
+                                            if (rs == "both" || pg == "both") return true;
+                                            return rs == pg;
+                                        }
+
+                                        var sexRows = testDnvRows
+                                            .Where(x => (x.mccode == it.MCCode || x.mccode == 0 || it.MCCode == 0))
+                                            .Where(x => SexMatches(x.sex, it.Gender))
+                                            .ToList();
+
+                                        var exactGenderRows = sexRows.Where(x => !string.IsNullOrWhiteSpace(x.sex) && x.sex != "-" && x.sex != "0" && !x.sex.Equals("Both", StringComparison.OrdinalIgnoreCase) && !x.sex.Equals("All", StringComparison.OrdinalIgnoreCase)).ToList();
+                                        if (exactGenderRows.Any())
+                                        {
+                                            sexRows = exactGenderRows;
+                                        }
+
+                                        bool AgeMatches(LabResultDetailedNormalValuesModel x)
+                                        {
+                                            double af = x.agefrom ?? 0;
+                                            double at = x.ageto ?? 0;
+                                            string atType = NormAgeType(x.agetotype);
+                                            string rtype = (x.agerangetype ?? "-").Trim();
+
+                                            if (af == 0 && at == 0) return false;
+
+                                            if (atType != "-" && !string.Equals(atType, agetype, StringComparison.OrdinalIgnoreCase)) return false;
+
+                                            return rtype.ToLower() switch
+                                            {
+                                                "-" or "between" or "range" or "" => age >= af && age <= at,
+                                                "<" or "less than" => age < at,
+                                                "upto" or "<=" or "≤" => age <= at,
+                                                ">" or "more than" => age > af,
+                                                ">=" or "≥" => age >= af,
+                                                _ => (af == 0 || age >= af) && (at == 0 || age <= at)
+                                            };
+                                        }
+
+                                        // ✅ FIX: fallback chain now matches LIMS_Backend exactly —
+                                        // age-matched rows within the sex group, then generic (0/0)
+                                        // rows within the sex group, then all rows in the sex group.
+                                        // It NEVER falls back to rows for a different sex.
+                                        var matchingAgeRows = sexRows.Where(AgeMatches).ToList();
+                                        if (!matchingAgeRows.Any())
+                                        {
+                                            matchingAgeRows = sexRows.Where(x => (x.agefrom ?? 0) == 0 && (x.ageto ?? 0) == 0).ToList();
+                                        }
+                                        if (!matchingAgeRows.Any())
+                                        {
+                                            matchingAgeRows = sexRows;
+                                        }
+
+                                        if (matchingAgeRows.Any())
+                                        {
+                                            it.NormalValues = this.BuildOutput(matchingAgeRows, spclist, isAgeBased: true);
+                                        }
+                                        // NOTE: no further fallback to testDnvRows here. If sexRows
+                                        // is empty (no row matches the patient's sex at all), leave
+                                        // NormalValues as-is rather than showing a range that
+                                        // belongs to a different sex.
                                     }
-                                }
-                            }
-                            else if (lrp1.resultvaluetype == "Text" || lrp1.resultvaluetype == "TN" || lrp1.resultvaluetype == "Text & Number")
-                            {
-                                var tnvMatch = lrt
-                                    .Where(x => x.testresultid == it.TestResultID
-                                             && (x.mccode == it.MCCode || x.mccode == 0 || it.MCCode == 0)
-                                             && (string.IsNullOrWhiteSpace(x.sex) || x.sex == "-"
-                                                 || string.Equals(x.sex, it.Gender, StringComparison.OrdinalIgnoreCase)
-                                                 || string.Equals(x.sex, "Both", StringComparison.OrdinalIgnoreCase)
-                                                 || string.Equals(x.sex, "All", StringComparison.OrdinalIgnoreCase)))
-                                    .OrderByDescending(x => string.Equals(x.sex, it.Gender, StringComparison.OrdinalIgnoreCase))
-                                    .ThenByDescending(x => x.mccode == it.MCCode)
-                                    .Select(x => x.normalvalue)
-                                    .FirstOrDefault() ?? "";
-
-                                it.NormalValues = tnvMatch.Replace("\r\n", "<br/>").Replace("\n", "<br/>");
-                            }
-
-                            // ✅ ConclusionForFixedText fallback: if set on lab properties, include/append it
-                            var fxtRaw = lrp1?.conclusionforfixedtext?.Trim();
-                            if (!string.IsNullOrWhiteSpace(fxtRaw) && fxtRaw != "0")
-                            {
-                                var fxtVal = fxtRaw.Replace("\r\n", "<br/>").Replace("\n", "<br/>");
-                                if (string.IsNullOrWhiteSpace(it.NormalValues))
-                                {
-                                    it.NormalValues = fxtVal;
-                                }
-                                else if (!it.NormalValues.Contains(fxtRaw))
-                                {
-                                    it.NormalValues = it.NormalValues + "<br/>" + fxtVal;
                                 }
                             }
                         }
+                        else if (lrp1.resultvaluetype == "Text" || lrp1.resultvaluetype == "TN" || lrp1.resultvaluetype == "Text & Number")
+                        {
+                            var tnvMatch = lrt
+                                .Where(x => x.testresultid == it.TestResultID
+                                         && (x.mccode == it.MCCode || x.mccode == 0 || it.MCCode == 0)
+                                         && (string.IsNullOrWhiteSpace(x.sex) || x.sex == "-"
+                                             || string.Equals(x.sex, it.Gender, StringComparison.OrdinalIgnoreCase)
+                                             || string.Equals(x.sex, "Both", StringComparison.OrdinalIgnoreCase)
+                                             || string.Equals(x.sex, "All", StringComparison.OrdinalIgnoreCase)))
+                                .OrderByDescending(x => string.Equals(x.sex, it.Gender, StringComparison.OrdinalIgnoreCase))
+                                .ThenByDescending(x => x.mccode == it.MCCode)
+                                .Select(x => x.normalvalue)
+                                .FirstOrDefault() ?? "";
+
+                            it.NormalValues = tnvMatch.Replace("\r\n", "<br/>").Replace("\n", "<br/>");
+                        }
+
+                        // ✅ ConclusionForFixedText fallback: if set on lab properties, include/append it
+                        var fxtRaw = lrp1?.conclusionforfixedtext?.Trim();
+                        if (!string.IsNullOrWhiteSpace(fxtRaw) && fxtRaw != "0")
+                        {
+                            var fxtVal = fxtRaw.Replace("\r\n", "<br/>").Replace("\n", "<br/>");
+                            if (string.IsNullOrWhiteSpace(it.NormalValues))
+                            {
+                                it.NormalValues = fxtVal;
+                            }
+                            else if (!it.NormalValues.Contains(fxtRaw))
+                            {
+                                it.NormalValues = it.NormalValues + "<br/>" + fxtVal;
+                            }
+                        }
                     }
-                    return dyn;
+                }
+                return dyn;
             }
             catch (Exception ex)
             {
@@ -3561,39 +3568,13 @@ WHERE lrd.requestguid::text = @requestguid::text
             }
         }
 
-        public async Task<string> RefRange(string type, Double fr, Double tr, string fixedvalue)
-        {
-            if (fr == 0 && tr == 0 && string.IsNullOrWhiteSpace(fixedvalue)) return string.Empty;
-            string refrange = "";
-            string t = (type ?? "").Trim();
-            if (string.IsNullOrWhiteSpace(t) || t == "-" || t.Equals("Between", StringComparison.OrdinalIgnoreCase))
-            {
-                refrange = (fr == tr || tr == 0) ? $"{fr}" : $"{fr} - {tr}";
-            }
-            else
-            {
-                double val = fr > 0 ? fr : tr;
-                refrange = $"{t} {val}";
-            }
-            if (!string.IsNullOrEmpty(fixedvalue)) refrange += (fixedvalue.Length > 0 ? (": " + fixedvalue) : "");
-            return refrange;
-        }
 
-        private static string FormatDetailedRangeValue(string? rangetype, double? rangefromVal, double? rangetoVal)
-        {
-            double rangefrom = rangefromVal ?? 0;
-            double rangeto = rangetoVal ?? 0;
-            string op = (rangetype ?? "").Trim();
-            if (string.IsNullOrWhiteSpace(op) || op == "-" || op.Equals("Between", StringComparison.OrdinalIgnoreCase) || op.Equals("Normal", StringComparison.OrdinalIgnoreCase))
-            {
-                if (rangefrom > 0 && rangeto > 0) return rangefrom == rangeto ? $"{rangefrom}" : $"{rangefrom} - {rangeto}";
-                if (rangefrom > 0 && rangeto == 0) return $"{rangefrom}";
-                if (rangefrom == 0 && rangeto > 0) return $"0 - {rangeto}";
-                return "";
-            }
-            double val = rangefrom > 0 ? rangefrom : rangeto;
-            return $"{op} {val}";
-        }
+        // =====================================================================
+        // FULL METHOD 2: BuildOutput  (drop-in replacement)
+        // Fix applied: the non-age-based branch now groups by sex with a header
+        // per gender (collapsing a single-value group to one inline line),
+        // matching LIMS_Backend's rendering instead of a flat per-row list.
+        // =====================================================================
 
         public string BuildOutput(List<LabResultDetailedNormalValuesModel> data, IList<dynamic> fxd, bool isAgeBased = false)
         {
@@ -3690,31 +3671,59 @@ WHERE lrd.requestguid::text = @requestguid::text
                     return sb.ToString().Trim();
                 }
 
-                foreach (var item in data.OrderBy(x => x.sno))
+                // Group strictly by Sex / Gender as stored in DB (when showagedbased is false),
+                // matching LIMS_Backend's grouped-with-header rendering.
+                var sexGroups = data
+                    .OrderBy(x => x.sno)
+                    .ThenBy(x => x.agefrom)
+                    .ThenBy(x => x.ageto)
+                    .GroupBy(x => string.IsNullOrWhiteSpace(x.sex) ? "-" : x.sex.Trim());
+
+                foreach (var sexGroup in sexGroups)
                 {
-                    string rangeValue = FormatDetailedRangeValue(item.rangetype, item.rangefrom, item.rangeto);
-                    string genderStr = FormatGenderName(item.sex);
-                    string ageStr = FormatAgeString(item);
-                    string specialName = GetSpecialName(item);
+                    string rawGender = sexGroup.Key;
+                    string genderName = FormatGenderName(rawGender);
+                    bool showGenderHeader = !string.IsNullOrWhiteSpace(genderName) && genderName != "-";
 
-                    var prefixParts = new List<string>();
-                    if (!string.IsNullOrWhiteSpace(genderStr)) prefixParts.Add(genderStr);
-                    if (!string.IsNullOrWhiteSpace(ageStr)) prefixParts.Add(ageStr);
-                    if (!string.IsNullOrWhiteSpace(specialName) && !prefixParts.Contains(specialName)) prefixParts.Add(specialName);
+                    var groupItems = sexGroup.ToList();
 
-                    string prefix = string.Join(" ", prefixParts).Trim();
-
-                    if (!string.IsNullOrWhiteSpace(prefix) && !string.IsNullOrWhiteSpace(rangeValue))
+                    // Build the formatted text for each row in this gender group first
+                    var lines = new List<string>();
+                    foreach (var item in groupItems)
                     {
-                        sb.AppendLine($"{prefix} : {rangeValue}");
+                        string specialName = GetSpecialName(item);
+                        string rangeValue = FormatDetailedRangeValue(item.rangetype, item.rangefrom, item.rangeto);
+                        string ageStr = FormatAgeString(item);
+
+                        string line;
+                        if (!string.IsNullOrWhiteSpace(ageStr) && !string.IsNullOrWhiteSpace(specialName))
+                            line = $"{ageStr} : {rangeValue} : {specialName}";
+                        else if (!string.IsNullOrWhiteSpace(ageStr))
+                            line = $"{ageStr} : {rangeValue}";
+                        else if (!string.IsNullOrWhiteSpace(specialName))
+                            line = $"{rangeValue} : {specialName}";
+                        else
+                            line = rangeValue;
+
+                        lines.Add(line);
                     }
-                    else if (!string.IsNullOrWhiteSpace(rangeValue))
+
+                    // ✅ Single value for this gender → inline it: "Male : 13 - 14"
+                    // ✅ Multiple values → keep header-then-stacked-lines format
+                    if (showGenderHeader && lines.Count == 1)
                     {
-                        sb.AppendLine(rangeValue);
+                        sb.AppendLine($"{genderName} : {lines[0]}");
                     }
-                    else if (!string.IsNullOrWhiteSpace(prefix))
+                    else
                     {
-                        sb.AppendLine(prefix);
+                        if (showGenderHeader)
+                        {
+                            sb.AppendLine(genderName);
+                        }
+                        foreach (var line in lines)
+                        {
+                            sb.AppendLine(line);
+                        }
                     }
                 }
 
@@ -3724,6 +3733,47 @@ WHERE lrd.requestguid::text = @requestguid::text
             {
                 return string.Empty;
             }
+        }
+
+
+        // =====================================================================
+        // UNCHANGED: RefRange and FormatDetailedRangeValue
+        // Already byte-for-byte equivalent to LIMS_Backend — kept as-is, listed
+        // here only for completeness so the whole pipeline is in one place.
+        // =====================================================================
+
+        public async Task<string> RefRange(string type, Double fr, Double tr, string fixedvalue)
+        {
+            if (fr == 0 && tr == 0 && string.IsNullOrWhiteSpace(fixedvalue)) return string.Empty;
+            string refrange = "";
+            string t = (type ?? "").Trim();
+            if (string.IsNullOrWhiteSpace(t) || t == "-" || t.Equals("Between", StringComparison.OrdinalIgnoreCase))
+            {
+                refrange = (fr == tr || tr == 0) ? $"{fr}" : $"{fr} - {tr}";
+            }
+            else
+            {
+                double val = fr > 0 ? fr : tr;
+                refrange = $"{t} {val}";
+            }
+            if (!string.IsNullOrEmpty(fixedvalue)) refrange += (fixedvalue.Length > 0 ? (": " + fixedvalue) : "");
+            return refrange;
+        }
+
+        private static string FormatDetailedRangeValue(string? rangetype, double? rangefromVal, double? rangetoVal)
+        {
+            double rangefrom = rangefromVal ?? 0;
+            double rangeto = rangetoVal ?? 0;
+            string op = (rangetype ?? "").Trim();
+            if (string.IsNullOrWhiteSpace(op) || op == "-" || op.Equals("Between", StringComparison.OrdinalIgnoreCase) || op.Equals("Normal", StringComparison.OrdinalIgnoreCase))
+            {
+                if (rangefrom > 0 && rangeto > 0) return rangefrom == rangeto ? $"{rangefrom}" : $"{rangefrom} - {rangeto}";
+                if (rangefrom > 0 && rangeto == 0) return $"{rangefrom}";
+                if (rangefrom == 0 && rangeto > 0) return $"0 - {rangeto}";
+                return "";
+            }
+            double val = rangefrom > 0 ? rangefrom : rangeto;
+            return $"{op} {val}";
         }
 
         public async Task<string?> PayModeStatementPDF(DateTime fromdate, DateTime todate, string tenant_code)

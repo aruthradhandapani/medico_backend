@@ -74,6 +74,10 @@ public class LabSettingModel
         public bool? show_report_header_footer_image { get; set; } = true;
         public bool? show_culture_header_footer_image { get; set; } = true;
         public bool? show_receipt_header_footer_image { get; set; } = true;
+        public bool? show_dischargesummary_header_footer_image { get; set; } = true;
+        public bool? show_casesheet_header_footer_image { get; set; } = true;
+        public bool? show_op_casesheet_header_footer_image { get; set; } = true;
+        public bool? show_ip_casesheet_header_footer_image { get; set; } = true;
 
         // Signature Mode Selection (True = Fixed LabSettings Signatures, False = Dynamic Test Result Saved & Authorized Users)
         public bool? use_labsetting_signatures { get; set; } = true;
@@ -207,6 +211,11 @@ public class LabSettingModel
 
         // Critical Value Arrow Indication on Routine Report
         public bool? critical_value_indication { get; set; } = true;
+
+        // Routine Report layout toggles
+        public bool? show_name_age_single_row { get; set; } = false;
+        public bool? result_row_align_top { get; set; } = true;
+
         // ✅ NEW — general HMS toggles, moved here instead of a separate settings table
         public bool? is_slot_required { get; set; } = true;   // false = walk-in registration without picking a slot
         public bool? op_age_wise_split { get; set; } = false; // true = doctor's OP charge is split by age slab
