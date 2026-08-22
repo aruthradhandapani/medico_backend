@@ -1,8 +1,9 @@
 using Dapper.Contrib.Extensions;
+using System.ComponentModel.DataAnnotations.Schema;
 
 public class LabSettingModel
 {
-    [Table("lab_settings")]
+    [Dapper.Contrib.Extensions.Table("lab_settings")]
     public class lab_settings
     {
 
